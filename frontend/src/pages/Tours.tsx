@@ -1,10 +1,11 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Search } from 'lucide-react'
+import { ChevronDown, Plus, Search } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { CodeChip, EmptyState, Modal, PhaseLabel } from '../components/tour'
 import { useGuardedClose, useUnsaved } from '../components/overlay'
 import { QuickClientDialog } from '../components/QuickAdd'
+import { RoomsPicker, roomsText, suggestRooms } from '../components/RoomsPicker'
 import { Button, ButtonLink, ErrorText, Field, Input, Select } from '../components/ui'
 import { SetupNudge, useSetup } from '../components/GetStarted'
 import { api, atLeast, TOUR_STATUSES, type Tour, type TourStatus, type TourSummary, can } from '../lib/api'
@@ -139,6 +140,8 @@ function NewTourModal({ onClose }: { onClose: () => void }) {
   })
   const [error, setError] = useState<unknown>(null)
   const [busy, setBusy] = useState(false)
+  const [more, setMore] = useState(false)               // code, status, price: rarely needed when starting
+  const [roomsTouched, setRoomsTouched] = useState(false)   // until then the rooms follow the group size
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value })
   // The only route is the obvious choice — also when the routes arrive after the form opened.
   const [routeTouched, setRouteTouched] = useState(false)
@@ -201,9 +204,6 @@ function NewTourModal({ onClose }: { onClose: () => void }) {
             </Field>
           )}
         </div>
-        <Field label={t('tourCode')} hint={t('codeAuto')}>
-          <Input value={form.code} onChange={set('code')} className="font-mono uppercase" />
-        </Field>
         <Field label={t('client')}>
           <Select value={form.client_id} onChange={(e) => (e.target.value === '__new__' ? setAddingClient(true) : setForm({ ...form, client_id: e.target.value }))}>
             <option value="">{t('noClientYet')}</option>
@@ -211,18 +211,35 @@ function NewTourModal({ onClose }: { onClose: () => void }) {
             <option value="__new__">{t('addNewOption')}</option>
           </Select>
         </Field>
-        <div className="grid grid-cols-3 gap-3">
+        <div className="flex flex-wrap items-end gap-4">
           <Field label={t('pax')} hint={form.pax ? undefined : t('paxLater')}>
-            <Input type="number" min={0} value={form.pax} onChange={set('pax')} placeholder={t('paxUnknownPh')} />
+            <Input type="number" min={0} value={form.pax} className="w-28" placeholder={t('paxUnknownPh')}
+              onChange={(e) => {
+                const pax = e.target.value
+                // The usual rooms for the group (20 → 10 double), until the rooms are set by hand.
+                setForm((f) => ({ ...f, pax, rooms: roomsTouched ? f.rooms : roomsText(suggestRooms(Number(pax) || 0)) }))
+              }} />
           </Field>
-          <div className="col-span-2"><Field label={t('rooms')}><Input value={form.rooms} onChange={set('rooms')} placeholder={t('roomsPh')} /></Field></div>
           {!!form.pax && (
-            <label className="col-span-3 -mt-1 flex items-center gap-2 text-sm text-slate-600">
-              <input type="checkbox" checked={form.pax_estimated} onChange={(e) => setForm({ ...form, pax_estimated: e.target.checked })} />
+            <label className="flex h-10 items-center gap-2 text-sm text-slate-600">
+              <input type="checkbox" checked={form.pax_estimated} onChange={(e) => setForm({ ...form, pax_estimated: e.target.checked })} className="h-4 w-4 accent-brand-600" />
               {t('paxApprox')}
             </label>
           )}
         </div>
+        <div>
+          <p className="mb-1.5 text-sm font-medium text-slate-700">{t('rooms')}</p>
+          <RoomsPicker value={form.rooms} pax={Number(form.pax) || 0} onChange={(rooms) => { setRoomsTouched(true); setForm((f) => ({ ...f, rooms })) }} />
+        </div>
+        <button type="button" onClick={() => setMore(!more)} aria-expanded={more}
+          className="inline-flex items-center gap-1 rounded text-sm font-medium text-brand-700 hover:underline">
+          <ChevronDown size={16} className={cn('transition-transform', more && 'rotate-180')} aria-hidden />{t('moreOptions')}
+          {!more && <span className="font-normal text-slate-500">· {t('newTourMoreHint')}</span>}
+        </button>
+        {more && <>
+        <Field label={t('tourCode')} hint={t('codeAuto')}>
+          <Input value={form.code} onChange={set('code')} className="font-mono uppercase" />
+        </Field>
         {can(ws, 'operations', 'finance', 'sales') && (
           <Field label={t('pricePerPerson')} hint={t('tourPriceHelp')}>
             <div className="flex gap-2">
@@ -238,6 +255,7 @@ function NewTourModal({ onClose }: { onClose: () => void }) {
             {TOUR_STATUSES.filter((s) => s !== 'cancelled').map((s) => <option key={s} value={s}>{t(`status_${s}`)}</option>)}
           </Select>
         </Field>
+        </>}
         <ErrorText error={error} />
         <div className="flex justify-end gap-3">
           <Button type="button" variant="secondary" onClick={guarded}>{t('cancel')}</Button>
