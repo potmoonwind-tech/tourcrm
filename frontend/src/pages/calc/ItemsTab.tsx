@@ -51,6 +51,8 @@ export function ItemsTab({ doc, debounced, edit }: { doc: QuoteDoc; debounced: Q
   const keys = [...QUOTE_CATEGORIES, ...K.kinds.map((k) => k.id)]
   const groups = keys.map((cat) => ({ cat, rows: doc.items.map((it, i) => ({ it, i })).filter((r) => K.keyOf(r.it) === cat) }))
   const total = calc?.reduce((s, c) => s + c.amount, 0) ?? 0
+  // The transport plan's lines come after the calculation's own: in the total, so shown too.
+  const plan = calc?.slice(doc.items.length) ?? []
   const add = (cat: string) => {
     const own = K.byId[cat]
     edit((d) => { d.items.push(own ? kindLine(own, newItem(d.currency, own.base)) : { ...newItem(d.currency, cat as QuoteCategory), name: K.nameOf(cat) }) })
@@ -85,6 +87,19 @@ export function ItemsTab({ doc, debounced, edit }: { doc: QuoteDoc; debounced: Q
           </Card>
         )
       })}
+
+      {plan.length > 0 && (
+        <Card>
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-2.5">
+            <h3 className="flex items-center gap-2 font-semibold"><span className={cn('h-2.5 w-2.5 rounded-sm', K.colorOf('transport'))} />{t('transportPlanLines')}</h3>
+            <span className="text-sm text-slate-500">{t('subtotal')} <b className="tabular-nums text-slate-900">{money(plan.reduce((s, c) => s + c.amount, 0))}</b></span>
+          </div>
+          <ul className="divide-y divide-slate-200 text-sm">
+            {plan.map((c, k) => <li key={k} className="flex justify-between gap-3 px-4 py-2"><span>{c.name}</span><span className="tabular-nums">{money(c.amount)}</span></li>)}
+          </ul>
+          <p className="px-4 pb-3 text-xs text-slate-500">{t('transportPlanHint')}</p>
+        </Card>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm text-slate-500">{t('addItem')}:</span>

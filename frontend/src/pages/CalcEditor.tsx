@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, askText, Drawer, Menu, toast } from '../components/overlay'
-import { AlertTriangle, ArrowDown, ArrowUp, Calculator, Check as CheckIcon, ChevronDown, Copy, Download, FileSpreadsheet, History, Layers, Plus, Printer, Redo2, RefreshCw, Save, Settings2, Sparkles, Trash2, Undo2, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, Calculator, Check as CheckIcon, ChevronDown, CloudOff, Copy, Download, Eye, FileSpreadsheet, History, Layers, Loader2, Plus, Printer, Redo2, RefreshCw, Settings2, Sparkles, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Modal, VendorSelect } from '../components/tour'
 import { NbgButton } from '../components/money'
 import { Button, Card, ErrorText, Field, FullPageSpinner, Input, Select, Spinner, IconButton, Chip, Textarea } from '../components/ui'
 import {
-  api, type PriceListData, type QuoteDoc, type QuoteNight, type QuoteOut, type QuoteResult, type QuoteStatus, type Tour, type StaffStay,
+  api, can, type PriceListData, type QuoteDoc, type QuoteNight, type QuoteOut, type QuoteResult, type QuoteStatus, type Tour, type StaffStay,
 } from '../lib/api'
 import { useClients, useSeries, useVendors, wsPath } from '../lib/data'
 import { today } from '../lib/dates'
@@ -16,7 +16,7 @@ import { useWorkspace } from '../lib/session'
 import { cn, money } from '../lib/utils'
 import { ExplainPrice } from './calc/ExplainPrice'
 import { HistoryModal } from './calc/HistoryModal'
-import { newId } from './calc/ItemsTab'
+import { ItemsTab, newId } from './calc/ItemsTab'
 import { BuildTab, PriceStrip, switchCurrency } from './calc/BuildTab'
 import { ScenariosTab } from './calc/ScenariosTab'
 import { FillFromRoute, UpdatePrices } from './calc/RouteTools'
@@ -34,12 +34,11 @@ import { CURRENCIES } from './Onboarding'
  * list for the client, the calculation file for the team). The calculation's details (name, route, client,
  * dates, currency, rates) open from the header; "Use this price" turns it into tours and departures.
  */
-type Tab = 'build' | 'compare' | 'send'
-type BuildView = 'lines' | 'hotels'
-const TABS: [Tab, TKey][] = [['build', 'calcBuild'], ['compare', 'calcCompare'], ['send', 'calcSend']]
+type Tab = 'build' | 'lines' | 'hotels' | 'compare' | 'send'
+const TABS: [Tab, TKey][] = [['build', 'calcBuild'], ['lines', 'calcItems'], ['hotels', 'calcHotels'], ['compare', 'calcCompare'], ['send', 'calcSend']]
 // Links saved before (bookmarks, other pages) still land in the right place.
-const OLD_TABS: Record<string, [Tab, BuildView?]> = {
-  settings: ['build'], hotels: ['build', 'hotels'], items: ['build', 'lines'], prices: ['compare'], scenarios: ['compare'], pricelist: ['send'],
+const OLD_TABS: Record<string, [Tab]> = {
+  settings: ['build'], items: ['lines'], prices: ['compare'], scenarios: ['compare'], pricelist: ['send'],
 }
 
 const strip = (q: QuoteOut): QuoteDoc => {
@@ -59,15 +58,21 @@ export function CalcEditorPage() {
   const [details, setDetails] = useState(rawTab === 'settings')
   useEffect(() => {
     const old = OLD_TABS[rawTab]
-    if (old) setParams((p) => { p.set('tab', old[0]); if (old[1]) p.set('view', old[1]); return p }, { replace: true })
+    if (old) setParams((p) => { p.set('tab', old[0]); return p }, { replace: true })
   }, [rawTab, setParams])
   const go = (next: { tab: Tab }) => setParams((p) => { p.set('tab', next.tab); return p }, { replace: true })
   const forTour = params.get('for_tour')   // opened from a tour ("Calculate the price")
   const url = wsPath(ws.id, `/quotes/${quoteId}`)
   const saved = useQuery({ queryKey: ['quote', ws.id, quoteId], queryFn: () => api<QuoteOut>(url) })
   const { doc, load: setDoc, edit, undo, redo, canUndo, canRedo } = useUndoDoc<QuoteDoc>()
-  useEffect(() => { if (saved.data && !doc) setDoc(strip(saved.data)) }, [saved.data, doc, setDoc])
-  const dirty = !!doc && !!saved.data && JSON.stringify(doc) !== JSON.stringify(strip(saved.data))
+  // What was last stored, as the editor holds it: changed since = not saved yet (saved by itself a moment later).
+  const [savedJson, setSavedJson] = useState<string | null>(null)
+  useEffect(() => {
+    if (saved.data && !doc) { const d = strip(saved.data); setSavedJson(JSON.stringify(d)); setDoc(d) }
+  }, [saved.data, doc, setDoc])
+  const docJson = doc ? JSON.stringify(doc) : ''
+  const dirty = !!doc && savedJson !== null && docJson !== savedJson
+  const canSave = can(ws, 'operations', 'sales')
 
   // Live prices while editing; nothing is stored until Save.
   const debounced = useDebounced(doc)
@@ -76,7 +81,6 @@ export function CalcEditorPage() {
     queryFn: () => api<QuoteResult>(wsPath(ws.id, '/quotes/preview'), { method: 'POST', body: debounced }),
     placeholderData: (prev) => prev,
   })
-  const [note, setNote] = useState('')
   const [history, setHistory] = useState(false)
   const [repricing, setRepricing] = useState(false)
   const open = saved.data && ['draft', 'sent'].includes(saved.data.status)
@@ -94,27 +98,46 @@ export function CalcEditorPage() {
   // After a save, restore or applied scenario: the server's state becomes the editor's.
   const replaced = (q: QuoteOut) => {
     qc.setQueryData(['quote', ws.id, quoteId], q)
+    setSavedJson(JSON.stringify(strip(q)))
     setDoc(strip(q))
     qc.invalidateQueries({ queryKey: ['quotes', ws.id] })
     qc.invalidateQueries({ queryKey: ['quoteVersions', ws.id, quoteId] })
     qc.invalidateQueries({ queryKey: ['compare', ws.id, quoteId] })
     qc.invalidateQueries({ queryKey: ['scenarios', ws.id, quoteId] })
   }
+  // Saved by itself a moment after the last change (the server keeps one version per sitting); Ctrl+S saves
+  // at once as a version of its own. The editor keeps what's on screen: typing on while it saves loses nothing.
   const save = useMutation({
-    mutationFn: () => api<QuoteOut>(`${url}?${new URLSearchParams({ note })}`, { method: 'PUT', body: doc }),
-    onSuccess: (q) => { replaced(q); setNote('') },
+    mutationFn: ({ body, auto }: { body: QuoteDoc; auto: boolean }) => api<QuoteOut>(`${url}${auto ? '?autosave=true' : ''}`, { method: 'PUT', body }),
+    onSuccess: (q, { body }) => {
+      setSavedJson(JSON.stringify(body))
+      qc.setQueryData(['quote', ws.id, quoteId], q)
+      qc.invalidateQueries({ queryKey: ['quotes', ws.id] })
+      qc.invalidateQueries({ queryKey: ['quoteVersions', ws.id, quoteId] })
+      qc.invalidateQueries({ queryKey: ['compare', ws.id, quoteId] })
+    },
   })
+  const failed = save.isError && !!save.variables && JSON.stringify(save.variables.body) === docJson
+  useEffect(() => {
+    if (!dirty || !canSave || save.isPending || failed || !doc) return
+    const h = setTimeout(() => save.mutate({ body: doc, auto: true }), 1200)
+    return () => clearTimeout(h)
+  }, [docJson, dirty, canSave, save.isPending, failed])   // eslint-disable-line react-hooks/exhaustive-deps
   const del = useMutation({
     mutationFn: () => api(url, { method: 'DELETE' }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['quotes', ws.id] }); navigate(`/w/${ws.id}/calculations`) },
   })
   const copy = useMutation({
-    mutationFn: () => api<QuoteOut>(wsPath(ws.id, '/quotes'), { method: 'POST', body: { copy_of: quoteId } }),
+    // The copy starts from what's on screen: the last few changes are saved first.
+    mutationFn: async () => {
+      if (dirty && doc) await api<QuoteOut>(url, { method: 'PUT', body: doc })
+      return api<QuoteOut>(wsPath(ws.id, '/quotes'), { method: 'POST', body: { copy_of: quoteId } })
+    },
     onSuccess: (q) => { setDoc(null); navigate(`/w/${ws.id}/calculations/${q.id}`) },
   })
   useLeaveGuard(dirty, t('leaveUnsaved'), t('leaveUnsavedCalc'))
   // Ctrl+Z / Ctrl+Shift+Z (Ctrl+Y) undo and redo the calculation - text boxes keep their own; Ctrl+S saves.
-  const keys = { undo, redo, save: () => { if (dirty && !save.isPending) save.mutate() } }
+  const keys = { undo, redo, save: () => { if (dirty && doc && canSave && !save.isPending) save.mutate({ body: doc, auto: false }) } }
   const keysRef = useRef(keys)
   useEffect(() => { keysRef.current = keys })
   useEffect(() => {
@@ -141,7 +164,6 @@ export function CalcEditorPage() {
           {doc.name}<QuoteStatusPill status={doc.status} />
         </span>}
         action={<div className="flex flex-wrap items-center gap-2">
-          {dirty && <Input value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('saveNote')} maxLength={300} className="w-56" />}
           <span className="flex items-center">
             <IconButton size="lg" label={`${t('undo')} (Ctrl+Z)`} disabled={!canUndo} onClick={undo}><Undo2 size={18} /></IconButton>
             <IconButton size="lg" label={`${t('redo')} (Ctrl+Shift+Z)`} disabled={!canRedo} onClick={redo}><Redo2 size={18} /></IconButton>
@@ -155,7 +177,8 @@ export function CalcEditorPage() {
             { label: t('delete'), icon: <Trash2 size={16} />, danger: true,
               onClick: () => void ask({ title: t('confirmDelete'), danger: true, confirmLabel: t('delete') }).then((ok) => ok && del.mutate()) },
           ]} />
-          <Button disabled={!dirty || save.isPending} onClick={() => save.mutate()} title="Ctrl+S"><Save size={16} />{t('save')}</Button>
+          <SaveState state={!canSave ? 'readonly' : failed ? 'failed' : dirty || save.isPending ? 'saving' : 'saved'}
+            onRetry={() => doc && save.mutate({ body: doc, auto: false })} />
         </div>} />
       <div className="space-y-4 p-4 md:p-8">
         <ErrorText error={save.error} />
@@ -189,14 +212,16 @@ export function CalcEditorPage() {
               <button type="button" role="tab" aria-selected={tab === id} key={id} onClick={() => go({ tab: id })}
                 className={cn('shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold',
                   tab === id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700')}>
-                {t(label)}
+                {t(label)}{id === 'lines' && ` · ${doc.items.length}`}{id === 'hotels' && ` · ${doc.nights.length}`}
               </button>
             ))}
           </nav>
         </div>
         <PriceStrip doc={doc} result={result} saved={saved.data?.result} dirty={dirty} wideHidden={tab === 'build'} />
         <UndoContext.Provider value={undo}>
-        {tab === 'build' && <BuildTab doc={doc} debounced={debounced ?? doc} result={result} edit={edit} hotels={<HotelsTab doc={doc} edit={edit} />} />}
+        {tab === 'build' && <BuildTab doc={doc} debounced={debounced ?? doc} result={result} edit={edit} />}
+        {tab === 'lines' && <ItemsTab doc={doc} debounced={debounced ?? doc} edit={edit} />}
+        {tab === 'hotels' && <HotelsTab doc={doc} edit={edit} />}
         {tab === 'compare' && (
           <div className="space-y-8">
             <PricesTab doc={doc} result={result} />
@@ -225,6 +250,23 @@ export function CalcEditorPage() {
 }
 
 type EditProps = { doc: QuoteDoc; edit: (fn: (d: QuoteDoc) => void) => void }
+
+/** Where the saving is, in the header's corner: saving…, saved, not saved (try again), or view only. */
+function SaveState({ state, onRetry }: { state: 'saving' | 'saved' | 'failed' | 'readonly'; onRetry: () => void }) {
+  const { t } = useI18n()
+  return (
+    <span aria-live="polite" title={state === 'readonly' ? undefined : t('autosaveTip')}
+      className={cn('inline-flex h-10 items-center gap-1.5 px-2 text-sm', state === 'failed' ? 'text-red-700' : 'text-slate-500')}>
+      {state === 'saving' && <><Loader2 size={16} className="animate-spin" aria-hidden />{t('autosaveSaving')}</>}
+      {state === 'saved' && <><CheckIcon size={16} className="text-emerald-600" aria-hidden />{t('autosaveSaved')}</>}
+      {state === 'readonly' && <><Eye size={16} aria-hidden />{t('autosaveViewOnly')}</>}
+      {state === 'failed' && <>
+        <CloudOff size={16} aria-hidden />{t('autosaveFailed')}
+        <Button size="sm" variant="secondary" onClick={onRetry}>{t('autosaveRetry')}</Button>
+      </>}
+    </span>
+  )
+}
 
 // --- details --------------------------------------------------------------------------
 

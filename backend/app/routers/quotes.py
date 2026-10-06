@@ -8,7 +8,7 @@ import io
 import uuid
 import re
 from types import SimpleNamespace
-from datetime import date, timedelta
+from datetime import date, timedelta, timezone
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -22,7 +22,7 @@ from .. import finance, route_build, schedule
 from ..db import get_db
 from ..xlsx_safe import defuse
 from ..deps import WorkspaceCtx, require_jobs, require_role
-from ..models import Client, Invoice, InvoiceLine, Quote, QuoteScenario, QuoteVersion, Series, Service, Tour, Vendor
+from ..models import utcnow, Client, Invoice, InvoiceLine, Quote, QuoteScenario, QuoteVersion, Series, Service, Tour, Vendor
 from ..quote_diff import apply_patch, diff_docs, price_impact
 from ..quote_engine import breakdown, check_formula, compute, in_season, people_for, price_range, season_on
 from ..quote_presets import PRESETS, PRICE_LIST_LABELS
@@ -72,14 +72,40 @@ def _latest_version(db: Session, q: Quote) -> int:
     return db.scalar(select(func.max(QuoteVersion.number)).where(QuoteVersion.quote_id == q.id)) or 0
 
 
-def save_doc(db: Session, q: Quote, body: QuoteIn, user_id: str | None, note: str = "") -> bool:
-    """Store a new state of the calculation and, if anything changed, a version for it."""
+AUTOSAVE_WINDOW = timedelta(minutes=10)
+
+
+def _last_version(db: Session, q: Quote) -> QuoteVersion | None:
+    return db.scalar(select(QuoteVersion).where(QuoteVersion.quote_id == q.id).order_by(QuoteVersion.number.desc()).limit(1))
+
+
+def save_doc(db: Session, q: Quote, body: QuoteIn, user_id: str | None, note: str = "", autosave: bool = False) -> bool:
+    """Store a new state of the calculation and, if anything changed, a version for it.
+
+    Saved by itself while someone edits (autosave): the changes of one sitting go into one version - the
+    same person's unnamed version from the last 10 minutes is brought up to date instead of adding one per
+    keystroke. A named save always keeps its own version; the first version (how it began) is never changed.
+    A named save with nothing new names the latest version."""
     changed = q.doc is None or bool(diff_docs(doc_of(q), body))
     _store(q, body)
     if changed:
         db.flush()  # q.id for a new quote
+        last = _last_version(db, q)
+        if autosave and not note and last and last.number > 1 and not last.note and last.created_by_id == user_id:
+            at = last.created_at if last.created_at.tzinfo else last.created_at.replace(tzinfo=timezone.utc)
+            if utcnow() - at < AUTOSAVE_WINDOW:
+                last.doc = q.doc
+                # Changed and then changed back in the same sitting: nothing to keep.
+                prev = db.scalar(select(QuoteVersion).where(QuoteVersion.quote_id == q.id, QuoteVersion.number == last.number - 1))
+                if prev and not diff_docs(QuoteIn.model_validate(prev.doc), body):
+                    db.delete(last)
+                return changed
         db.add(QuoteVersion(quote_id=q.id, number=_latest_version(db, q) + 1, doc=q.doc,
                             note=note[:300], created_by_id=user_id))
+    elif note:
+        last = _last_version(db, q)
+        if last and not last.note:
+            last.note = note[:300]
     return changed
 
 
@@ -292,11 +318,11 @@ def get_quote(quote_id: str, ctx: WorkspaceCtx = Depends(can_ope_sal_fin), db: S
 
 
 @router.put("/quotes/{quote_id}", response_model=QuoteOut)
-def save_quote(quote_id: str, body: QuoteIn, note: str = Query(default="", max_length=300),
+def save_quote(quote_id: str, body: QuoteIn, note: str = Query(default="", max_length=300), autosave: bool = False,
                ctx: WorkspaceCtx = Depends(can_ope_sal), db: Session = Depends(get_db)):
     q = _get(db, ctx, quote_id)
     _check_refs(db, ctx, body)
-    save_doc(db, q, body, ctx.user.id, note)
+    save_doc(db, q, body, ctx.user.id, note, autosave)
     db.commit()
     db.refresh(q)
     return _out(q, db)
@@ -820,6 +846,23 @@ def list_versions(quote_id: str, ctx: WorkspaceCtx = Depends(can_ope_sal_fin), d
                       changes=len(diff_docs(docs[i - 1], docs[i])) if i else 0)
            for i, v in enumerate(vs)]
     return list(reversed(out))  # newest first
+
+
+class VersionNote(BaseModel):
+    note: str = Field(default="", max_length=300)
+
+
+@router.patch("/quotes/{quote_id}/versions/{number}")
+def name_version(quote_id: str, number: int, body: VersionNote, ctx: WorkspaceCtx = Depends(can_ope_sal),
+                 db: Session = Depends(get_db)):
+    """Give a version a name ("Sent to the client") - or take it away."""
+    q = _get(db, ctx, quote_id)
+    v = db.scalar(select(QuoteVersion).where(QuoteVersion.quote_id == q.id, QuoteVersion.number == number))
+    if v is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No such version")
+    v.note = body.note.strip()
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/quotes/{quote_id}/versions/{number}", response_model=VersionDiff)

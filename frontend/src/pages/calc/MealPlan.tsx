@@ -60,7 +60,7 @@ export function MealsLine({ doc, edit }: { doc: QuoteDoc; edit: EditFn<QuoteDoc>
       <Utensils size={16} className="shrink-0 text-slate-500" aria-hidden />
       <span className="font-medium text-slate-800">{plan ? t('mealsFlat') : t('mealsByRestaurant')}</span>
       <span className="min-w-0 flex-1 text-slate-600">{text}</span>
-      <Button variant="tertiary" size="sm" onClick={() => setOpen(true)}>{plan ? t('changeMeals') : t('useFlatPrice')}</Button>
+      <Button variant="tertiary" size="sm" onClick={() => setOpen(true)} title={plan ? t('changeMeals') : t('useFlatPrice')}>{t('changeWord')}</Button>
       {open && <MealsDialog doc={doc} edit={edit} onClose={() => setOpen(false)} />}
     </div>
   )

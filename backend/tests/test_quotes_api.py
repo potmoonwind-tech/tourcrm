@@ -255,3 +255,37 @@ def test_history_and_scenarios_are_scoped(make_client):
     night = doc(mine)["nights"][0]["id"]
     r = b.post(f"{base_b}/quotes/{mine['id']}/scenarios", json={"name": "y", "patch": {"nights": {night: {"vendor_id": hotel_a["id"]}}}})
     assert r.status_code == 422
+
+
+def test_autosave_keeps_one_version_per_sitting_and_versions_can_be_named(make_client):
+    c, base, _ = agency(make_client)
+    q = new_quote(c, base)
+    url = f"{base}/quotes/{q['id']}"
+    d = doc(q)
+    bus = next(i for i in d["items"] if i["name"] == "Bus")
+    # The first autosave adds a version (the first one, how it began, is never changed)…
+    bus["unit_price"] = "600"
+    assert c.put(url, params={"autosave": True}, json=d).json()["version"] == 2
+    # …the next ones of the same sitting update it.
+    bus["unit_price"] = "610"
+    assert c.put(url, params={"autosave": True}, json=d).json()["version"] == 2
+    d["variables"]["armenia_meals"] = "2"
+    assert c.put(url, params={"autosave": True}, json=d).json()["version"] == 2
+    vs = c.get(f"{url}/versions").json()
+    assert vs[0]["changes"] == 2
+    assert c.get(f"{url}/versions/2").json()["changes"][0]["after"] in ("610", "2")
+    # Ctrl+S (no autosave) is a version of its own; nothing new + a note names the latest.
+    bus["unit_price"] = "620"
+    assert c.put(url, json=d).json()["version"] == 3
+    assert c.put(url, params={"note": "sent to client"}, json=d).json()["version"] == 3
+    assert c.get(f"{url}/versions").json()[0]["note"] == "sent to client"
+    # A named version is not changed by autosave.
+    bus["unit_price"] = "630"
+    assert c.put(url, params={"autosave": True}, json=d).json()["version"] == 4
+    # Any version can be (re)named.
+    assert c.patch(f"{url}/versions/2", json={"note": "first draft"}).status_code == 200
+    assert next(v for v in c.get(f"{url}/versions").json() if v["number"] == 2)["note"] == "first draft"
+    assert c.patch(f"{url}/versions/9", json={"note": "x"}).status_code == 404
+    # Changed and changed back in one sitting: the version goes away again.
+    bus["unit_price"] = "620"
+    assert c.put(url, params={"autosave": True}, json=d).json()["version"] == 3

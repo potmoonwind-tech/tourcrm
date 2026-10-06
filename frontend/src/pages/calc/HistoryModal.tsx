@@ -1,8 +1,8 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Drawer, ask } from '../../components/overlay'
 import { RotateCcw } from 'lucide-react'
 import { useState } from 'react'
-import { Button, ErrorText } from '../../components/ui'
+import { Button, ErrorText, Input } from '../../components/ui'
 import { api, type QuoteOut, type QuoteVersion, type VersionDiff } from '../../lib/api'
 import { wsPath } from '../../lib/data'
 import { fmt } from '../../lib/dates'
@@ -60,6 +60,7 @@ export function HistoryModal({ quoteId, dirty, onRestored, onClose }: {
           ))}
         </ul>
         <div className="min-w-0 space-y-4">
+          {n !== null && <VersionName key={n} quoteId={quoteId} number={n} note={versions.data?.find((v) => v.number === n)?.note ?? ''} />}
           {diff.data && (
             <>
               <ChangeList changes={diff.data.changes} />
@@ -94,5 +95,25 @@ export function HistoryModal({ quoteId, dirty, onRestored, onClose }: {
         </div>
       </div>
     </Drawer>
+  )
+}
+
+/** A name for a version ("Sent to the client"), so it is easy to find again. */
+function VersionName({ quoteId, number, note }: { quoteId: string; number: number; note: string }) {
+  const ws = useWorkspace()!
+  const { t } = useI18n()
+  const qc = useQueryClient()
+  const [text, setText] = useState(note)
+  const name = useMutation({
+    mutationFn: () => api(wsPath(ws.id, `/quotes/${quoteId}/versions/${number}`), { method: 'PATCH', body: { note: text } }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['quoteVersions', ws.id, quoteId] }),
+  })
+  return (
+    <form className="flex flex-wrap items-center gap-2" onSubmit={(e) => { e.preventDefault(); name.mutate() }}>
+      <Input size="sm" value={text} onChange={(e) => setText(e.target.value)} maxLength={300} placeholder={t('versionNamePh')}
+        aria-label={t('versionName')} className="min-w-0 flex-1" />
+      <Button type="submit" size="sm" variant="secondary" disabled={name.isPending || text === note}>{t('versionNameSave')}</Button>
+      <ErrorText error={name.error} />
+    </form>
   )
 }

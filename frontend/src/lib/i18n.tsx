@@ -2673,6 +2673,20 @@ const en = {
   tripViewLabel: 'Show the trip as',
   tripViewDays: 'Days',
   atCalcRates: "Converted at this calculation's exchange rates (Details)",
+  changeWord: "Change",
+  autosaveSaving: "Saving…",
+  autosaveSaved: "Saved",
+  autosaveFailed: "Not saved",
+  autosaveRetry: "Try again",
+  autosaveViewOnly: "View only",
+  autosaveTip: "Changes save by themselves. Ctrl+S keeps a separate version in History.",
+  versionName: "Name of this version",
+  versionNamePh: "Name this version, e.g. Sent to the client",
+  versionNameSave: "Save name",
+  inputKeptByMeals: "Kept by the meal plan",
+  transportPlanLines: "Transport plan",
+  transportPlanHint: "Worked out from the vehicles and km - change it under Transport, in the Days view.",
+  nightsAfterLastDay: "Nights after the last day, still priced: {list}",
 }
 
 type Dict = typeof en
@@ -5342,6 +5356,20 @@ const ka: Dict = {
   tripViewLabel: 'მოგზაურობის ჩვენება',
   tripViewDays: 'დღეები',
   atCalcRates: 'გადაყვანილია ამ კალკულაციის კურსით (დეტალები)',
+  changeWord: "შეცვლა",
+  autosaveSaving: "ინახება…",
+  autosaveSaved: "შენახულია",
+  autosaveFailed: "არ შეინახა",
+  autosaveRetry: "თავიდან ცდა",
+  autosaveViewOnly: "მხოლოდ ნახვა",
+  autosaveTip: "ცვლილებები თავისით ინახება. Ctrl+S ისტორიაში ცალკე ვერსიას ინახავს.",
+  versionName: "ვერსიის სახელი",
+  versionNamePh: "ვერსიის სახელი, მაგ. კლიენტს გაეგზავნა",
+  versionNameSave: "სახელის შენახვა",
+  inputKeptByMeals: "კვების გეგმის ნაწილია",
+  transportPlanLines: "ტრანსპორტის გეგმა",
+  transportPlanHint: "გამოითვლება მანქანებით და კმ-ით - შეცვალეთ ტრანსპორტში, დღეების ხედში.",
+  nightsAfterLastDay: "ღამეები ბოლო დღის შემდეგ, მაინც ითვლება: {list}",
 }
 
 export type Lang = 'en' | 'ka'

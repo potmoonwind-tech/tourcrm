@@ -6,7 +6,7 @@
  * …with the price always in view, for any group size.
  */
 import { ArrowDown, ArrowUp, BedDouble, Bus, ChevronRight, Copy, Pencil, Plus, Ticket, Trash2, User, Users, Utensils, X } from 'lucide-react'
-import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Dialog, Drawer, Menu, toast } from '../../components/overlay'
 import { VendorSelect } from '../../components/tour'
 import { useSearchParams } from 'react-router-dom'
@@ -28,7 +28,7 @@ import { useWorkspace } from '../../lib/session'
 import { Sparkles } from 'lucide-react'
 import { cn, money } from '../../lib/utils'
 import { CURRENCIES } from '../Onboarding'
-import { ItemsTab, LineEditor, newId, newItem, useBreakdown } from './ItemsTab'
+import { LineEditor, newId, newItem, useBreakdown } from './ItemsTab'
 
 type Edit = EditFn<QuoteDoc>
 
@@ -129,15 +129,7 @@ const ROLE_DOT: Record<PersonRole, string> = { pay: 'bg-sky-600', free: 'bg-oran
 
 // --- the screen --------------------------------------------------------------------------------
 
-export type TripView = 'days' | 'lines' | 'hotels'
-
-export function BuildTab({ doc, debounced, result, edit, hotels }: {
-  doc: QuoteDoc; debounced: QuoteDoc; result?: QuoteResult; edit: Edit; hotels: ReactNode
-}) {
-  // The trip as day cards, or the same lines / hotels as a table: chosen in the trip's own header.
-  const [params, setParams] = useSearchParams()
-  const view = (['days', 'lines', 'hotels'].includes(params.get('view') ?? '') ? params.get('view') : 'days') as TripView
-  const setView = (v: TripView) => setParams((p) => { p.set('view', v); return p }, { replace: true })
+export function BuildTab({ doc, debounced, result, edit }: { doc: QuoteDoc; debounced: QuoteDoc; result?: QuoteResult; edit: Edit }) {
   const [sample, setSample] = useSample(doc)
   const n = Math.min(Math.max(sample, doc.pax_min), doc.pax_max)
   const [season, setSeason] = useState('')   // '' = the base prices
@@ -165,8 +157,7 @@ export function BuildTab({ doc, debounced, result, edit, hotels }: {
         <ToFill doc={doc} onItem={setEditing} onNight={setNight} />
         <PeopleCard doc={doc} n={n} edit={edit} />
         <TripBoard doc={doc} n={n} amounts={bd.data?.items.map((x) => x.amount)} beds={bd.data?.hotel_nights} edit={edit} value={parts.trip}
-          onItem={setEditing} onNight={setNight} vehicle={row?.vehicle} view={view} setView={setView}
-          table={view === 'lines' ? <ItemsTab doc={doc} debounced={debounced} edit={edit} /> : view === 'hotels' ? hotels : null} />
+          onItem={setEditing} onNight={setNight} vehicle={row?.vehicle} />
         <TransportCard doc={doc} n={n} result={result} breakdown={bd.data} edit={edit} value={parts.transport} />
         <RecipeCard doc={doc} edit={edit} value={parts.pricing} />
         <SellingCard doc={doc} edit={edit} />
@@ -362,10 +353,10 @@ const ADD_KINDS: { cat: QuoteCategory; perPerson: boolean; icon: ReactNode }[] =
   { cat: 'other', perPerson: false, icon: <Plus size={16} /> },
 ]
 
-function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, value, view, setView, table }: {
+function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, value }: {
   doc: QuoteDoc; n: number; amounts?: number[]; beds?: { night: number; dbl_pp: number }[]; edit: Edit; onItem: (i: number) => void; onNight: (i: number) => void; vehicle?: string; value?: string
-  view: TripView; setView: (v: TripView) => void; table: ReactNode
 }) {
+  const [, setParams] = useSearchParams()
   // The transport plan's lines come after the calculation's own (the engine adds them).
   const transportPp = doc.transport && amounts ? amounts.slice(doc.items.length).reduce((s, x) => s + x, 0) / n : 0
   const [staffTool, setStaffTool] = useState(false)
@@ -377,7 +368,8 @@ function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, valu
     onItem(doc.items.length)
   }
   const tickets = doc.items.filter((i) => i.included && i.travel).map((i) => ({ i, left: daysToTicket(i.travel) })).filter((x) => x.left !== null && x.left <= 14)
-  const staff = peopleOf(doc).filter((p) => p.role === 'staff' && p.count)
+  const names = useNames()
+  const staff = peopleOf(doc, names).filter((p) => p.role === 'staff' && p.count)
   const hasStaff = staff.length > 0 && doc.nights.length > 0
   const board = useRef<HTMLDivElement>(null)
   // A new day goes at the end of the board: scroll there so it's seen.
@@ -412,12 +404,7 @@ function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, valu
   return (
     <Section id="trip" step={2} icon={<BedDouble size={20} />} title={t('theTrip')} hint={t('perTouristAt', { n })} value={value}
       summary={t('tripSummary', { days: doc.days, nights: doc.nights.length, lines: doc.items.length })}
-      actions={<>
-        <SegmentedControl size="sm" label={t('tripViewLabel')} value={view} onChange={setView}
-          options={[['days', t('tripViewDays')], ['lines', `${t('calcItems')} · ${doc.items.length}`], ['hotels', `${t('calcHotels')} · ${doc.nights.length}`]]} />
-        {view === 'days' && <Button variant="tertiary" size="sm" onClick={addDay}><Plus size={16} />{t('addDay')}</Button>}
-      </>}>
-      {view !== 'days' ? table : <>
+      actions={<Button variant="tertiary" size="sm" onClick={addDay}><Plus size={16} />{t('addDay')}</Button>}>
       <MealsLine doc={doc} edit={edit} />
       {tickets.map(({ i, left }) => (
         <button key={i.id} type="button" onClick={() => onItem(doc.items.indexOf(i))}
@@ -428,6 +415,13 @@ function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, valu
       ))}
       {kindsOpen && <KindsDialog onClose={() => setKindsOpen(false)} />}
       {hasStaff && <StaffStayLine doc={doc} names={staff.map((p) => p.name).join(', ')} onChange={() => setStaffTool(true)} />}
+      {doc.nights.length > Math.max(doc.days - 1, 0) && (
+        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg bg-amber-50 py-1 pl-3 pr-1 text-sm text-amber-900">
+          <BedDouble size={16} className="shrink-0" aria-hidden />
+          <span className="min-w-0 flex-1">{t('nightsAfterLastDay', { list: Array.from({ length: doc.nights.length - Math.max(doc.days - 1, 0) }, (_, k) => Math.max(doc.days - 1, 0) + k + 1).join(', ') })}</span>
+          <Button variant="tertiary" size="sm" onClick={() => setParams((p) => { p.set('tab', 'hotels'); return p }, { replace: true })}>{t('changeWord')}</Button>
+        </div>
+      )}
       {staffTool && <StaffNights doc={doc} edit={edit} onClose={() => setStaffTool(false)} />}
       <div ref={board} className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-2">
         {cols.map((day) => {
@@ -485,7 +479,6 @@ function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, valu
           <Plus size={16} />{t('addDay')}
         </button>
       </div>
-      </>}
     </Section>
   )
 }
@@ -507,7 +500,7 @@ function StaffStayLine({ doc, names, onChange }: { doc: QuoteDoc; names: string;
       <span className="min-w-0 flex-1 text-slate-600">
         {[...groups].map(([k, c]) => `${k} · ${t('nNightsShort', { n: c })}`).join('  ·  ')}
       </span>
-      <Button variant="tertiary" size="sm" onClick={onChange}>{t('changeAllNights')}</Button>
+      <Button variant="tertiary" size="sm" onClick={onChange} title={t('changeAllNights')}>{t('changeWord')}</Button>
     </div>
   )
 }
@@ -515,12 +508,14 @@ function StaffStayLine({ doc, names, onChange }: { doc: QuoteDoc; names: string;
 function TripChip({ color, label, sub, onClick, muted, icon, dashed, missing }: { color: string; label: string; sub: string; onClick: () => void; muted?: boolean; icon?: ReactNode; dashed?: boolean; missing?: boolean }) {
   return (
     <button type="button" onClick={onClick}
-      className={cn('mb-1.5 flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-left text-sm hover:border-brand-400', muted && 'opacity-50', dashed && 'border-dashed border-violet-300 bg-violet-50/50',
-        missing && 'border-dashed border-amber-400 bg-amber-50/60')}>
+      className={cn('mb-1.5 flex w-full items-center gap-2 rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-left text-sm hover:border-brand-400', muted && 'opacity-50', dashed && 'border-dashed border-violet-300 bg-violet-50/50')}>
       <span className={cn('h-2.5 w-2.5 shrink-0 rounded-sm', color)} />
       {icon && <span className="text-slate-400">{icon}</span>}
-      <span className="line-clamp-2 min-w-0 flex-1 leading-snug">{label || '—'}</span>
-      <span className={cn('shrink-0 text-sm tabular-nums', missing ? 'font-medium text-amber-800' : 'text-slate-600')}>{sub}</span>
+      <span className="min-w-0 flex-1">
+        <span className="line-clamp-2 leading-snug">{label || '—'}</span>
+        {missing && <span className="block text-xs text-amber-700">{sub}</span>}
+      </span>
+      {!missing && <span className="shrink-0 text-sm tabular-nums text-slate-600">{sub}</span>}
     </button>
   )
 }
@@ -900,7 +895,17 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
   const rates = Object.entries(doc.fx).map(([c, v]) => [c, Number(v)] as const).filter(([c, r]) => r > 0 && c !== cur && !sold.has(c))
   const profit = row ? row.group_revenue - row.group_cost : 0
   const pct = row && row.group_revenue > 0 ? (profit / row.group_revenue) * 100 : 0
-  const health = profit < 0 ? 'loss' : pct < 1 ? 'thin' : 'ok'
+  // While prices are missing the profit isn't real yet: said in grey, not judged.
+  const health = missing > 0 ? 'draft' : profit < 0 ? 'loss' : pct < 1 ? 'thin' : 'ok'
+  const slider = (
+    <div>
+      <div className="flex items-center justify-between text-sm text-slate-500">
+        <span>{t('groupOf')}</span><span className="font-semibold text-slate-900">{row?.label ?? n}</span>
+      </div>
+      <input type="range" min={doc.pax_min} max={doc.pax_max} step={1} value={n} onChange={(e) => setN(Number(e.target.value))}
+        className="mt-1 w-full accent-brand-600" aria-label={t('groupOf')} aria-valuetext={row?.label} />
+    </div>
+  )
   return (
     <aside className="xl:sticky xl:top-2 xl:self-start">
       <Card className="space-y-4 p-4">
@@ -908,14 +913,6 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
           <SegmentedControl size="sm" label={t('seasons')} value={season} onChange={setSeason}
             options={[['', t('basePrices')] as [string, string], ...result!.seasons!.map((sn) => [sn.id, sn.name] as [string, string])]} />
         )}
-        {/* Slide through the group sizes and watch the price change (all sizes side by side: Compare). */}
-        <div>
-          <div className="flex items-center justify-between text-sm text-slate-500">
-            <span>{t('groupOf')}</span><span className="font-semibold text-slate-900">{row?.label ?? n}</span>
-          </div>
-          <input type="range" min={doc.pax_min} max={doc.pax_max} step={1} value={n} onChange={(e) => setN(Number(e.target.value))}
-            className="mt-1 w-full accent-brand-600" aria-label={t('groupOf')} aria-valuetext={row?.label} />
-        </div>
         {row ? <>
           <div>
             <div className="text-sm text-slate-500">{row.types?.[0] ? nameOf(row.types[0].id, row.types[0].name) : t('perPersonShort')} · {t('roomDouble')}</div>
@@ -938,6 +935,7 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
               </div>
             )}
           </div>
+{slider}
           {(row.types?.length ?? 0) > 1 && (
             <ul className="space-y-1 text-sm">
               {row.types!.slice(1).map((x) => (
@@ -947,22 +945,22 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
           )}
           {/* Is it worth it: one line, green / amber / red. */}
           <div className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium',
-            health === 'ok' ? 'bg-emerald-50 text-emerald-800' : health === 'thin' ? 'bg-amber-50 text-amber-900' : 'bg-red-50 text-red-800')}>
+            health === 'draft' ? 'bg-slate-50 text-slate-600' : health === 'ok' ? 'bg-emerald-50 text-emerald-800' : health === 'thin' ? 'bg-amber-50 text-amber-900' : 'bg-red-50 text-red-800')}>
             <span className="min-w-0 flex-1 tabular-nums">{t('profitLine', { amount: money(profit), cur, pct: pct.toFixed(1) })}</span>
-            {health !== 'ok' && <span className="shrink-0 text-xs font-semibold uppercase">{t(health === 'thin' ? 'profitThin' : 'profitLoss')}</span>}
+            {(health === 'thin' || health === 'loss') && <span className="shrink-0 text-xs font-semibold uppercase">{t(health === 'thin' ? 'profitThin' : 'profitLoss')}</span>}
           </div>
           {total > 0 && (
             <div>
               <div className="flex h-2 overflow-hidden rounded-full" aria-hidden>
                 {byCat.map(([c, v]) => <span key={c} className={K.colorOf(c)} style={{ width: `${(v / total) * 100}%` }} />)}
               </div>
-              <p className="mt-2 text-xs leading-5 text-slate-600">
-                <span className="font-semibold text-slate-800">{t('costPerPerson')} {money(row.cost_dbl)}</span>
+              <div className="mt-2 flex justify-between text-sm"><span className="text-slate-500">{t('costPerPerson')}</span><span className="font-semibold tabular-nums">{money(row.cost_dbl)}</span></div>
+              <ul className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-slate-600">
                 {byCat.map(([c, v]) => (
-                  // a space between the parts lets the line wrap; each part stays whole
-                  <Fragment key={c}>{' '}<span className="whitespace-nowrap">· <span className={cn('mr-1 inline-block h-2 w-2 rounded-sm', K.colorOf(c))} />{K.nameOf(c)} {money(v / n)}</span></Fragment>
+                  <li key={c} className="flex items-center gap-1.5"><span className={cn('h-2 w-2 shrink-0 rounded-sm', K.colorOf(c))} />
+                    <span className="min-w-0 flex-1 truncate">{K.nameOf(c)}</span><span className="tabular-nums">{money(v / n)}</span></li>
                 ))}
-              </p>
+              </ul>
             </div>
           )}
           {breakdown?.steps.recipe && breakdown.steps.recipe.length > 0 && (
@@ -991,7 +989,7 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
             </div>
           )}
           <button type="button" onClick={() => setParams((p) => { p.set('tab', 'compare'); return p }, { replace: true })} className="text-sm font-medium text-brand-700 hover:underline">{t('allSizesAndTours')} →</button>
-        </> : <p className="text-sm text-slate-500">{result?.errors.length ? t('fixErrorsForPrice') : '…'}</p>}
+        </> : <>{slider}<p className="text-sm text-slate-500">{result?.errors.length ? t('fixErrorsForPrice') : '…'}</p></>}
       </Card>
     </aside>
   )
@@ -1440,7 +1438,8 @@ function InputsCard({ doc, edit }: { doc: QuoteDoc; edit: Edit }) {
     d.variables = { ...d.variables, [`${k}${i}`]: '1' }
   }, true)
   const vars = Object.entries(doc.variables)
-  const used = (name: string) => doc.items.filter((i) => new RegExp(`\\b${name}\\b`).test(`${i.quantity} ${i.price_formula ?? ''}`)).length
+  const used = (name: string) => doc.items.filter((i) => new RegExp(`\\b${name}\\b`).test(`${i.quantity} ${i.price_formula ?? ''} ${(i.tiers ?? []).map((x) => x.quantity ?? '').join(' ')}`)).length
+  const ofMeals = (k: string) => k.startsWith('meals_')   // kept by the meal plan: change them there
   const rename = (from: string, to: string) => edit((d) => {
     const key = to.toLowerCase().replace(/[^a-z0-9_]/g, '_')
     if (!key || key === from || key in d.variables) return
@@ -1448,10 +1447,13 @@ function InputsCard({ doc, edit }: { doc: QuoteDoc; edit: Edit }) {
     const notes = { ...(d.variable_notes ?? {}) }
     if (from in notes) { notes[key] = notes[from]; delete notes[from] }
     d.variable_notes = notes
-    d.items.forEach((i) => {   // lines follow the new name
-      i.quantity = i.quantity.replace(new RegExp(`\\b${from}\\b`, 'g'), key)
-      if (i.price_formula) i.price_formula = i.price_formula.replace(new RegExp(`\\b${from}\\b`, 'g'), key)
+    const re = new RegExp(`\\b${from}\\b`, 'g')
+    d.items.forEach((i) => {   // every formula follows the new name: lines, their group sizes, pricing steps
+      i.quantity = i.quantity.replace(re, key)
+      if (i.price_formula) i.price_formula = i.price_formula.replace(re, key)
+      ;(i.tiers ?? []).forEach((tr) => { if (tr.quantity) tr.quantity = tr.quantity.replace(re, key) })
     })
+    ;(d.recipe ?? []).forEach((st) => { if (st.formula) st.formula = st.formula.replace(re, key) })
   })
   return (
     <Section id="inputs" defaultOpen={false} icon={<span className="font-mono text-sm font-semibold">x=</span>} title={t('inputs')} hint={t('inputsHint')}
@@ -1461,13 +1463,15 @@ function InputsCard({ doc, edit }: { doc: QuoteDoc; edit: Edit }) {
       <div className="space-y-2">
         {vars.map(([k, v]) => (
           <div key={k} className="flex flex-wrap items-center gap-2 text-sm">
-            <Input size="sm" defaultValue={k} onBlur={(e) => rename(k, e.target.value)} className="w-40 font-mono" aria-label={t('name')} />
+            <Input size="sm" defaultValue={k} onBlur={(e) => rename(k, e.target.value)} className="w-40 font-mono" aria-label={t('name')}
+              disabled={ofMeals(k)} title={ofMeals(k) ? t('inputKeptByMeals') : undefined} />
             <span className="text-slate-400">=</span>
             <Input size="sm" type="number" step="any" value={v} onChange={(e) => edit((d) => { d.variables[k] = e.target.value || '0' })} className="w-24 text-right" aria-label={t('value')} />
             <Input size="sm" value={doc.variable_notes?.[k] ?? ''} placeholder={t('variableNote')} className="min-w-0 flex-1"
        onChange={(e) => edit((d) => { d.variable_notes = { ...(d.variable_notes ?? {}), [k]: e.target.value } })} />
             <span className="text-xs text-slate-500">{t('usedInLines', { n: used(k) })}</span>
-            <IconButton size="sm" label={`${t('delete')}: ${k}`} tone="danger" onClick={() => remove((d) => { delete d.variables[k] })}><X size={16} /></IconButton>
+            {ofMeals(k) ? <span className="text-xs text-slate-500">{t('inputKeptByMeals')}</span>
+              : <IconButton size="sm" label={`${t('delete')}: ${k}`} tone="danger" onClick={() => remove((d) => { delete d.variables[k] })}><X size={16} /></IconButton>}
           </div>
         ))}
       </div>
