@@ -15,7 +15,7 @@ import { PageHeader } from './Dashboard'
 import { useMembers, wsPath } from '../lib/data'
 import { CURRENCIES } from './Onboarding'
 import { cn } from '../lib/utils'
-import { ThemePicker } from '../components/ThemePicker'
+import { AppearanceCard } from '../components/ThemePicker'
 
 export function TeamPage() {
   const ws = useWorkspace()!
@@ -276,13 +276,7 @@ export function GeneralSettingsPage() {
     <>
       <PageHeader section="settings" title={t('settings')} subtitle={ws.name} />
       <div className="max-w-4xl space-y-6 p-4 md:p-8">
-        <Card className="flex flex-wrap items-center gap-x-6 gap-y-3 p-5">
-          <div className="min-w-48 flex-1">
-            <h2 className="text-base font-semibold text-slate-800">{t('appearance')}</h2>
-            <p className="text-sm text-slate-500">{t('appearanceHelp')}</p>
-          </div>
-          <ThemePicker />
-        </Card>
+        <AppearanceCard />
         <Card className="p-5">
           <form onSubmit={(e) => { e.preventDefault(); save.mutate() }} className="space-y-4">
             <fieldset disabled={!isAdmin} className="space-y-4">

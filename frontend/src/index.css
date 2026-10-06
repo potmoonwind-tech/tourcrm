@@ -86,6 +86,38 @@
   --color-brand-900: #4c1d95;
 }
 
+/* Easy to see (Settings → Appearance), for weaker eyesight: darker greys for secondary text, placeholders
+   and icons (8.6:1 and 5.6:1 on white instead of 5.5:1 and 2.8:1), borders that read as edges (3:1 and up),
+   the smallest captions a size up, a thick focus outline, underlined links, and no motion. */
+:root[data-easy="on"] {
+  --color-slate-200: #a9adbd;
+  --color-slate-300: #7d8193;
+  --color-slate-400: #646778;
+  --color-slate-500: #4a4c5c;
+  --color-slate-600: #3a3c4a;
+  --color-slate-700: #2b2d38;
+  --color-slate-800: #1d1e23;
+  --color-slate-900: #111214;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.35;
+}
+:root[data-easy="on"] :is(button, a, input, select, textarea, summary, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 3px solid var(--color-brand-700) !important;
+  outline-offset: 2px;
+  box-shadow: 0 0 0 5px #fff;
+}
+:root[data-easy="on"] :is(p, li, td, span) > a[href],
+:root[data-easy="on"] a[href].text-brand-700 { text-decoration: underline; text-underline-offset: 3px; }
+:root[data-easy="on"] *,
+:root[data-easy="on"] *::before,
+:root[data-easy="on"] *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+/* Text size: everything grows together (text, spacing, buttons), like a careful zoom. */
+:root[data-text="large"] { font-size: 112.5%; }
+:root[data-text="larger"] { font-size: 125%; }
+
 body {
   @apply bg-slate-50 text-slate-800 antialiased;
 }

@@ -103,7 +103,7 @@ def me(user: User = Depends(get_current_user)):
 @router.patch("/me", response_model=MeOut)
 def update_me(body: MeUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Your own preferences (the app's colour); they follow you on every device."""
-    if body.theme is not None:
-        user.theme = body.theme
+    for k, v in body.model_dump(exclude_none=True).items():
+        setattr(user, k, v)
     db.commit()
     return me_payload(user)

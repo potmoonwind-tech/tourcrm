@@ -25,3 +25,20 @@ export function applySavedTheme() {
 /** The brand colour now in use, for things drawn outside CSS (the map's route line). */
 export const brandColor = () =>
   getComputedStyle(document.documentElement).getPropertyValue('--color-brand-600').trim() || SWATCH.blue
+
+export type TextSize = 'normal' | 'large' | 'larger'
+
+/** Easier to see (stronger contrast, focus, no motion) and the text size; kept like the colour. */
+export function applyView(easy: boolean | null | undefined, text: string | null | undefined) {
+  const size: TextSize = text === 'large' || text === 'larger' ? text : 'normal'
+  const root = document.documentElement
+  if (easy) root.dataset.easy = 'on'
+  else delete root.dataset.easy
+  if (size === 'normal') delete root.dataset.text
+  else root.dataset.text = size
+  try { localStorage.setItem('easyView', easy ? '1' : ''); localStorage.setItem('textSize', size) } catch { /* private window */ }
+}
+
+export function applySavedView() {
+  try { applyView(localStorage.getItem('easyView') === '1', localStorage.getItem('textSize')) } catch { /* private window */ }
+}

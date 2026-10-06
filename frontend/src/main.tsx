@@ -6,9 +6,10 @@ import { BrowserRouter } from 'react-router-dom'
 import App from './App'
 import './index.css'
 import { I18nProvider } from './lib/i18n'
-import { applySavedTheme } from './lib/theme'
+import { applySavedTheme, applySavedView } from './lib/theme'
 
-applySavedTheme()   // this browser's colour before anything draws
+applySavedTheme()   // this browser's colour and view before anything draws
+applySavedView()
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } },

@@ -45,6 +45,8 @@ class UserOut(_Out):
     email: str
     full_name: str
     theme: str = "blue"
+    easy_view: bool = False
+    text_size: str = "normal"
 
 
 Theme = Literal["blue", "green", "violet"]
@@ -53,6 +55,8 @@ Theme = Literal["blue", "green", "violet"]
 class MeUpdate(BaseModel):
     """Your own preferences."""
     theme: Theme | None = None
+    easy_view: bool | None = None
+    text_size: Literal["normal", "large", "larger"] | None = None
 
 
 # --- workspaces --------------------------------------------------------------

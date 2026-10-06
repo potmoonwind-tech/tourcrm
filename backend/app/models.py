@@ -28,6 +28,9 @@ class User(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(200), default="")
     theme: Mapped[str] = mapped_column(String(20), default="blue", server_default="blue")   # the app's colour, per person
+    # Easier to see: stronger text, borders and focus, no motion; and the text size (normal / large / larger).
+    easy_view: Mapped[bool] = mapped_column(default=False, server_default="0")
+    text_size: Mapped[str] = mapped_column(String(10), default="normal", server_default="normal")
     password_hash: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(default=True)
     # Part of every session token; raising it (log out, password change) ends all old sessions.
