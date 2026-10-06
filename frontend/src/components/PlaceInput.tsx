@@ -22,6 +22,7 @@ export interface PlaceSuggestion {
   city?: string     // the town it is in
   own?: boolean     // one of the agency's own places (a catalogue sight), not from the map
   at?: string       // an activity of one of them: the place it happens at ("KTW")
+  service_id?: string   // the catalogue service it is (priced and booked when picked into a day)
 }
 
 /** A supplier's address from a picked place: street (with the place's name when there is no house

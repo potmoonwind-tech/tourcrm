@@ -15,7 +15,7 @@ import { Fragment, useEffect, useId, useMemo, useState, type ReactNode } from 'r
 import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { useI18n, type TKey } from '../lib/i18n'
-import { cn } from '../lib/utils'
+import { cn, slotId } from '../lib/utils'
 import { useWorkspace } from '../lib/session'
 import { Label } from './overlay'
 import { InfoTip, Tooltip } from './Tooltip'
@@ -210,11 +210,14 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
   const sights = useMemo(() => {
     const places = [...byId.values()].filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
     const ids = new Set(places.map((v) => v.id))
+    const offered = services.filter((s) => ids.has(s.vendor.id) && s.category !== 'meal' && s.category !== 'hotel')
+    const only = (vid: string) => { const l = offered.filter((s) => s.vendor.id === vid); return l.length === 1 ? l[0].id : undefined }
     return [
-      ...places.map((v): PlaceSuggestion => ({ name: v.name, detail: [v.city, v.visit_minutes ? dur(v.visit_minutes) : ''].filter(Boolean).join(' · '), kind: '', lat: 0, lon: 0, own: true })),
+      ...places.map((v): PlaceSuggestion => ({ name: v.name, detail: [v.city, v.visit_minutes ? dur(v.visit_minutes) : ''].filter(Boolean).join(' · '), kind: '', lat: 0, lon: 0, own: true,
+        service_id: only(v.id) })),
       // An activity happens at its place: picked, the step is there (no map search, no drive between them).
-      ...services.filter((s) => ids.has(s.vendor.id) && s.category !== 'meal' && s.category !== 'hotel')
-        .map((s): PlaceSuggestion => ({ name: s.name, detail: t('progAt', { place: s.vendor.name }), kind: '', at: s.vendor.name, lat: 0, lon: 0, own: true })),
+      ...offered.map((s): PlaceSuggestion => ({ name: s.name, detail: t('progAt', { place: s.vendor.name }), kind: '', at: s.vendor.name, lat: 0, lon: 0, own: true,
+        service_id: s.id })),
     ]
   }, [byId, services, t])
   const start = index > 0 ? byId.get(fromHotel ?? '')?.address || from : from
@@ -270,6 +273,26 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
       if (p.ref?.startsWith('extra:')) return services.find((s) => s.id === day.extras.find((e) => e.id === p.ref!.slice(6))?.service_id)?.vendor.name
     }
     return undefined
+  }
+  // A catalogue activity picked in a visit becomes one of the day's services (priced, booked) and the step
+  // points at it — so the programme and the day's services are one list.
+  const linkActivity = (stepId: string, serviceId: string) => {
+    const id = slotId()
+    onSetDay!({
+      extras: [...day.extras, { id, service_id: serviceId, quantity: null, notes: '' }],
+      schedule: laid(items.map((y) => (y.id === stepId ? { ...y, ref: `extra:${id}`, title: '', place: '', fixed: y.fixed } : y))),
+    })
+  }
+  // Removing an activity's step takes it off the day too (with the place's other activities it stood for).
+  const removeStep = (x: ScheduleItem) => {
+    const next = items.filter((y) => y.id !== x.id)
+    if (!onSetDay || !x.ref?.startsWith('extra:')) { save(next); return }
+    const slot = day.extras.find((e) => e.id === x.ref!.slice(6))
+    const vendor = services.find((s) => s.id === slot?.service_id)?.vendor.id
+    const own = new Set(next.map((y) => y.ref).filter((r): r is string => !!r?.startsWith('extra:')).map((r) => r.slice(6)))
+    const gone = new Set(day.extras.filter((e) => e === slot || (!own.has(e.id ?? '') && vendor
+      && services.find((s) => s.id === e.service_id)?.vendor.id === vendor && !['transport', 'guide', 'meal'].includes(services.find((s) => s.id === e.service_id)?.category ?? ''))).map((e) => e.id))
+    onSetDay({ schedule: next, extras: day.extras.filter((e) => !gone.has(e.id)) })
   }
   // A meal added from the programme is the day's lunch or dinner (included, unless the day says otherwise).
   const addMeal = (m: 'lunch' | 'dinner') => {
@@ -392,7 +415,8 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
                       onSamePlace={(place) => set(x.id, { place })} />}
                     <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
                       length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)}
-                      onSet={(patch) => set(x.id, patch)} onRemove={() => save(items.filter((y) => y.id !== x.id))} />
+                      onSet={(patch) => set(x.id, patch)} onRemove={() => removeStep(x)}
+                      onLink={onSetDay ? (serviceId) => linkActivity(x.id, serviceId) : undefined} />
                   </Fragment>
                 ))}
                 {after.map((leg) => <DriveRow key={leg.to} leg={leg} depart={lastEnd} />)}
@@ -459,10 +483,11 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   )
 }
 
-function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, onSet, onRemove }: {
+function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, onSet, onRemove, onLink }: {
   x: ScheduleItem; label: { text: string; missing: boolean }; picker?: ReactNode; disabled?: boolean; issue?: StepIssue; onFix: (time: string) => void
   length: number; sights: PlaceSuggestion[]; sight?: Vendor
   onSet: (p: Partial<ScheduleItem>) => void; onRemove: () => void
+  onLink?: (serviceId: string) => void   // a catalogue activity picked: it becomes the day's service
 }) {
   const { t } = useI18n()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: x.id, disabled })
@@ -517,7 +542,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
             // A visit is a real place: suggested from the map, and picking one keeps where it is.
             <span className="min-w-0 flex-1 [&>span]:w-full">
               <PlaceInput value={x.title} own={sights} onChange={(title) => onSet({ title, place: atPlace ? x.place : '' })} maxLength={200}
-                onPicked={(p) => onSet({ title: p.name, place: p.at ? p.at : p.own ? '' : p.name })}
+                onPicked={(p) => (p.service_id && onLink ? onLink(p.service_id) : onSet({ title: p.name, place: p.at ? p.at : p.own ? '' : p.name }))}
                 aria-label={t('progStepName', { kind })} placeholder={t('progNamePh', { kind })}
                 className="h-9 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 placeholder:text-slate-400 hover:border-slate-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
               {atPlace && (
