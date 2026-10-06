@@ -1,7 +1,7 @@
 import { toFields } from '../components/DayProgramme'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, Drawer, Menu, useGuardedClose } from '../components/overlay'
-import { ArrowLeft, Ban, Calculator, Check, Minus, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Ban, Calculator, Check, Minus, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { CodeChip } from '../components/tour'
@@ -60,9 +60,8 @@ export function TourDetailPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader crumbs={[{ label: t('tours'), to: `/w/${ws.id}/tours` }]}
         title={<span className="flex flex-wrap items-center gap-3">
-          <Link to={`/w/${ws.id}/tours`} className="text-slate-400 hover:text-slate-600"><ArrowLeft size={20} /></Link>
           <CodeChip code={tr.code} color={tr.color} className="text-base" />
           <span className="text-lg font-semibold text-slate-600">{tr.client_name}</span>
         </span>}

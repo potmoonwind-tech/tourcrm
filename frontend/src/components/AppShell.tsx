@@ -1,7 +1,7 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { Eye, Sparkles,
   AlertOctagon, BarChart3, Building2, Calculator, Check, ChevronsUpDown, Contact,
-  Inbox, LayoutDashboard, ListTodo, LogOut, UserPlus, Map as MapIcon, Menu, Plus, Settings, X,
+  LayoutDashboard, PanelLeftClose, PanelLeftOpen, ListTodo, LogOut, UserPlus, Map as MapIcon, Menu, Plus, Settings, X,
 } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
@@ -10,7 +10,7 @@ import { useI18n, type TKey } from '../lib/i18n'
 import { setViewAs, useMe, useViewAs, useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
 import { LangToggle } from './ui'
-import { AlertBell } from './Alerts'
+import { Activity } from './Alerts'
 import { useTaskSummary } from '../lib/data'
 import { SearchButton } from './Search'
 import { sectionOf, type Section } from './SectionNav'
@@ -18,6 +18,8 @@ import { Tooltip } from './Tooltip'
 import { ThemePicker } from './ThemePicker'
 
 interface NavItem { to: string; label: TKey; icon: ReactNode; soon?: boolean; badge?: number; tone?: 'orange' | 'red'; section?: Section }
+/** A named group of the menu, in the order the work happens: sell, run, set up, money. */
+interface NavGroup { label?: TKey; items: NavItem[] }
 
 /** What needs attention, as counts on the menu: open incidents; overdue vendor payments. */
 function useNavCounts(office: boolean, manager: boolean) {
@@ -49,27 +51,32 @@ export function AppShell() {
   const ops = can(ws, 'operations'), fin = can(ws, 'finance'), sells = can(ws, 'sales')
   const counts = useNavCounts(office, fin)
   const tasks = useTaskSummary(office)
-  const groups: NavItem[][] = [
-    [
+  // Counts are calm (grey) unless something is late: then red, and the number is what's late.
+  const late = tasks.data?.late ?? 0
+  const groups: NavGroup[] = [
+    { items: [
       { to: base, label: 'dashboard', icon: <LayoutDashboard size={18} /> },
-      ...(office ? [{ to: `${base}/tasks`, label: 'myTasks', icon: <ListTodo size={18} />, badge: tasks.data?.mine, tone: tasks.data?.late ? 'red' : 'orange' } satisfies NavItem] : []),
-      ...(ops ? [{ to: `${base}/assistant`, label: 'assistant', icon: <Sparkles size={18} /> } satisfies NavItem] : []),
-    ],
+      ...(office ? [{ to: `${base}/tasks`, label: 'myTasks', icon: <ListTodo size={18} />, badge: late || tasks.data?.mine, tone: late ? 'red' : undefined } satisfies NavItem] : []),
+    ] },
     ...(office ? [
-      [
-        { to: `${base}/tours`, label: 'tours', icon: <MapIcon size={18} />, section: 'tours' },
-        { to: `${base}/incidents`, label: 'incidents', icon: <AlertOctagon size={18} />, badge: counts.incidents, tone: 'orange' },
-      ] satisfies NavItem[],
-      [
-        ...(ops || sells || fin ? [{ to: `${base}/calculations`, label: 'calculations', icon: <Calculator size={18} /> } satisfies NavItem] : []),
+      ...(ops || sells || fin ? [{ label: 'navSell', items: [
+        { to: `${base}/calculations`, label: 'calculations', icon: <Calculator size={18} /> },
         { to: `${base}/clients`, label: 'clients', icon: <Contact size={18} /> },
-        { to: `${base}/routes`, label: 'catalog', icon: <Building2 size={18} />, section: 'catalog' },
-      ] satisfies NavItem[],
-      ...(fin || sells ? [[
+      ] } satisfies NavGroup] : [{ items: [{ to: `${base}/clients`, label: 'clients', icon: <Contact size={18} /> }] } satisfies NavGroup]),
+      { label: 'navRun', items: [
+        { to: `${base}/tours`, label: 'tours', icon: <MapIcon size={18} />, section: 'tours' },
+        { to: `${base}/incidents`, label: 'incidents', icon: <AlertOctagon size={18} />, badge: counts.incidents },
+      ] } satisfies NavGroup,
+      { label: 'navSetUp', items: [{ to: `${base}/routes`, label: 'catalog', icon: <Building2 size={18} />, section: 'catalog' }] } satisfies NavGroup,
+      ...(fin || sells ? [{ label: 'navMoney', items: [
         { to: `${base}/finance`, label: 'finance', icon: <BarChart3 size={18} />, section: 'finance', badge: counts.overdue, tone: 'red' },
-      ] satisfies NavItem[]] : []),
+      ] } satisfies NavGroup] : []),
     ] : []),
   ]
+  const assistant: NavItem | null = ops ? { to: `${base}/assistant`, label: 'assistant', icon: <Sparkles size={18} /> } : null
+  // The menu can fold to icons (more room for the work); remembered in this browser.
+  const [narrow, setNarrowState] = useState(() => { try { return localStorage.getItem('navNarrow') === '1' } catch { return false } })
+  const setNarrow = (v: boolean) => { setNarrowState(v); try { localStorage.setItem('navNarrow', v ? '1' : '') } catch { /* private window */ } }
   const settings: NavItem = { to: `${base}/settings/general`, label: 'settings', icon: <Settings size={18} />, section: 'settings' }
 
   return (
@@ -81,29 +88,13 @@ export function AppShell() {
           <Menu size={20} />
         </button>
         {/* The agency is the identity here (not the product): its name, your role, and the switcher. */}
-        <div className="w-auto shrink-0 md:w-56"><WorkspaceSwitcher /></div>
+        <div className={cn('w-auto shrink-0', narrow ? 'md:w-auto' : 'md:w-56')}><WorkspaceSwitcher compact={narrow} /></div>
         <div className="flex min-w-0 flex-1 justify-center px-2">
           {office && <SearchButton variant="pill" className="hidden w-full max-w-xl md:flex" />}
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {office && <SearchButton shortcut={false} className="md:hidden" />}
-          {office && (
-            <Link to={`${base}/tasks`} title={t('myTasks')} aria-label={t('myTasks')}
-              className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100">
-              <Inbox size={19} />
-              {!!tasks.data?.mine && (
-                <span className={cn('absolute -right-0.5 -top-0.5 min-w-4 rounded-full px-1 text-center text-[10px] font-semibold leading-4 text-white',
-                  tasks.data.late ? 'bg-red-500' : 'bg-brand-600')}>{tasks.data.mine}</span>
-              )}
-            </Link>
-          )}
-          {office && <AlertBell />}
-          {atLeast(ws.realRole ?? ws.role, 'admin') && <ViewAsSwitch />}
-          {atLeast(ws.role, 'admin') && (
-            <Link to={`${base}/settings/team`} title={t('stepInvite')} aria-label={t('stepInvite')}
-              className="hidden rounded-lg p-2 text-slate-600 hover:bg-slate-100 sm:block"><UserPlus size={19} /></Link>
-          )}
-          <span className="mx-1 hidden h-6 w-px bg-slate-300 sm:block" />
+          {office && <Activity />}
           <UserMenu />
         </div>
       </header>
@@ -119,7 +110,7 @@ export function AppShell() {
         {/* Off-canvas on phones; under the top bar from md up. */}
         <aside className={cn(
           'fixed inset-y-0 left-0 z-50 flex w-72 flex-col bg-[var(--color-app-bg)] transition-transform',
-          'md:static md:z-30 md:h-[calc(100vh-3.5rem)] md:w-60 md:shrink-0 md:translate-x-0',
+          'md:static md:z-30 md:h-[calc(100vh-3.5rem)] md:shrink-0 md:translate-x-0', narrow ? 'md:w-16' : 'md:w-60',
           menuOpen ? 'translate-x-0' : '-translate-x-full',
         )}>
           <div className="flex items-center justify-end p-2 md:hidden">
@@ -128,14 +119,27 @@ export function AppShell() {
             </button>
           </div>
           <div className="h-2 max-md:hidden" />
-          <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
+          <nav aria-label={t('menu')} className={cn('flex-1 overflow-y-auto', narrow ? 'md:px-2' : '', 'px-3')}>
             {groups.map((g, i) => (
-              <div key={i} className={cn('space-y-0.5', i > 0 && 'mt-2 border-t border-slate-200 pt-2')}>
-                {g.map((n) => <NavRow key={n.to} item={n} end={n.to === base} />)}
+              <div key={i} role="group" aria-label={g.label ? t(g.label) : undefined} className={cn('space-y-0.5', i > 0 && 'mt-4')}>
+                {g.label && (narrow
+                  ? <div className="mx-2 mb-2 border-t border-slate-200 max-md:hidden" aria-hidden />
+                  : null)}
+                {g.label && <p className={cn('px-3 pb-1 text-xs font-semibold text-slate-500', narrow && 'md:hidden')}>{t(g.label)}</p>}
+                {g.items.map((n) => <NavRow key={n.to} item={n} end={n.to === base} narrow={narrow} />)}
               </div>
             ))}
           </nav>
-          <div className="border-t border-slate-200 px-3 py-2"><NavRow item={settings} /></div>
+          <div className={cn('space-y-0.5 border-t border-slate-200 py-2', narrow ? 'px-3 md:px-2' : 'px-3')}>
+            {assistant && <NavRow item={assistant} narrow={narrow} accent />}
+            <NavRow item={settings} narrow={narrow} />
+            <button type="button" onClick={() => setNarrow(!narrow)} aria-pressed={narrow}
+              aria-label={narrow ? t('navWiden') : t('navNarrow')} title={narrow ? t('navWiden') : t('navNarrow')}
+              className="flex w-full items-center gap-3 rounded-lg px-3 py-1.5 text-sm text-slate-500 hover:bg-slate-100 hover:text-slate-700 max-md:hidden">
+              {narrow ? <PanelLeftOpen size={18} aria-hidden /> : <PanelLeftClose size={18} aria-hidden />}
+              {!narrow && <span>{t('navNarrow')}</span>}
+            </button>
+          </div>
         </aside>
         <main className="min-w-0 flex-1 md:h-[calc(100vh-3.5rem)] md:pb-3 md:pr-3">
           {/* relative: hidden screen-reader text (absolute) stays inside the scrolling panel instead of
@@ -149,7 +153,7 @@ export function AppShell() {
   )
 }
 
-function NavRow({ item, end }: { item: NavItem; end?: boolean }) {
+function NavRow({ item, end, narrow, accent }: { item: NavItem; end?: boolean; narrow?: boolean; accent?: boolean }) {
   const { t } = useI18n()
   const ws = useWorkspace()!
   const { pathname } = useLocation()
@@ -164,15 +168,20 @@ function NavRow({ item, end }: { item: NavItem; end?: boolean }) {
     )
   }
   return (
-    <NavLink to={item.to} end={end}
+    <NavLink to={item.to} end={end} title={narrow ? t(item.label) : undefined}
+      aria-label={narrow ? `${t(item.label)}${item.badge ? ` (${item.badge})` : ''}` : undefined}
       className={({ isActive }) => cn(
-        'flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors',
-        isActive || inSection ? 'bg-brand-100 font-medium text-slate-800' : 'text-slate-700 hover:bg-slate-100',
+        'relative flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors',
+        narrow && 'md:justify-center md:px-0',
+        isActive || inSection ? 'bg-brand-100 font-medium text-slate-800'
+          : accent ? 'text-brand-700 hover:bg-brand-50' : 'text-slate-700 hover:bg-slate-100',
       )}>
-      {item.icon}<span className="flex-1">{t(item.label)}</span>
+      <span className={cn(accent && 'text-brand-600')}>{item.icon}</span>
+      <span className={cn('flex-1', narrow && 'md:sr-only')}>{t(item.label)}</span>
       {!!item.badge && (
-        <span className={cn('min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5 text-white',
-          item.tone === 'red' ? 'bg-red-500' : 'bg-amber-500')}>{item.badge}</span>
+        <span className={cn('min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5',
+          item.tone === 'red' ? 'bg-red-500 text-white' : 'bg-slate-200 text-slate-700',
+          narrow && 'md:absolute md:-right-1 md:-top-1 md:min-w-4 md:px-1 md:text-[10px] md:leading-4')}>{item.badge}</span>
       )}
     </NavLink>
   )
@@ -189,7 +198,7 @@ export function WorkspaceAvatar({ name, className }: { name: string; className?:
   )
 }
 
-function WorkspaceSwitcher() {
+function WorkspaceSwitcher({ compact }: { compact?: boolean }) {
   const { data: me } = useMe()
   const ws = useWorkspace()!
   const { t } = useI18n()
@@ -206,7 +215,7 @@ function WorkspaceSwitcher() {
       <button type="button" onClick={() => setOpen(!open)}
         className="flex w-full items-center gap-2.5 rounded-lg px-2 py-1.5 text-left hover:bg-slate-100">
         <WorkspaceAvatar name={ws.name} />
-        <span className="min-w-0 flex-1 max-sm:hidden">
+        <span className={cn('min-w-0 flex-1 max-sm:hidden', compact && 'md:hidden')}>
           <span className="block truncate text-sm font-semibold">{ws.name}</span>
           <span className="block text-xs text-slate-500">{t(`role_${ws.role}`)}</span>
         </span>
@@ -257,7 +266,7 @@ function UserMenu() {
   return (
     <div ref={ref} className="relative">
       <button type="button" onClick={() => setOpen(!open)} aria-label={t('account')} aria-expanded={open}
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-violet-500 text-sm font-semibold text-white ring-2 ring-white hover:bg-violet-600">
+        className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-600 text-sm font-semibold text-white ring-2 ring-white hover:bg-brand-700">
         {initials || '?'}
       </button>
       {open && (
@@ -268,7 +277,12 @@ function UserMenu() {
           </div>
           <div className="flex items-center justify-between px-2 py-2 text-sm text-slate-600">{t('language')}<LangToggle /></div>
           <div className="flex items-center justify-between px-2 py-2 text-sm text-slate-600">{t('theme')}<ThemePicker size="sm" /></div>
+          {atLeast(ws.realRole ?? ws.role, 'admin') && <div className="px-2 py-2"><ViewAsSwitch /></div>}
           <div className="my-1 border-t border-slate-100" />
+          {atLeast(ws.role, 'admin') && (
+            <Link to={`/w/${ws.id}/settings/team`} onClick={() => setOpen(false)}
+              className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-slate-100"><UserPlus size={16} />{t('stepInvite')}</Link>
+          )}
           <Link to={`/w/${ws.id}/settings/general`} onClick={() => setOpen(false)}
             className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-slate-100"><Settings size={16} />{t('settings')}</Link>
           <button type="button" onClick={logout}
@@ -285,11 +299,10 @@ function ViewAsSwitch() {
   const v = useViewAs()
   return (
     <Tooltip label={t('viewAsTip')}>
-      <label className="hidden items-center gap-1 rounded-lg px-2 py-1 text-sm text-slate-600 hover:bg-slate-100 lg:flex">
-        <Eye size={17} aria-hidden />
-        <span className="sr-only">{t('viewAs')}</span>
+      <label className="flex items-center justify-between gap-2 text-sm text-slate-600">
+        <span className="flex items-center gap-2"><Eye size={16} aria-hidden />{t('viewAs')}</span>
         <select value={v ?? ''} onChange={(e) => setViewAs((e.target.value || null) as Job | 'guide' | null)} aria-label={t('viewAs')}
-          className="border-0 bg-transparent py-0 pl-1 pr-6 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-brand-100">
+          className="rounded-md border border-slate-300 bg-white py-1 pl-2 pr-6 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-brand-100">
           <option value="">{t('viewAsMe')}</option>
           {(['operations', 'finance', 'sales', 'guide'] as const).map((j) => <option key={j} value={j}>{t(`viewAs_${j}` as TKey)}</option>)}
         </select>

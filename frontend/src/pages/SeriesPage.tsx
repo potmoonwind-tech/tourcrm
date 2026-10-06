@@ -5,7 +5,7 @@
  */
 import { RouteStaff } from '../components/RouteStaff'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ArrowLeft, ChevronDown } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ask, Label } from '../components/overlay'
@@ -53,8 +53,7 @@ export function SeriesPage() {
   if (!route) return <div className="flex justify-center py-10"><Spinner /></div>
   return (
     <>
-      <PageHeader title={<span className="flex items-center gap-3">
-        <Link to={`/w/${ws.id}/routes`} className="text-slate-400 hover:text-slate-600"><ArrowLeft size={20} /></Link>
+      <PageHeader crumbs={[{ label: t('catalog'), to: `/w/${ws.id}/routes` }]} title={<span className="flex items-center gap-3">
         <CodeChip code={route.code} color={route.color} />{route.name}
       </span>} subtitle={t('seriesHelp')} />
       <div className="space-y-6 p-4 md:p-8">

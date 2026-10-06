@@ -6,12 +6,12 @@ import { useQuery } from '@tanstack/react-query'
 import { AlertCircle, AlertTriangle, Bell, ChevronDown, Info } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, type TourAlert } from '../lib/api'
-import { wsPath } from '../lib/data'
-import { fmt } from '../lib/dates'
+import { api, type TaskItem, type TourAlert } from '../lib/api'
+import { useTaskSummary, wsPath } from '../lib/data'
+import { fmt, today } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
-import { cn } from '../lib/utils'
+import { cn, money } from '../lib/utils'
 
 export function useAlerts(tourId?: string) {
   const ws = useWorkspace()!
@@ -151,6 +151,111 @@ export function NeedsAttention() {
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  )
+}
+
+/**
+ * The top bar's one place for what needs you: warnings on tours and your tasks, in two tabs. Its number
+ * counts only what is late or urgent (errors, late tasks); otherwise a quiet dot says there is something.
+ */
+export function Activity() {
+  const ws = useWorkspace()!
+  const { t, lang } = useI18n()
+  const text = useAlertText()
+  const alerts = useAlerts()
+  const summary = useTaskSummary()
+  const [open, setOpen] = useState(false)
+  const [tab, setTab] = useState<'warnings' | 'tasks'>('warnings')
+  const ref = useRef<HTMLDivElement>(null)
+  const mine = useQuery({ queryKey: ['tasks', ws.id, 'who=me'], enabled: open && tab === 'tasks', staleTime: 30_000,
+    queryFn: () => api<TaskItem[]>(wsPath(ws.id, '/tasks?who=me')) })
+  useEffect(() => {
+    if (!open) return
+    const close = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false) }
+    document.addEventListener('mousedown', close)
+    document.addEventListener('keydown', esc)
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc) }
+  }, [open])
+  const urgent = (alerts.data ?? []).filter((a) => a.severity !== 'info')
+  const errors = urgent.filter((a) => a.severity === 'error').length
+  const late = summary.data?.late ?? 0
+  const loud = errors + late
+  const quiet = !loud && (urgent.length > 0 || (summary.data?.mine ?? 0) > 0)
+  const tasks = [...(mine.data ?? [])].sort((a, b) => (a.due_date ?? '9999').localeCompare(b.due_date ?? '9999')).slice(0, 8)
+  const titleOf = (x: TaskItem) => x.kind === 'own' ? x.title
+    : x.kind === 'pay' ? t('task_pay', { name: x.title, amount: money(x.amount ?? 0, x.currency ?? undefined) })
+      : t(`task_${x.kind}` as TKey, { name: x.title })
+  const label = loud ? t('activityLabelLate', { n: loud }) : t('activity')
+  return (
+    <div ref={ref} className="relative">
+      <button type="button" onClick={() => setOpen(!open)} aria-label={label} aria-expanded={open} aria-haspopup="dialog" title={label}
+        className="relative rounded-lg p-2 text-slate-600 hover:bg-slate-100">
+        <Bell size={19} aria-hidden />
+        {loud > 0 && <span className="absolute -right-0.5 -top-0.5 min-w-4 rounded-full bg-red-500 px-1 text-center text-[10px] font-semibold leading-4 text-white">{loud}</span>}
+        {quiet && <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-brand-600" aria-hidden />}
+      </button>
+      {open && (
+        <div role="dialog" aria-label={t('activity')}
+          className="animate-fade absolute right-0 z-50 mt-1 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-slate-200 bg-white shadow-lg">
+          <div role="tablist" aria-label={t('activity')} className="flex gap-1 border-b border-slate-200 px-2 pt-2">
+            {(['warnings', 'tasks'] as const).map((k) => {
+              const n = k === 'warnings' ? urgent.length : summary.data?.mine ?? 0
+              return (
+                <button key={k} type="button" role="tab" aria-selected={tab === k} onClick={() => setTab(k)}
+                  className={cn('-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-semibold',
+                    tab === k ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700')}>
+                  {t(k === 'warnings' ? 'needsAttention' : 'myTasks')}
+                  {n > 0 && <span className={cn('rounded-full px-1.5 text-xs', (k === 'warnings' ? errors : late) ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600')}>{n}</span>}
+                </button>
+              )
+            })}
+          </div>
+          {tab === 'warnings' ? (
+            urgent.length === 0 ? <p className="px-4 py-6 text-center text-sm text-slate-500">{t('allClear')}</p> : (
+              <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+                {urgent.slice(0, 40).map((a, i) => (
+                  <li key={i}>
+                    <Link to={`/w/${ws.id}/tours/${a.tour_id}${a.link ? `?tab=${a.link}` : ''}`} onClick={() => setOpen(false)}
+                      className="flex gap-2 px-4 py-2.5 text-sm hover:bg-slate-50">
+                      {STYLE[a.severity].icon}
+                      <span className="min-w-0">
+                        <span className="font-mono text-xs font-semibold">{a.tour_code}</span>
+                        <span className="ml-1 text-xs text-slate-500">{fmt(a.start_date, lang)}{a.day ? ` · ${t('day')} ${a.day}` : ''}</span>
+                        <span className="block text-slate-700">{text(a)}</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            )
+          ) : (
+            <>
+              {mine.isPending ? <p className="px-4 py-6 text-center text-sm text-slate-500">{t('loading')}</p>
+                : tasks.length === 0 ? <p className="px-4 py-6 text-center text-sm text-slate-500">{t('noTasksMine')}</p> : (
+                  <ul className="max-h-96 divide-y divide-slate-100 overflow-y-auto">
+                    {tasks.map((x) => {
+                      const isLate = !!x.due_date && x.due_date < today()
+                      return (
+                        <li key={x.key}>
+                          <Link to={`/w/${ws.id}/${x.link}`} onClick={() => setOpen(false)} className="flex gap-2 px-4 py-2.5 text-sm hover:bg-slate-50">
+                            <span className="min-w-0 flex-1">
+                              <span className="block text-slate-800">{titleOf(x)}</span>
+                              <span className="text-xs text-slate-500">{x.tour_code}{x.due_date && <span className={cn(isLate && 'font-medium text-red-700')}> · {fmt(x.due_date, lang)}</span>}</span>
+                            </span>
+                          </Link>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              <Link to={`/w/${ws.id}/tasks`} onClick={() => setOpen(false)}
+                className="block border-t border-slate-100 px-4 py-2.5 text-center text-sm font-medium text-brand-700 hover:bg-slate-50">{t('allMyTasks')}</Link>
+            </>
+          )}
+        </div>
       )}
     </div>
   )

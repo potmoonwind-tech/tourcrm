@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, askText, Menu, toast } from '../components/overlay'
-import { AlertTriangle, ArrowDown, ArrowLeft, ArrowUp, Calculator, Check as CheckIcon, Copy, Download, FileSpreadsheet, History, Layers, Plus, Printer, Redo2, RefreshCw, Save, Sparkles, Trash2, Undo2, X } from 'lucide-react'
+import { AlertTriangle, ArrowDown, ArrowUp, Calculator, Check as CheckIcon, Copy, Download, FileSpreadsheet, History, Layers, Plus, Printer, Redo2, RefreshCw, Save, Sparkles, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Modal, VendorSelect } from '../components/tour'
@@ -118,9 +118,8 @@ export function CalcEditorPage() {
 
   return (
     <>
-      <PageHeader
+      <PageHeader crumbs={[{ label: t('calculations'), to: `/w/${ws.id}/calculations` }]}
         title={<span className="flex flex-wrap items-center gap-3">
-          <Link to={`/w/${ws.id}/calculations`} className="text-slate-400 hover:text-slate-600"><ArrowLeft size={20} /></Link>
           {doc.name}<QuoteStatusPill status={doc.status} />
         </span>}
         action={<div className="flex flex-wrap items-center gap-2">

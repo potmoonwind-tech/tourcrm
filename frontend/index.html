@@ -10,8 +10,8 @@
   </head>
   <body>
     <script>
-      // The colour before anything draws (lib/theme.ts): Clay unless this browser chose another.
-      try { var th = localStorage.getItem('theme') || 'clay'; if (th !== 'blue') document.documentElement.dataset.theme = th } catch (e) { document.documentElement.dataset.theme = 'clay' }
+      // The colour before anything draws (lib/theme.ts): blue unless this browser chose another.
+      try { var th = localStorage.getItem('theme'); if (th === 'green' || th === 'violet') document.documentElement.dataset.theme = th } catch (e) {}
     </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>

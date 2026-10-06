@@ -4,14 +4,14 @@
  * button, link and highlight follows. Kept on the account (it follows the person to any device) and in
  * this browser, so the page opens in the right colour before the account has loaded.
  */
-export const THEMES = ['clay', 'blue', 'green', 'violet'] as const
+export const THEMES = ['blue', 'green', 'violet'] as const
 export type Theme = (typeof THEMES)[number]
 
 /** The swatch shown in the picker (the theme's main colour). */
-export const SWATCH: Record<Theme, string> = { clay: '#c96442', blue: '#0073ea', green: '#00804a', violet: '#7c3aed' }
+export const SWATCH: Record<Theme, string> = { blue: '#0073ea', green: '#00804a', violet: '#7c3aed' }
 
 export function applyTheme(theme: string | null | undefined) {
-  const t: Theme = (THEMES as readonly string[]).includes(theme ?? '') ? (theme as Theme) : 'clay'
+  const t: Theme = (THEMES as readonly string[]).includes(theme ?? '') ? (theme as Theme) : 'blue'
   if (t === 'blue') delete document.documentElement.dataset.theme
   else document.documentElement.dataset.theme = t
   try { localStorage.setItem('theme', t) } catch { /* private window */ }
@@ -24,7 +24,7 @@ export function applySavedTheme() {
 
 /** The brand colour now in use, for things drawn outside CSS (the map's route line). */
 export const brandColor = () =>
-  getComputedStyle(document.documentElement).getPropertyValue('--color-brand-600').trim() || SWATCH.clay
+  getComputedStyle(document.documentElement).getPropertyValue('--color-brand-600').trim() || SWATCH.blue
 
 export type TextSize = 'normal' | 'large' | 'larger'
 
