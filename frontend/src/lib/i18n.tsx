@@ -2703,6 +2703,9 @@ const en = {
   sentGuardChange: "Change this one",
   autosaveHeld: "Not saved yet",
   servicesEmptyHint: "Museums, tastings, classes - their price goes into the tour's costs",
+  placeNoPrices: "No activity with a price here yet.",
+  placeAddFirst: "Add an activity and its price",
+  placeNoPriceOption: "no price yet",
 }
 
 type Dict = typeof en
@@ -5402,6 +5405,9 @@ const ka: Dict = {
   sentGuardChange: "ამის შეცვლა",
   autosaveHeld: "ჯერ არ შენახულა",
   servicesEmptyHint: "მუზეუმები, დეგუსტაციები, მასტერკლასები - მათი ფასი ტურის ხარჯებში ითვლება",
+  placeNoPrices: "აქ ფასიანი აქტივობა ჯერ არ არის.",
+  placeAddFirst: "აქტივობის და ფასის დამატება",
+  placeNoPriceOption: "ფასი ჯერ არ არის",
 }
 
 export type Lang = 'en' | 'ka'

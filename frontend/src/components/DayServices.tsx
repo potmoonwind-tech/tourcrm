@@ -1,7 +1,7 @@
 import { MapPin, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { DayExtra, ServiceBrief } from '../lib/api'
-import { useServiceList } from '../lib/data'
+import { useServiceList, useVendors } from '../lib/data'
 import { useI18n } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
 import { Tooltip } from './Tooltip'
@@ -33,7 +33,13 @@ export function DayServices({ value, onChange, disabled, onAddNew }: {
   // Places in the order they were added; one just picked shows (empty) until something is ticked.
   const [picked, setPicked] = useState<string[]>([])
   const used = [...new Set(value.map((x) => byId.get(x.service_id)?.vendor.id).filter((v): v is string => !!v))]
-  const places = [...used, ...picked.filter((v) => !used.includes(v) && offers.has(v))]
+  // Catalogue places with no priced activity yet (a winery entered without its tastings): listed too, so
+  // the place is picked from the catalogue and only its activity and price are added - not a second place.
+  const vendors = useVendors()
+  const bare = new Map((vendors.data ?? [])
+    .filter((v) => !['hotel', 'restaurant', 'transport', 'guide', 'driver'].includes(v.type) && !offers.has(v.id))
+    .map((v) => [v.id, v]))
+  const places = [...used, ...picked.filter((v) => !used.includes(v) && (offers.has(v) || bare.has(v)))]
   const gone = value.filter((x) => services.data && !byId.has(x.service_id))
   const [adding, setAdding] = useState(false)
 
@@ -50,7 +56,7 @@ export function DayServices({ value, onChange, disabled, onAddNew }: {
     <div className="space-y-2">
       {places.map((vid) => {
         const list = offers.get(vid) ?? []
-        const vendor = list[0]?.vendor
+        const vendor = list[0]?.vendor ?? bare.get(vid)
         const on = list.filter((s) => value.some((x) => x.service_id === s.id))
         // A place with one service needs no checklist: it's simply there (remove the place to drop it).
         const single = list.length === 1
@@ -92,10 +98,11 @@ export function DayServices({ value, onChange, disabled, onAddNew }: {
                   </li>
                 )
               })}
+              {list.length === 0 && <li className="py-1 text-xs text-slate-500">{t('placeNoPrices')}</li>}
               {!disabled && onAddNew && (
                 <li><button type="button" onClick={() => onAddNew(vid)}
                   className="inline-flex h-7 items-center gap-1 rounded px-1 text-xs font-medium text-brand-700 hover:bg-brand-50">
-                  <Plus size={12} />{t('placeAddActivity')}</button></li>
+                  <Plus size={12} />{t(list.length ? 'placeAddActivity' : 'placeAddFirst')}</button></li>
               )}
             </ul>
           </div>
@@ -115,6 +122,7 @@ export function DayServices({ value, onChange, disabled, onAddNew }: {
             const v = e.target.value
             if (v === '__new__') onAddNew?.()
             else if (v && offers.get(v)?.length === 1) onChange([...value, { id: slotId(), service_id: offers.get(v)![0].id, quantity: null, notes: '' }])
+            else if (v && bare.has(v)) setPicked((l) => [...l, v])
             else if (v) setPicked((l) => [...l, v])
             setAdding(false)
           }}>
@@ -122,12 +130,15 @@ export function DayServices({ value, onChange, disabled, onAddNew }: {
           {[...offers].filter(([vid]) => !places.includes(vid)).map(([vid, list]) => (
             <option key={vid} value={vid}>{list[0].vendor.name} ({list.length === 1 ? list[0].name : t('placeActivitiesCount', { n: list.length })})</option>
           ))}
+          {[...bare.values()].filter((v) => !places.includes(v.id)).map((v) => (
+            <option key={v.id} value={v.id}>{v.name} ({t('placeNoPriceOption')})</option>
+          ))}
           {onAddNew && <option value="__new__">{t('addNewOption')}</option>}
         </select>
       ) : (
         <span className="flex flex-wrap items-center gap-x-2">
-          <button type="button" onClick={() => (all.length ? setAdding(true) : onAddNew?.())} disabled={!all.length && !onAddNew}
-            title={all.length ? undefined : t('noServicesYet')}
+          <button type="button" onClick={() => (all.length || bare.size ? setAdding(true) : onAddNew?.())} disabled={!all.length && !bare.size && !onAddNew}
+            title={all.length || bare.size ? undefined : t('noServicesYet')}
             className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:text-slate-400">
             <Plus size={14} />{t('placeAdd')}
           </button>
