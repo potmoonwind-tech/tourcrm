@@ -144,7 +144,7 @@ export function AppShell() {
         <main className="min-w-0 flex-1 md:h-[calc(100vh-3.5rem)] md:pb-3 md:pr-3">
           {/* relative: hidden screen-reader text (absolute) stays inside the scrolling panel instead of
               stretching the whole window, which made a second scrollbar and empty space below. */}
-          <div ref={panel} className="relative min-h-[calc(100vh-3.5rem)] bg-white md:h-full md:min-h-0 md:overflow-y-auto md:rounded-2xl md:border md:border-slate-200">
+          <div ref={panel} className="app-panel relative min-h-[calc(100vh-3.5rem)] bg-white md:h-full md:min-h-0 md:overflow-y-auto md:rounded-2xl md:border">
             <Outlet />
           </div>
         </main>
@@ -171,12 +171,12 @@ function NavRow({ item, end, narrow, accent }: { item: NavItem; end?: boolean; n
     <NavLink to={item.to} end={end} title={narrow ? t(item.label) : undefined}
       aria-label={narrow ? `${t(item.label)}${item.badge ? ` (${item.badge})` : ''}` : undefined}
       className={({ isActive }) => cn(
-        'relative flex items-center gap-3 rounded-lg px-3 py-1.5 text-sm transition-colors',
+        'relative flex min-h-9 items-center gap-3 rounded-full px-4 py-1.5 text-sm transition-colors',
         narrow && 'md:justify-center md:px-0',
-        isActive || inSection ? 'bg-brand-100 font-medium text-slate-800'
-          : accent ? 'text-brand-700 hover:bg-brand-50' : 'text-slate-700 hover:bg-slate-100',
+        isActive || inSection ? 'bg-[var(--color-nav-active)] font-semibold text-[var(--color-nav-active-text)]'
+          : accent ? 'text-brand-700 hover:bg-[var(--color-nav-hover)]' : 'text-[var(--color-nav-text)] hover:bg-[var(--color-nav-hover)]',
       )}>
-      <span className={cn(accent && 'text-brand-600')}>{item.icon}</span>
+      <span className={cn(accent ? 'text-brand-600' : 'text-[var(--color-nav-icon)]')}>{item.icon}</span>
       <span className={cn('flex-1', narrow && 'md:sr-only')}>{t(item.label)}</span>
       {!!item.badge && (
         <span className={cn('min-w-5 rounded-full px-1.5 text-center text-xs font-semibold leading-5',

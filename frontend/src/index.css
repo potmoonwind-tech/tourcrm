@@ -8,7 +8,16 @@
   --font-sans: "Figtree", "Noto Sans Georgian", ui-sans-serif, system-ui, sans-serif;
 
   /* Primary (Vibe --primary-color #0073ea, hover #0060b9, selected #cce5ff) */
-  --color-app-bg: #ffffff;   /* the frame around pages (top bar, menu): white; the page panel has a border */
+  /* The frame around pages (top bar, menu), Google Drive-like: a very light tint; the white page panel stands
+     out by colour, without a border. Menu text dark, icons a step softer, the current page a soft pill. */
+  --color-app-bg: #f8fafd;
+  --color-search-bg: #e9eef6;
+  --color-search-hover: #dde3ea;
+  --color-nav-active: #c2e7ff;
+  --color-nav-active-text: #001d35;
+  --color-nav-text: #1f1f1f;
+  --color-nav-icon: #444746;
+  --color-nav-hover: #e9eef6;
   --color-brand-50: #f0f7ff;
   --color-brand-100: #cce5ff;
   --color-brand-200: #99caff;
@@ -62,6 +71,12 @@
 /* The app's colour, per person (Settings → Appearance). Blue above is the default. Each 600 shade keeps
    white text readable on buttons (at least 4.5:1). */
 :root[data-theme="green"] {
+  --color-app-bg: #f6faf7;
+  --color-search-bg: #e6efe9;
+  --color-search-hover: #d9e6dd;
+  --color-nav-active: #c4eed0;
+  --color-nav-active-text: #072711;
+  --color-nav-hover: #e6efe9;
   --color-brand-50: #effbf5;
   --color-brand-100: #d3f3e3;
   --color-brand-200: #a8e4c7;
@@ -74,6 +89,12 @@
   --color-brand-900: #004127;
 }
 :root[data-theme="violet"] {
+  --color-app-bg: #faf8fd;
+  --color-search-bg: #eee9f6;
+  --color-search-hover: #e3dcf0;
+  --color-nav-active: #e9ddff;
+  --color-nav-active-text: #21005d;
+  --color-nav-hover: #eee9f6;
   --color-brand-50: #f5f3ff;
   --color-brand-100: #ede9fe;
   --color-brand-200: #ddd6fe;
@@ -114,6 +135,11 @@
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
 }
+/* The page panel: no border (the frame's tint sets it apart), except when easier to see. */
+.app-panel { border-color: transparent; }
+:root[data-easy="on"] .app-panel { border-color: var(--color-slate-300); }
+:root[data-easy="on"] { --color-app-bg: #eef1f6; --color-nav-icon: #1f1f1f; }
+
 /* Text size: everything grows together (text, spacing, buttons), like a careful zoom. */
 :root[data-text="large"] { font-size: 112.5%; }
 :root[data-text="larger"] { font-size: 125%; }

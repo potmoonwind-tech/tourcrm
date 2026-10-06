@@ -38,9 +38,9 @@ export function SearchButton({ className, shortcut = true, variant = 'icon' }: {
     return (
       <>
         <button type="button" onClick={() => setOpen(true)} aria-label={t('searchAll')}
-          className={cn('h-9 items-center gap-2 rounded-full bg-slate-100 px-4 text-sm text-slate-500 hover:bg-slate-200/70', className)}>
-          <Search size={16} /><span className="flex-1 text-left">{t('searchAnything')}</span>
-          <kbd className="rounded border border-slate-200 px-1.5 text-[11px] text-slate-400">Ctrl K</kbd>
+          className={cn('h-10 items-center gap-3 rounded-full bg-[var(--color-search-bg)] px-4 text-sm text-[var(--color-nav-icon)] hover:bg-[var(--color-search-hover)]', className)}>
+          <Search size={18} /><span className="flex-1 text-left">{t('searchAnything')}</span>
+          <kbd className="rounded border border-slate-300 px-1.5 text-[11px] text-[var(--color-nav-icon)]">Ctrl K</kbd>
         </button>
         {open && <SearchDialog onClose={() => setOpen(false)} />}
       </>
