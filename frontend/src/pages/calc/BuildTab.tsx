@@ -6,7 +6,7 @@
  * …with the price always in view, for any group size.
  */
 import { ArrowDown, ArrowUp, BedDouble, Bus, ChevronRight, Copy, Pencil, Plus, Ticket, Trash2, User, Users, Utensils, X } from 'lucide-react'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Dialog, Drawer, Menu, toast } from '../../components/overlay'
 import { VendorSelect } from '../../components/tour'
 import { useSearchParams } from 'react-router-dom'
@@ -154,17 +154,19 @@ export function BuildTab({ doc, debounced, result, edit }: { doc: QuoteDoc; debo
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="min-w-0 space-y-4">
-        <OurWayBar doc={doc} edit={edit} />
         <ToFill doc={doc} onItem={setEditing} onNight={setNight} />
         <PeopleCard doc={doc} n={n} edit={edit} />
         <TripBoard doc={doc} n={n} amounts={bd.data?.items.map((x) => x.amount)} beds={bd.data?.hotel_nights} edit={edit} value={parts.trip}
           onItem={setEditing} onNight={setNight} vehicle={row?.vehicle} />
-        <UsesGrid doc={doc} edit={edit} />
         <TransportCard doc={doc} n={n} result={result} breakdown={bd.data} edit={edit} value={parts.transport} />
-        <InputsCard doc={doc} edit={edit} />
-        <FormulasCard doc={doc} edit={edit} calc={bd.data?.items} onItem={setEditing} />
         <RecipeCard doc={doc} edit={edit} value={parts.pricing} />
         <SellingCard doc={doc} edit={edit} />
+        <OurWayBar doc={doc} edit={edit} />
+        <MoreTools doc={doc}>
+          <UsesGrid doc={doc} edit={edit} />
+          <InputsCard doc={doc} edit={edit} />
+          <FormulasCard doc={doc} edit={edit} calc={bd.data?.items} onItem={setEditing} />
+        </MoreTools>
       </div>
       <PriceCard doc={doc} n={n} setN={setSample} result={result} breakdown={bd.data} season={season} setSeason={setSeason} />
 
@@ -183,8 +185,8 @@ const readOpen = (): Record<string, boolean> => { try { return JSON.parse(localS
 
 /** A part of the calculation (see Panel): folds to one line that says what's in it; whether it's
  * open is remembered on this device. Its "+ Add" opens it too. */
-function Section({ id, icon, title, hint, summary, value, actions, defaultOpen = true, children }: {
-  id: string; icon: ReactNode; title: string; hint?: string; summary?: ReactNode; value?: ReactNode; actions?: ReactNode; defaultOpen?: boolean; children: ReactNode
+function Section({ id, icon, step, title, hint, summary, value, actions, defaultOpen = true, children }: {
+  id: string; icon: ReactNode; step?: number; title: string; hint?: string; summary?: ReactNode; value?: ReactNode; actions?: ReactNode; defaultOpen?: boolean; children: ReactNode
 }) {
   const [open, setOpen] = useState(() => readOpen()[id] ?? defaultOpen)
   const put = (next: boolean) => {
@@ -192,7 +194,9 @@ function Section({ id, icon, title, hint, summary, value, actions, defaultOpen =
     try { localStorage.setItem(OPEN_KEY, JSON.stringify({ ...readOpen(), [id]: next })) } catch { /* private mode */ }
   }
   return (
-    <Panel id={`sec-${id}`} icon={icon} title={title} subtitle={open ? hint : summary ?? hint} value={value}
+    <Panel id={`sec-${id}`} title={title}
+      // The three parts of the work are numbered (1 who travels, 2 the trip, 3 how we price); the rest keep an icon.
+      icon={step ? <span className="flex h-5 w-5 items-center justify-center rounded-full bg-brand-600 text-[11px] font-semibold text-white">{step}</span> : icon} subtitle={open ? hint : summary ?? hint} value={value}
       open={open} onToggle={() => put(!open)}
       actions={actions && <span className="flex items-center gap-1" onClickCapture={() => { if (!open) put(true) }}>{actions}</span>}>
       {children}
@@ -231,7 +235,7 @@ function PeopleCard({ doc, n, edit }: { doc: QuoteDoc; n: number; edit: Edit }) 
     p.role === 'pay' && p.count !== null && Number(p.weight ?? 1) !== 1 ? t(Number(p.weight) === 0 ? 'shareNone' : 'shareHalf') : '',
   ].filter(Boolean).join(' · ')
   return (
-    <Section id="who" icon={<Users size={20} />} title={t('whoTravels')} hint={t('peopleTotal', { n: total })}
+    <Section id="who" step={1} icon={<Users size={20} />} title={t('whoTravels')} hint={t('peopleTotal', { n: total })}
       summary={people.filter((p) => counted(p) > 0).map((p) => `${counted(p)} ${p.name}`).join(' · ')}
       actions={<Menu kind="add" label={t('addPersonType')}
         items={PERSON_PRESETS.map((x) => ({ label: t(x.key), onClick: () => {
@@ -396,7 +400,7 @@ function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, valu
     onNight(day - 1)
   }
   return (
-    <Section id="trip" icon={<BedDouble size={20} />} title={t('theTrip')} hint={t('perTouristAt', { n })} value={value}
+    <Section id="trip" step={2} icon={<BedDouble size={20} />} title={t('theTrip')} hint={t('perTouristAt', { n })} value={value}
       summary={t('tripSummary', { days: doc.days, nights: doc.nights.length, lines: doc.items.length })}
       actions={<Button variant="tertiary" size="sm" onClick={addDay}><Plus size={16} />{t('addDay')}</Button>}>
       <MealsLine doc={doc} edit={edit} />
@@ -761,7 +765,7 @@ function RecipeCard({ doc, edit, value }: { doc: QuoteDoc; edit: Edit; value?: s
     </label>
   )
   return (
-    <Section id="pricing" icon={<span className="text-base font-semibold leading-none">%</span>} title={t('priceRecipe')} hint={t('priceRecipeHelp')} value={value}
+    <Section id="pricing" step={3} icon={<span className="text-base font-semibold leading-none">%</span>} title={t('priceRecipe')} hint={t('priceRecipeHelp')} value={value}
       summary={steps.filter((x) => x.on).map((x) => stepSummary(x)).join(' → ')}
       actions={<Menu kind="add" label={t('addStep')}
         items={STEP_KINDS.map((k) => ({ label: t(`step_${k}` as TKey), onClick: () => addStep(k) }))} />}>
@@ -872,30 +876,50 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
     const out: Record<string, number> = {}
     breakdown?.items.forEach((x) => { const k = x.kind ?? x.category; out[k] = (out[k] ?? 0) + x.amount })
     if (breakdown) out.hotel = (out.hotel ?? 0) + breakdown.steps.hotel_dbl_pp * n + breakdown.steps.leader_room + (breakdown.steps.staff_room ?? 0)
-    return Object.entries(out).filter(([, v]) => v > 0)
+    return Object.entries(out).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])
   }, [breakdown, n])
   const total = byCat.reduce((s, [, v]) => s + v, 0)
-  const others = tiers.filter((x) => x.tourists !== n && (x.tourists === doc.pax_min || x.tourists === doc.pax_max || x.tourists % 5 === 0))
+  const missing = missingPrices(doc).count
+  // Every group size with its price, as buttons: pick one to see it (a slider when there are very many).
+  const many = tiers.length > 30
+  const profit = row ? row.group_revenue - row.group_cost : 0
+  const pct = row && row.group_revenue > 0 ? (profit / row.group_revenue) * 100 : 0
+  const health = profit < 0 ? 'loss' : pct < 1 ? 'thin' : 'ok'
   return (
     <aside className="xl:sticky xl:top-2 xl:self-start">
       <Card className="space-y-4 p-4">
-        <div>
-          <div className="flex items-center justify-between text-sm text-slate-500">
-            <span>{t('groupOf')}</span><span className="font-semibold text-slate-900">{row?.label ?? n}</span>
-          </div>
-          <input type="range" min={doc.pax_min} max={doc.pax_max} step={1} value={n} onChange={(e) => setN(Number(e.target.value))}
-            className="mt-1 w-full accent-brand-600" aria-label={t('groupOf')} />
-        </div>
         {(result?.seasons?.length ?? 0) > 0 && (
           <SegmentedControl size="sm" label={t('seasons')} value={season} onChange={setSeason}
             options={[['', t('basePrices')] as [string, string], ...result!.seasons!.map((sn) => [sn.id, sn.name] as [string, string])]} />
         )}
+        <div>
+          <div className="mb-1.5 text-sm text-slate-500">{t('groupOf')}</div>
+          {many ? (
+            <input type="range" min={doc.pax_min} max={doc.pax_max} step={1} value={n} onChange={(e) => setN(Number(e.target.value))}
+              className="w-full accent-brand-600" aria-label={t('groupOf')} />
+          ) : (
+            <div role="radiogroup" aria-label={t('groupOf')} className="grid grid-cols-3 gap-1">
+              {tiers.map((x) => (
+                <button key={x.tourists} type="button" role="radio" aria-checked={x.tourists === n} onClick={() => setN(x.tourists)}
+                  className={cn('rounded px-1.5 py-1 text-left leading-tight focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600',
+                    x.tourists === n ? 'bg-brand-600 text-white' : 'bg-slate-50 text-slate-700 hover:bg-slate-100')}>
+                  <span className={cn('block text-xs', x.tourists === n ? 'text-white/80' : 'text-slate-500')}>{x.label}</span>
+                  <span className="block text-sm font-semibold tabular-nums">{money(x.price_dbl)}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
         {row ? <>
-          <div>
-            <div className="text-sm text-slate-500">{row.types?.[0] ? nameOf(row.types[0].id, row.types[0].name) : t('perPersonShort')} · {t('roomDouble')}</div>
-            {missingPrices(doc).count > 0 && <div className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{t('priceIncomplete', { n: missingPrices(doc).count })}</div>}
+          <div className="border-t border-slate-200 pt-3">
+            <div className="text-sm text-slate-500">{row.label} · {row.types?.[0] ? nameOf(row.types[0].id, row.types[0].name) : t('perPersonShort')} · {t('roomDouble')}</div>
+            {missing > 0 && <div className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{t('priceIncomplete', { n: missing })}</div>}
             <div className="text-[32px] font-semibold leading-10 tabular-nums">{money(row.price_dbl)} <span className="text-base font-semibold text-slate-500">{cur}</span></div>
-            <div className="text-sm text-slate-500">{t('roomSingle')} {money(row.price_sgl)}{row.price_trp !== null ? ` · ${t('roomTriple')} ${money(row.price_trp)}` : ''}{row.price_quad != null ? ` · ${t('roomQuad')} ${money(row.price_quad)}` : ''}</div>
+            <div className="text-sm text-slate-600">
+              {t('roomSingle')} +{money(row.single_supplement)}
+              {row.price_trp !== null && ` · ${t('roomTriple')} ${money(row.price_trp)}`}
+              {row.price_quad != null && ` · ${t('roomQuad')} ${money(row.price_quad)}`}
+            </div>
             {(row.other?.length ?? 0) > 0 && (
               <div className="mt-1 flex flex-wrap gap-x-3 text-sm font-semibold tabular-nums text-slate-700">
                 {row.other!.map((o) => <span key={o.currency}>{money(o.price_dbl)} {o.currency}</span>)}
@@ -903,36 +927,45 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
             )}
           </div>
           {(row.types?.length ?? 0) > 1 && (
-            <ul className="space-y-1 border-t border-slate-200 pt-3 text-sm">
+            <ul className="space-y-1 text-sm">
               {row.types!.slice(1).map((x) => (
                 <li key={x.id} className="flex justify-between"><span>{nameOf(x.id, x.name)} × {x.count}</span><span className="font-semibold tabular-nums">{money(x.price)}</span></li>
               ))}
             </ul>
           )}
-          <div className="grid grid-cols-2 gap-2 border-t border-slate-200 pt-3 text-sm">
-            <div><div className="text-xs text-slate-500">{t('costPerPerson')}</div><div className="font-semibold tabular-nums">{money(row.cost_dbl)}</div></div>
-            <div><div className="text-xs text-slate-500">{t('profitGroup')}</div><div className="font-semibold tabular-nums text-emerald-700">{money(row.group_revenue - row.group_cost)}</div></div>
+          {/* Is it worth it: one line, green / amber / red. */}
+          <div className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium',
+            health === 'ok' ? 'bg-emerald-50 text-emerald-800' : health === 'thin' ? 'bg-amber-50 text-amber-900' : 'bg-red-50 text-red-800')}>
+            <span className="min-w-0 flex-1 tabular-nums">{t('profitLine', { amount: money(profit), cur, pct: pct.toFixed(1) })}</span>
+            {health !== 'ok' && <span className="shrink-0 text-xs font-semibold uppercase">{t(health === 'thin' ? 'profitThin' : 'profitLoss')}</span>}
           </div>
           {total > 0 && (
             <div>
-              <div className="flex h-2.5 overflow-hidden rounded-full">
+              <div className="flex h-2 overflow-hidden rounded-full" aria-hidden>
                 {byCat.map(([c, v]) => <span key={c} className={K.colorOf(c)} style={{ width: `${(v / total) * 100}%` }} />)}
               </div>
-              <ul className="mt-2 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-slate-600">
+              <p className="mt-2 text-xs leading-5 text-slate-600">
+                <span className="font-semibold text-slate-800">{t('costPerPerson')} {money(row.cost_dbl)}</span>
                 {byCat.map(([c, v]) => (
-                  <li key={c} className="flex items-center gap-1.5"><span className={cn('h-2 w-2 rounded-sm', K.colorOf(c))} />
-                    <span className="flex-1">{K.nameOf(c)}</span><span className="tabular-nums">{money(v / n)}</span></li>
+                  // a space between the parts lets the line wrap; each part stays whole
+                  <Fragment key={c}>{' '}<span className="whitespace-nowrap">· <span className={cn('mr-1 inline-block h-2 w-2 rounded-sm', K.colorOf(c))} />{K.nameOf(c)} {money(v / n)}</span></Fragment>
                 ))}
-              </ul>
+              </p>
             </div>
           )}
           {breakdown?.steps.recipe && breakdown.steps.recipe.length > 0 && (
-            <ol className="space-y-0.5 border-t border-slate-200 pt-3 text-xs text-slate-600">
-              <li className="flex justify-between"><span>{t('stepCost')}</span><span className="tabular-nums">{money(breakdown.tier.cost_dbl)}</span></li>
-              {breakdown.steps.recipe.map((r, k) => (
-                <li key={k} className="flex justify-between"><span>{r.amount >= 0 ? '+' : '−'} {r.label === ENGINE_LABEL[r.kind] ? t(`step_${r.kind}` as TKey) : r.label}</span><span className="tabular-nums">{money(Math.abs(r.amount))}</span></li>
-              ))}
-            </ol>
+            <details className="group text-xs text-slate-600">
+              <summary className="cursor-pointer list-none text-sm font-medium text-slate-700 hover:text-slate-900">
+                <ChevronRight size={14} className="mr-1 inline transition-transform group-open:rotate-90" aria-hidden />{t('howPriceBuilt')}
+              </summary>
+              <ol className="mt-2 space-y-0.5">
+                <li className="flex justify-between"><span>{t('stepCost')}</span><span className="tabular-nums">{money(breakdown.tier.cost_dbl)}</span></li>
+                {breakdown.steps.recipe.map((r, k) => (
+                  <li key={k} className="flex justify-between"><span>{r.amount >= 0 ? '+' : '−'} {r.label === ENGINE_LABEL[r.kind] ? t(`step_${r.kind}` as TKey) : r.label}</span><span className="tabular-nums">{money(Math.abs(r.amount))}</span></li>
+                ))}
+                <li className="flex justify-between border-t border-slate-200 pt-0.5 font-semibold text-slate-800"><span>{t('stepPrice')}</span><span className="tabular-nums">{money(row.price_dbl)}</span></li>
+              </ol>
+            </details>
           )}
           {(row.extras?.length ?? 0) > 0 && (
             <div className="border-t border-slate-200 pt-3">
@@ -945,23 +978,35 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
               </ul>
             </div>
           )}
-          <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-            <button type="button" onClick={() => setParams((p) => { p.set('tab', 'compare'); return p }, { replace: true })} className="text-sm font-medium text-brand-700 hover:underline">{t('allSizesAndTours')} →</button>
-          </div>
-          {others.length > 0 && (
-            <div className="border-t border-slate-200 pt-3">
-              <div className="mb-1 text-xs text-slate-500">{t('otherGroupSizes')}</div>
-              <ul className="space-y-0.5 text-sm">
-                {others.map((x) => (
-                  <li key={x.tourists}><button type="button" onClick={() => setN(x.tourists)} className="flex w-full justify-between rounded px-1 hover:bg-slate-50">
-                    <span className="text-slate-600">{x.label}</span><span className="font-medium tabular-nums">{money(x.price_dbl)}</span></button></li>
-                ))}
-              </ul>
-            </div>
-          )}
+          <button type="button" onClick={() => setParams((p) => { p.set('tab', 'compare'); return p }, { replace: true })} className="text-sm font-medium text-brand-700 hover:underline">{t('allSizesAndTours')} →</button>
         </> : <p className="text-sm text-slate-500">{result?.errors.length ? t('fixErrorsForPrice') : '…'}</p>}
       </Card>
     </aside>
+  )
+}
+
+/** Tools for special cases (who uses what, inputs, formulas): folded under the main three parts, the
+ * choice remembered on this device. */
+function MoreTools({ doc, children }: { doc: QuoteDoc; children: ReactNode }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(() => readOpen().more ?? false)
+  const toggle = () => {
+    setOpen(!open)
+    try { localStorage.setItem(OPEN_KEY, JSON.stringify({ ...readOpen(), more: !open })) } catch { /* private mode */ }
+  }
+  const inputs = Object.keys(doc.variables).length
+  return (
+    <div className="space-y-4">
+      <button type="button" onClick={toggle} aria-expanded={open}
+        className="flex w-full items-center gap-3 rounded-xl border border-dashed border-slate-300 px-4 py-3 text-left hover:bg-slate-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600">
+        <ChevronRight size={16} aria-hidden className={cn('shrink-0 text-slate-500 transition-transform', open && 'rotate-90')} />
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-slate-800">{t('moreTools')}</span>
+          <span className="block text-sm text-slate-500">{t('moreToolsHint', { n: inputs })}</span>
+        </span>
+      </button>
+      {open && children}
+    </div>
   )
 }
 
@@ -1002,9 +1047,9 @@ function OurWayBar({ doc, edit }: { doc: QuoteDoc; edit: Edit }) {
     toast('ourWayUsed')
   }
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-xl border border-violet-200 bg-violet-50/60 px-4 py-2.5 text-sm">
+    <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 px-4 py-2.5 text-sm">
       <Sparkles size={16} className="shrink-0 text-violet-600" />
-      <span className="min-w-0 flex-1 text-violet-900">
+      <span className="min-w-0 flex-1 text-slate-700">
         {same ? t('ourWayInUse') : has ? t('ourWayDiffers') : t('ourWayNone')}
       </span>
       {has && !same && <Button size="sm" variant="secondary" onClick={use}>{t('useOurWay')}</Button>}

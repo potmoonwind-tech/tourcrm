@@ -2664,6 +2664,12 @@ const en = {
   sendCalcTitle: 'The calculation for your team',
   sendCalcHelp: 'Every line, formula and group size, as an Excel file - for checking, not for the client.',
   sendPriceListTitle: 'The price list for the client',
+  profitLine: '{amount} {cur} profit per group · {pct}%',
+  profitThin: 'Thin',
+  profitLoss: 'Loss',
+  howPriceBuilt: 'How the price is built',
+  moreTools: 'More tools',
+  moreToolsHint: 'Who uses what, inputs ({n}) and formulas - for special cases',
 }
 
 type Dict = typeof en
@@ -5324,6 +5330,12 @@ const ka: Dict = {
   sendCalcTitle: 'კალკულაცია გუნდისთვის',
   sendCalcHelp: 'ყველა ხაზი, ფორმულა და ჯგუფის ზომა Excel ფაილად - შესამოწმებლად, არა კლიენტისთვის.',
   sendPriceListTitle: 'ფასების სია კლიენტისთვის',
+  profitLine: '{amount} {cur} მოგება ჯგუფზე · {pct}%',
+  profitThin: 'მცირე',
+  profitLoss: 'ზარალი',
+  howPriceBuilt: 'როგორ შედგება ფასი',
+  moreTools: 'სხვა ხელსაწყოები',
+  moreToolsHint: 'ვინ რას იყენებს, მონაცემები ({n}) და ფორმულები - განსაკუთრებული შემთხვევებისთვის',
 }
 
 export type Lang = 'en' | 'ka'
