@@ -903,6 +903,9 @@ class GeoPlace(Base):
     lat: Mapped[float | None] = mapped_column(Numeric(9, 6), nullable=True)
     lon: Mapped[float | None] = mapped_column(Numeric(9, 6), nullable=True)   # both None = not found
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Google's id for a picked place: its coordinates may be kept 30 days only, the id for ever,
+    # so a pinned place is looked up again by its id when its coordinates are old.
+    place_id: Mapped[str | None] = mapped_column(String(300), nullable=True)
 
 
 class RoadDistance(Base):

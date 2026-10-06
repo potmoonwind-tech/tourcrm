@@ -10,17 +10,103 @@
 
 Both are public services with no account. Only place names and coordinates are sent — never
 anything about a tour or a client. People can always correct the kilometres by hand.
+
+With a Google key (GOOGLE_MAPS_KEY) the same jobs go to Google Maps Platform instead: Geocoding
+(where a place is), Routes (road km, minutes and shape), Places (names while typing, then the
+picked place's details). Google's terms allow keeping coordinates and routes for 30 days, so
+nothing older is used: it is asked again (a pinned place by its Google place id).
 """
 import math
 import threading
 import time
 import unicodedata
+from datetime import timedelta, timezone
 
 import httpx
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
+from .config import settings
 from .models import GeoPlace, RoadDistance, utcnow
+
+GOOGLE_GEOCODE = "https://maps.googleapis.com/maps/api/geocode/json"
+GOOGLE_ROUTES = "https://routes.googleapis.com/directions/v2:computeRoutes"
+GOOGLE_AUTOCOMPLETE = "https://places.googleapis.com/v1/places:autocomplete"
+GOOGLE_PLACE = "https://places.googleapis.com/v1/places/{id}"
+GOOGLE_KEEP = timedelta(days=30)
+
+
+def google() -> bool:
+    return bool(settings.google_maps_key)
+
+
+def _stale(row) -> bool:
+    """With Google: kept longer than its terms allow (30 days) - ask again."""
+    if not google() or row is None or row.fetched_at is None:
+        return False
+    at = row.fetched_at if row.fetched_at.tzinfo else row.fetched_at.replace(tzinfo=timezone.utc)
+    return at < utcnow() - GOOGLE_KEEP
+
+
+def _forget(db: Session, k: str) -> None:
+    """Drop a name's kept answers (all its places and the 'all known' marker)."""
+    db.execute(delete(GeoPlace).where(or_(GeoPlace.key == k, GeoPlace.key.startswith(k + "#", autoescape=True))))
+    db.flush()
+
+
+def _google_get(client: httpx.Client, url: str, params: dict, headers: dict | None = None) -> dict:
+    r = client.get(url, params=params, headers=headers or {})
+    r.raise_for_status()
+    return r.json()
+
+
+def _google_post(client: httpx.Client, url: str, body: dict, headers: dict) -> dict:
+    r = client.post(url, json=body, headers={"X-Goog-Api-Key": settings.google_maps_key, **headers})
+    r.raise_for_status()
+    return r.json()
+
+
+def _lookup(client: httpx.Client, name: str, countries: list[str], limit: int,
+            box: tuple[float, float, float, float] | None = None) -> list[dict] | None:
+    """The map's places for a name, best first, as {display_name, lat, lon}; None = the map didn't answer.
+    `box` = (min lon, max lat, max lon, min lat): only places inside it."""
+    if not google():
+        _pace()
+        try:
+            params = {"q": name, "format": "json", "limit": limit, "accept-language": "en"}
+            if box:
+                params.update(viewbox=",".join(f"{x:.4f}" for x in box), bounded=1)
+            elif countries:
+                params["countrycodes"] = ",".join(sorted(countries))
+            r = client.get(NOMINATIM, params=params)
+            r.raise_for_status()
+            return [x for x in r.json() if x.get("lat") and x.get("lon")]
+        except (httpx.HTTPError, ValueError):
+            return None
+    params = {"address": name, "key": settings.google_maps_key, "language": "en"}
+    if box:
+        params["bounds"] = f"{box[3]},{box[0]}|{box[1]},{box[2]}"
+    elif countries and (b := _bbox(sorted(countries))):
+        lo1, la1, lo2, la2 = b.split(",")
+        params["bounds"] = f"{la1},{lo1}|{la2},{lo2}"
+    try:
+        data = _google_get(client, GOOGLE_GEOCODE, params)
+    except (httpx.HTTPError, ValueError):
+        return None
+    if data.get("status") not in ("OK", "ZERO_RESULTS"):
+        return None
+    out = []
+    for x in data.get("results", []):
+        loc = (x.get("geometry") or {}).get("location") or {}
+        if "lat" not in loc:
+            continue
+        cc = next((c.get("short_name", "").lower() for c in x.get("address_components", []) if "country" in c.get("types", [])), "")
+        if countries and cc and cc not in countries:
+            continue
+        if box and not (box[0] <= loc["lng"] <= box[2] and box[3] <= loc["lat"] <= box[1]):
+            continue
+        out.append({"display_name": x.get("formatted_address", ""), "lat": loc["lat"], "lon": loc["lng"]})
+    return out[:limit]
 
 NOMINATIM = "https://nominatim.openstreetmap.org/search"
 OSRM = "https://router.project-osrm.org/route/v1/driving/{a};{b}"
@@ -104,6 +190,9 @@ def candidates(db: Session, client: httpx.Client, name: str, budget: "_Budget | 
     if not k:
         return []
     hit = db.get(GeoPlace, k)
+    if _stale(hit) or _stale(db.get(GeoPlace, k + ALL)):
+        _forget(db, k)
+        hit = None
     if hit is not None and hit.lat is None:
         return []
     if db.get(GeoPlace, k + ALL) is not None:
@@ -116,13 +205,8 @@ def candidates(db: Session, client: httpx.Client, name: str, budget: "_Budget | 
                 budget.pending.add(key(name))
             return [hit] if hit is not None else []
         budget.left -= 1
-    _pace()
-    try:
-        r = client.get(NOMINATIM, params={"q": name, "format": "json", "limit": 8, "accept-language": "en",
-                                          **({"countrycodes": cc} if cc else {})})
-        r.raise_for_status()
-        rows = [x for x in r.json() if x.get("lat") and x.get("lon")]
-    except (httpx.HTTPError, ValueError):
+    rows = _lookup(client, name, sorted(countries or []) if cc else [], 8)
+    if rows is None:
         return [hit] if hit is not None else []      # not cached: try again next time
     found = [GeoPlace(key=f"{k}#{i}" if (i or hit is not None) else k, name=x.get("display_name", "")[:300],
                       lat=float(x["lat"]), lon=float(x["lon"]), fetched_at=utcnow()) for i, x in enumerate(rows)]
@@ -147,19 +231,14 @@ def near(db: Session, client: httpx.Client, name: str, around: list["GeoPlace"],
     box = (min(lons) - NEAR_PAD, max(lats) + NEAR_PAD, max(lons) + NEAR_PAD, min(lats) - NEAR_PAD)
     ck = f"{k}@{box[0]:.1f},{box[1]:.1f},{box[2]:.1f},{box[3]:.1f}"[:120]
     hit = db.get(GeoPlace, ck)
-    if hit is not None:
+    if hit is not None and not _stale(hit):
         return hit if hit.lat is not None else None
     if budget is not None:
         if budget.left <= 0:
             return None
         budget.left -= 1
-    _pace()
-    try:
-        r = client.get(NOMINATIM, params={"q": name, "format": "json", "limit": 1, "accept-language": "en",
-                                          "viewbox": ",".join(f"{x:.4f}" for x in box), "bounded": 1})
-        r.raise_for_status()
-        rows = [x for x in r.json() if x.get("lat") and x.get("lon")]
-    except (httpx.HTTPError, ValueError):
+    rows = _lookup(client, name, [], 1, box)
+    if rows is None:
         return None                      # not cached: try again next time
     found = GeoPlace(key=ck, name=rows[0].get("display_name", "")[:300] if rows else "",
                      lat=float(rows[0]["lat"]) if rows else None, lon=float(rows[0]["lon"]) if rows else None,
@@ -217,7 +296,7 @@ def road_between(db: Session, client: httpx.Client, pa: GeoPlace, pb: GeoPlace) 
     if pa.key == pb.key or (pa.lat, pa.lon) == (pb.lat, pb.lon):
         return 0
     hit = db.get(RoadDistance, (pa.key, pb.key))
-    if hit is not None and (hit.km is None or hit.minutes is not None):
+    if hit is not None and (hit.km is None or hit.minutes is not None) and not _stale(hit):
         return hit.km
     # Not asked yet, or asked before driving times were kept: ask (once) for all of it.
     row = _ask_road(db, client, pa, pb)
@@ -225,7 +304,24 @@ def road_between(db: Session, client: httpx.Client, pa: GeoPlace, pb: GeoPlace) 
 
 
 def _ask_road(db: Session, client: httpx.Client, pa: GeoPlace, pb: GeoPlace) -> "RoadDistance | None":
-    """OSRM once for a pair: km, car minutes and the road's (simplified) shape, kept."""
+    """The road once for a pair (OSRM, or Google Routes): km, car minutes and the road's simplified shape, kept."""
+    if google():
+        point = lambda g: {"location": {"latLng": {"latitude": float(g.lat), "longitude": float(g.lon)}}}
+        try:
+            data = _google_post(client, GOOGLE_ROUTES, {"origin": point(pa), "destination": point(pb), "travelMode": "DRIVE",
+                                                        "polylineQuality": "OVERVIEW", "languageCode": "en"},
+                                {"X-Goog-FieldMask": "routes.distanceMeters,routes.duration,routes.polyline.encodedPolyline"})
+        except (httpx.HTTPError, ValueError):
+            return None
+        g = (data.get("routes") or [{}])[0]
+        ok = "distanceMeters" in g
+        secs = str(g.get("duration") or "").rstrip("s")
+        row = RoadDistance(from_key=pa.key, to_key=pb.key, km=round(g["distanceMeters"] / 1000) if ok else None,
+                           minutes=round(float(secs) / 60) if ok and secs else None,
+                           geometry=(g.get("polyline") or {}).get("encodedPolyline") if ok else None, fetched_at=utcnow())
+        db.merge(row)
+        db.flush()
+        return row
     try:
         r = client.get(OSRM.format(a=f"{pa.lon},{pa.lat}", b=f"{pb.lon},{pb.lat}"),
                        params={"overview": "simplified", "geometries": "polyline"})
@@ -248,7 +344,7 @@ def road_shape(db: Session, client: httpx.Client, pa: GeoPlace, pb: GeoPlace, bu
     if pa.key == pb.key:
         return None
     hit = db.get(RoadDistance, (pa.key, pb.key))
-    if hit is not None and (hit.geometry or hit.km is None):
+    if hit is not None and (hit.geometry or hit.km is None) and not _stale(hit):
         return hit.geometry
     if budget.left <= 0:
         return None
@@ -320,10 +416,14 @@ _suggest_cache: dict[tuple[str, str], list[dict]] = {}
 SUGGEST_CACHE_MAX = 3000
 
 
-def suggest(q: str, countries: list[str] | None = None, timeout: float = 4.0) -> list[dict]:
-    """Real places whose name starts like `q`, in the agency's countries: [{name, detail, kind, lat, lon}]."""
+def suggest(q: str, countries: list[str] | None = None, timeout: float = 4.0, session: str | None = None) -> list[dict]:
+    """Real places whose name starts like `q`, in the agency's countries: [{name, detail, kind, lat, lon}].
+    From Google the places come without lat/lon but with a place_id: the picked one is looked up then
+    (place_details), which is how Google prices it (typing is free when it ends in a pick)."""
     q = " ".join(q.split())[:80]
     cc = sorted(countries or [])
+    if google():
+        return _google_suggest(q, cc, timeout, session)
     ck = (q.casefold(), ",".join(cc))
     if ck in _suggest_cache:
         return _suggest_cache[ck]
@@ -368,13 +468,62 @@ def suggest(q: str, countries: list[str] | None = None, timeout: float = 4.0) ->
     return out
 
 
+def _google_suggest(q: str, cc: list[str], timeout: float, session: str | None) -> list[dict]:
+    body = {"input": q, "languageCode": "en", **({"includedRegionCodes": cc[:15]} if cc else {}),
+            **({"sessionToken": session} if session else {})}
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            data = _google_post(client, GOOGLE_AUTOCOMPLETE, body, {})
+    except (httpx.HTTPError, ValueError):
+        return []
+    out = []
+    for s in data.get("suggestions", []):
+        p = s.get("placePrediction")
+        if not p or not p.get("placeId"):
+            continue
+        f = p.get("structuredFormat") or {}
+        name = ((f.get("mainText") or {}).get("text") or (p.get("text") or {}).get("text") or "")[:100]
+        if not name:
+            continue
+        kind = next((t for t in p.get("types", []) if t not in ("point_of_interest", "establishment", "political")), "")
+        out.append({"name": name, "detail": ((f.get("secondaryText") or {}).get("text") or "")[:200],
+                    "kind": kind.replace("_", " ")[:30], "lat": None, "lon": None, "street": "", "city": "",
+                    "place_id": p["placeId"][:300]})
+        if len(out) == 7:
+            break
+    return out
+
+
+def place_details(place_id: str, session: str | None = None, timeout: float = 6.0) -> dict | None:
+    """A picked Google place: where it is, its street and town (Place Details, basic fields only)."""
+    if not google():
+        return None
+    try:
+        with httpx.Client(timeout=timeout) as client:
+            data = _google_get(client, GOOGLE_PLACE.format(id=place_id),
+                               {"languageCode": "en", **({"sessionToken": session} if session else {})},
+                               {"X-Goog-Api-Key": settings.google_maps_key,
+                                "X-Goog-FieldMask": "location,formattedAddress,addressComponents,types"})
+    except (httpx.HTTPError, ValueError):
+        return None
+    loc = data.get("location") or {}
+    if "latitude" not in loc:
+        return None
+    parts = {t: c.get("longText", "") for c in data.get("addressComponents", []) for t in c.get("types", [])}
+    street = " ".join(x for x in (parts.get("route"), parts.get("street_number")) if x)
+    town = parts.get("locality") or parts.get("postal_town") or parts.get("administrative_area_level_2") or ""
+    return {"lat": float(loc["latitude"]), "lon": float(loc["longitude"]), "street": street[:150], "city": town[:100],
+            "detail": (data.get("formattedAddress") or "")[:200], "place_id": place_id}
+
+
 def pin_key(workspace_id: str, name: str) -> str:
     return f"pin:{workspace_id}:{key(name)}"[:120]
 
 
-def pin(db: Session, workspace_id: str, name: str, lat: float, lon: float, label: str) -> None:
+def pin(db: Session, workspace_id: str, name: str, lat: float, lon: float, label: str, place_id: str | None = None) -> None:
     """This agency's name means this exact spot (picked from the suggestions)."""
-    db.merge(GeoPlace(key=pin_key(workspace_id, name), name=label[:300], lat=lat, lon=lon, fetched_at=utcnow()))
+    db.merge(GeoPlace(key=pin_key(workspace_id, name), name=label[:300], lat=lat, lon=lon, fetched_at=utcnow(),
+                      place_id=place_id))
     db.flush()
 
 
@@ -382,6 +531,13 @@ def pinned(db: Session, workspace_id: str | None, name: str) -> "GeoPlace | None
     if not workspace_id or not key(name):
         return None
     hit = db.get(GeoPlace, pin_key(workspace_id, name))
+    if hit is not None and hit.place_id and _stale(hit):
+        # A Google place kept 30 days: where it is now, by its id (kept for ever); else not used.
+        d = place_details(hit.place_id)
+        if d is None:
+            return None
+        hit.lat, hit.lon, hit.fetched_at = d["lat"], d["lon"], utcnow()
+        db.flush()
     return hit if hit is not None and hit.lat is not None else None
 
 

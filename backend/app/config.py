@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     anthropic_workspace_id: str = ""     # only for a key that isn't scoped to a Console workspace
     ai_model: str = "claude-opus-5-5"
     ai_monthly_usd: float = 25.0
+    # Maps: Google when a key is set (place search, places, road distances), else OpenStreetMap.
+    # The server key is used by the server only; the browser key (restricted to the site's address
+    # in Google Cloud) draws the trip map in the browser and is public by design.
+    google_maps_key: str = ""
+    google_maps_browser_key: str = ""
 
 
 settings = Settings()

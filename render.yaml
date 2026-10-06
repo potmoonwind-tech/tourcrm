@@ -25,3 +25,8 @@ services:
       # The site's own address comes from Render (RENDER_EXTERNAL_URL); set APP_URL for a custom domain.
       - key: ANTHROPIC_API_KEY      # optional: the AI assistant; leave empty to keep it off
         sync: false
+      # Optional: Google Maps instead of OpenStreetMap. Both keys, or the app stays on OpenStreetMap.
+      - key: GOOGLE_MAPS_KEY        # server key: Geocoding API, Routes API, Places API (New)
+        sync: false
+      - key: GOOGLE_MAPS_BROWSER_KEY   # browser key: Maps JavaScript API, limited to this site's address
+        sync: false

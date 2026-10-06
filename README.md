@@ -211,3 +211,7 @@ Edit `app/models.py`, then:
 | `SECRET_KEY`    | long random string (required)        |
 | `COOKIE_SECURE` | `true`                               |
 | `APP_URL`       | `https://app.yourdomain.com`         |
+| `GOOGLE_MAPS_KEY` | optional: Google Maps on the server (Geocoding, Routes, Places API (New)); without it, OpenStreetMap |
+| `GOOGLE_MAPS_BROWSER_KEY` | optional, with the one above: the trip map in the browser (Maps JavaScript API), limited to the site address |
+
+With Google, saved coordinates and roads are refreshed after 30 days (Google's terms); picked places keep their Google place id for that.

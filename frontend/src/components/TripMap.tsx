@@ -12,6 +12,7 @@ import { createPortal } from 'react-dom'
 import { api } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { useI18n } from '../lib/i18n'
+import { loadGoogleMaps, useMapConfig, type GoogleMaps } from '../lib/maps'
 import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
 import { Drawer } from './overlay'
@@ -67,10 +68,13 @@ export function TripMap({ stops, title, subtitle, onClose }: { stops: MapStop[];
   const el = useRef<HTMLDivElement>(null)
   const map = useRef<L.Map | null>(null)
   const layer = useRef<L.LayerGroup | null>(null)
+  const config = useMapConfig()
+  const isGoogle = config.data?.maps === 'google'
+  const gmap = useGoogleTrip(el, isGoogle ? config.data!.maps_key : null, data.data, stops, day)
 
-  // The map itself, once.
+  // The map itself, once (OpenStreetMap; Google's is drawn by useGoogleTrip).
   useEffect(() => {
-    if (!el.current) return
+    if (!el.current || !config.data || isGoogle) return
     const m = L.map(el.current, { zoomControl: false, attributionControl: true, scrollWheelZoom: true })
     L.control.zoom({ position: 'bottomright' }).addTo(m)
     m.attributionControl.setPrefix(false)
@@ -79,7 +83,7 @@ export function TripMap({ stops, title, subtitle, onClose }: { stops: MapStop[];
     map.current = m
     layer.current = L.layerGroup().addTo(m)
     return () => { m.remove(); map.current = null }
-  }, [])
+  }, [config.data, isGoogle])
 
   // Pins and roads; the chosen day stands out, the rest fades.
   useEffect(() => {
@@ -136,12 +140,12 @@ export function TripMap({ stops, title, subtitle, onClose }: { stops: MapStop[];
         )}
         <div className="relative min-h-0 flex-1 overflow-hidden rounded-xl border border-slate-200">
           <div ref={el} className="h-full w-full" role="region" aria-label={t('mapRegion')} />
-          {data.isPending && (
+          {(data.isPending || config.isPending || gmap === 'loading') && (
             <div className="absolute inset-0 z-[500] flex items-center justify-center gap-2 bg-white/60 text-sm text-slate-700" role="status">
               <Spinner />{t('mapLoading')}
             </div>
           )}
-          {data.isError && <p className="absolute inset-x-0 top-0 z-[500] bg-white/90 px-3 py-2 text-sm text-red-700" role="alert">{t('mapUnavailable')}</p>}
+          {(data.isError || gmap === 'error') && <p className="absolute inset-x-0 top-0 z-[500] bg-white/90 px-3 py-2 text-sm text-red-700" role="alert">{t('mapUnavailable')}</p>}
         </div>
       </div>
       {missing.length > 0 && (
@@ -153,6 +157,94 @@ export function TripMap({ stops, title, subtitle, onClose }: { stops: MapStop[];
     </Drawer>,
     document.body,
   )
+}
+
+// --- Google Maps -----------------------------------------------------------------------------------
+
+/** Grey and quiet, like the OpenStreetMap version: the route stands out. */
+const QUIET = [
+  { elementType: 'geometry', stylers: [{ saturation: -100 }, { lightness: 8 }] },
+  { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+  { featureType: 'transit', stylers: [{ visibility: 'off' }] },
+  { elementType: 'labels.icon', stylers: [{ visibility: 'off' }] },
+]
+
+/** Draws the same pins and roads on a Google map. 'loading' / 'error' / 'ready'. */
+function useGoogleTrip(el: React.RefObject<HTMLDivElement | null>, key: string | null, d: MapData | undefined, stops: MapStop[], day: number | null) {
+  const [state, setState] = useState<'idle' | 'loading' | 'error' | 'ready'>('idle')
+  const gm = useRef<GoogleMaps>(null)
+  const map = useRef<GoogleMaps>(null)
+  const drawn = useRef<GoogleMaps[]>([])
+
+  useEffect(() => {
+    if (!key || !el.current) return
+    let gone = false
+    setState('loading')
+    loadGoogleMaps(key).then((maps) => {
+      if (gone || !el.current) return
+      gm.current = maps
+      map.current = new maps.Map(el.current, { center: { lat: 41.9, lng: 44.6 }, zoom: 7, styles: QUIET, disableDefaultUI: true,
+        zoomControl: true, clickableIcons: false, gestureHandling: 'greedy' })
+      setState('ready')
+    }).catch(() => !gone && setState('error'))
+    return () => { gone = true }
+  }, [key, el])
+
+  useEffect(() => {
+    const maps = gm.current, m = map.current
+    if (state !== 'ready' || !maps || !m || !d) return
+    drawn.current.forEach((x) => x.setMap(null))
+    drawn.current = []
+    const on = (i: number) => day === null || stops[i]?.day === day
+    for (const r of d.roads) {
+      const a = d.points[r.from], b = d.points[r.to]
+      const path = (r.polyline ? decode(r.polyline) : [[a.lat!, a.lon!], [b.lat!, b.lon!]] as [number, number][]).map(([lat, lng]) => ({ lat, lng }))
+      const active = on(r.to)
+      const color = active ? BRAND : '#94a3b8'
+      drawn.current.push(new maps.Polyline({ map: m, path, strokeColor: color, strokeOpacity: r.polyline ? (active ? 0.9 : 0.5) : 0,
+        strokeWeight: active ? 4 : 3, icons: r.polyline ? [] : [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.8, strokeColor: color, scale: 3 }, offset: '0', repeat: '12px' }] }))
+    }
+    // HTML pins (the same look as the OpenStreetMap version), placed by an overlay.
+    class Pin extends maps.OverlayView {
+      div: HTMLDivElement
+      at: GoogleMaps
+      z: number
+      constructor(at: GoogleMaps, html: string, title: string, z: number) {
+        super()
+        this.at = at
+        this.z = z
+        this.div = document.createElement('div')
+        this.div.style.position = 'absolute'
+        this.div.style.transform = 'translate(-50%, -50%)'
+        this.div.title = title
+        this.div.innerHTML = html
+      }
+      onAdd() { this.div.style.zIndex = String(this.z); this.getPanes().overlayMouseTarget.appendChild(this.div) }
+      draw() { const p = this.getProjection().fromLatLngToDivPixel(this.at); if (p) { this.div.style.left = `${p.x}px`; this.div.style.top = `${p.y}px` } }
+      onRemove() { this.div.remove() }
+    }
+    let n = 0
+    const bounds = new maps.LatLngBounds()
+    let any = false
+    d.points.forEach((p, i) => {
+      const s = stops[i]
+      if (!s || s.kind === 'night' || s.kind === 'step') n++
+      if (p.lat == null || p.lon == null || !s) return
+      const num = s.kind === 'night' ? (s.day ?? n) : n
+      const active = on(i)
+      const where = p.where && p.where.toLowerCase() !== s.label.toLowerCase() ? `\n${p.where.split(',').slice(0, 3).join(',')}` : ''
+      const pin = new Pin(new maps.LatLng(p.lat, p.lon), pinHtml(s, num, active), s.label + where, active ? 1000 : 1)
+      pin.setMap(m)
+      drawn.current.push(pin)
+      if (active) { bounds.extend({ lat: p.lat, lng: p.lon }); any = true }
+    })
+    if (any) {
+      m.fitBounds(bounds, 48)
+      maps.event.addListenerOnce(m, 'idle', () => { if (m.getZoom() > 14) m.setZoom(14) })
+    }
+  }, [state, d, day, stops])
+
+  return key ? state : 'idle'
 }
 
 function DayButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {

@@ -85,6 +85,15 @@ def health():
     return {"ok": True}
 
 
+@app.get("/api/config")
+def public_config():
+    """What the browser needs before sign-in: which map to draw, and Google's browser key (public by
+    design: Google limits it to this site's address)."""
+    from .config import settings
+    google = bool(settings.google_maps_key and settings.google_maps_browser_key)
+    return {"maps": "google" if google else "osm", "maps_key": settings.google_maps_browser_key if google else ""}
+
+
 # In production the built frontend is served from here, so the app is one service.
 _dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
 if _dist.is_dir():

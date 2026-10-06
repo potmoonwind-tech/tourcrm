@@ -205,7 +205,7 @@ def test_place_names_while_typing_and_pinned_places(make_client, monkeypatch):
     from app import geo
     from app.models import GeoPlace
     asked = []
-    monkeypatch.setattr(geo, "suggest", lambda q, countries=None: asked.append((q, countries)) or [
+    monkeypatch.setattr(geo, "suggest", lambda q, countries=None, session=None: asked.append((q, countries)) or [
         {"name": "Ananuri Castle", "detail": "Dusheti Municipality, Georgia", "kind": "castle", "lat": 42.16, "lon": 44.70}])
     c, base, ws = agency(make_client)
     c.patch(base, json={"countries": ["GE", "AM"]})

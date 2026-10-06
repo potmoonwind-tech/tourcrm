@@ -1,7 +1,7 @@
 """Suggested road kilometres for a list of day cities (route or tour itinerary)."""
 from typing import Literal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -49,16 +49,38 @@ class PlaceSuggestion(BaseModel):
     name: str
     detail: str            # "Mtskheta-Mtianeti, Georgia"
     kind: str              # what the map says it is: city, village, castle, monastery…
-    lat: float
-    lon: float
+    lat: float | None      # None from Google: looked up when picked (/places/details)
+    lon: float | None
     street: str = ""       # "Rustaveli Ave 12" when the map has it
     city: str = ""         # the town it is in
+    place_id: str | None = None   # Google's id
 
 
 @router.get("/places", response_model=list[PlaceSuggestion])
-def places(q: str = Query(min_length=2, max_length=80), ctx: WorkspaceCtx = Depends(office)):
+def places(q: str = Query(min_length=2, max_length=80), session: str | None = Query(default=None, max_length=64),
+           ctx: WorkspaceCtx = Depends(office)):
     ratelimit.hit("places", ctx.workspace.id, limit=300, per_seconds=600)   # typed with a pause; the map is shared
-    return geo.suggest(q, ctx.workspace.countries or None)
+    return geo.suggest(q, ctx.workspace.countries or None, session=session)
+
+
+class PlaceDetails(BaseModel):
+    lat: float
+    lon: float
+    street: str = ""
+    city: str = ""
+    detail: str = ""
+    place_id: str
+
+
+@router.get("/places/details", response_model=PlaceDetails)
+def place_details(id: str = Query(min_length=1, max_length=300), session: str | None = Query(default=None, max_length=64),
+                  ctx: WorkspaceCtx = Depends(office)):
+    """Where a picked Google suggestion is (ends the typing session, which Google prices as one lookup)."""
+    ratelimit.hit("place-details", ctx.workspace.id, limit=200, per_seconds=600)
+    d = geo.place_details(id, session)
+    if d is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Place not found")
+    return d
 
 
 class PinIn(BaseModel):
@@ -66,12 +88,13 @@ class PinIn(BaseModel):
     lat: float = Field(ge=-90, le=90)
     lon: float = Field(ge=-180, le=180)
     label: str = Field(default="", max_length=300)
+    place_id: str | None = Field(default=None, max_length=300)
 
 
 @router.post("/places/pin", status_code=204)
 def pin_place(body: PinIn, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
     """The name picked from the suggestions is that spot for km and driving times (this agency only)."""
-    geo.pin(db, ctx.workspace.id, body.name, body.lat, body.lon, body.label or body.name)
+    geo.pin(db, ctx.workspace.id, body.name, body.lat, body.lon, body.label or body.name, body.place_id)
     db.commit()
 
 

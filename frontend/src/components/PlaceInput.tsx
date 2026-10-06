@@ -10,11 +10,14 @@ import { api } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { useDebounced } from '../lib/hooks'
 import { useI18n } from '../lib/i18n'
+import { useMapConfig } from '../lib/maps'
 import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
 
 export interface PlaceSuggestion {
-  name: string; detail: string; kind: string; lat: number; lon: number
+  name: string; detail: string; kind: string
+  lat: number | null; lon: number | null   // null from Google until the place is picked (then looked up)
+  place_id?: string | null   // Google's id: kept with the pin, so the spot can be looked up again later
   street?: string   // "Rustaveli Ave 12" when the map has it
   city?: string     // the town it is in
   own?: boolean     // one of the agency's own places (a catalogue sight), not from the map
@@ -30,7 +33,7 @@ export const addressOf = (p: PlaceSuggestion) => {
 /** Fix a name (an address) to the picked spot for this agency: drives to it use exactly that place. */
 export const pinPlace = (workspaceId: string, name: string, p: PlaceSuggestion) =>
   api(wsPath(workspaceId, '/places/pin'), {
-    method: 'POST', body: { name: name.slice(0, 100), lat: p.lat, lon: p.lon, label: [p.name, p.detail].filter(Boolean).join(', ') },
+    method: 'POST', body: { name: name.slice(0, 100), lat: p.lat, lon: p.lon, place_id: p.place_id ?? null, label: [p.name, p.detail].filter(Boolean).join(', ') },
   })
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> & {
@@ -49,16 +52,19 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
   const [open, setOpen] = useState(false)
   const [active, setActive] = useState(-1)
   const q = useDebounced(value.trim(), 350)
+  const maps = useMapConfig()
+  // Google prices typing + the pick as one session: the same token until a place is picked.
+  const [session, setSession] = useState(() => crypto.randomUUID())
   const found = useQuery({
     queryKey: ['places', ws.id, q.toLowerCase()],
-    queryFn: () => api<PlaceSuggestion[]>(wsPath(ws.id, `/places?q=${encodeURIComponent(q)}`)),
+    queryFn: () => api<PlaceSuggestion[]>(wsPath(ws.id, `/places?q=${encodeURIComponent(q)}&session=${session}`)),
     enabled: open && q.length >= 2,
     staleTime: 10 * 60_000,
     meta: { silent: true },
   })
   const pin = useMutation({
     mutationFn: (p: PlaceSuggestion) => api(wsPath(ws.id, '/places/pin'), {
-      method: 'POST', body: { name: p.name, lat: p.lat, lon: p.lon, label: [p.name, p.detail].filter(Boolean).join(', ') },
+      method: 'POST', body: { name: p.name, lat: p.lat, lon: p.lon, place_id: p.place_id ?? null, label: [p.name, p.detail].filter(Boolean).join(', ') },
     }),
     meta: { silent: true },
   })
@@ -69,10 +75,20 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
     ? (found.data ?? []).filter((p) => (p.name.toLowerCase() !== typed || p.detail) && !mine.some((m) => m.name.toLowerCase() === p.name.toLowerCase()))
     : []
   const items = [...mine, ...fromMap]
-  const choose = (p: PlaceSuggestion) => {
-    onChange(p.name)
-    if (!p.own) pin.mutate(p)
+  const choose = async (picked: PlaceSuggestion) => {
+    onChange(picked.name)
     setOpen(false)
+    let p = picked
+    if (!p.own && p.place_id && p.lat == null) {
+      // A Google suggestion: where it is, its street and town, now that it's picked.
+      try {
+        const d = await api<{ lat: number; lon: number; street: string; city: string }>(
+          wsPath(ws.id, `/places/details?id=${encodeURIComponent(p.place_id)}&session=${session}`))
+        p = { ...p, lat: d.lat, lon: d.lon, street: d.street || p.street, city: d.city || p.city }
+      } catch { /* typed name still works */ }
+      setSession(crypto.randomUUID())
+    }
+    if (!p.own && p.lat != null) pin.mutate(p)
     setActive(-1)
     onPicked?.(p)
   }
@@ -111,7 +127,7 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
               </span>
             </li>
           </Fragment>))}
-          <li role="presentation" className="px-3 pb-1 pt-1.5 text-[11px] text-slate-500">{t('placeSuggestionsFoot')}</li>
+          <li role="presentation" className="px-3 pb-1 pt-1.5 text-xs text-slate-500">{maps.data?.maps === 'google' ? t('placeSuggestionsFootGoogle') : t('placeSuggestionsFoot')}</li>
         </ul>
       )}
     </span>
