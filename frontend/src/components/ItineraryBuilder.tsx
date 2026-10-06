@@ -621,12 +621,12 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   )
 }
 
-const SLOT_TONE: Partial<Record<Slot, { fill: string; icon: string }>> = {
-  hotel: { fill: 'bg-sky-50/70', icon: 'text-sky-600' },
-  breakfast: { fill: 'bg-emerald-50/60', icon: 'text-emerald-600' },
-  lunch: { fill: 'bg-emerald-50/60', icon: 'text-emerald-600' },
-  dinner: { fill: 'bg-emerald-50/60', icon: 'text-emerald-600' },
-  extras: { fill: 'bg-pink-50/50', icon: 'text-pink-600' },
+const SLOT_TONE: Partial<Record<Slot, { pill: string }>> = {
+  hotel: { pill: 'bg-sky-50 text-sky-800' },
+  breakfast: { pill: 'bg-emerald-50 text-emerald-800' },
+  lunch: { pill: 'bg-emerald-50 text-emerald-800' },
+  dinner: { pill: 'bg-emerald-50 text-emerald-800' },
+  extras: { pill: 'bg-pink-50 text-pink-800' },
 }
 
 function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, children, footer, aside }: {
@@ -637,14 +637,17 @@ function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, childr
   const active = dragging ?? picked
   const ok = active ? accepts(slot, active) : false
   // The kind of box at a glance, in the calculation's colours: hotel blue, meals green, activities pink -
-  // a very light tint and the icon (the fields inside stay white), so warnings still stand out.
+  // only the label is a soft coloured pill; the box stays white, so warnings still stand out.
   const tone = SLOT_TONE[slot]
   return (
     <div ref={setNodeRef} onClick={() => picked && ok && onTap(picked)}
       className={cn('rounded-lg border p-2 transition-colors', wide && 'col-span-full',
-        active && ok ? 'border-dashed border-brand-400 bg-brand-50/60' : cn('border-slate-200', tone?.fill),
+        active && ok ? 'border-dashed border-brand-400 bg-brand-50/60' : 'border-slate-200 bg-white',
         isOver && ok && 'border-solid border-brand-600 bg-brand-100', picked && ok && 'cursor-copy')}>
-      <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-600"><span className={tone?.icon}>{icon}</span>{label}{aside && <span className="ml-auto">{aside}</span>}</div>
+      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
+        <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5', tone?.pill)}>{icon}{label}</span>
+        {aside && <span className="ml-auto">{aside}</span>}
+      </div>
       {children}
       {footer && <div className="mt-1">{footer}</div>}
     </div>
