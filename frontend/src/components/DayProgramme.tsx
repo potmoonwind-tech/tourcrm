@@ -21,6 +21,7 @@ import { Label } from './overlay'
 import { InfoTip, Tooltip } from './Tooltip'
 import { PlaceInput, type PlaceSuggestion } from './PlaceInput'
 import { TripMap, type MapStop } from './TripMap'
+import { VendorSelect } from './VendorSelect'
 import { Button } from './ui'
 
 const ICON: Record<ScheduleKind, ReactNode> = {
@@ -136,11 +137,14 @@ export function dayLegs(day: DayFields, from: string | undefined, factor: number
   }))
 }
 
-export function DayProgramme({ day, index, last, byId, services, disabled, startOpen, from, fromHotel, onChange }: {
+export function DayProgramme({ day, index, last, byId, services, disabled, startOpen, from, fromHotel, onChange, onSetDay }: {
   day: DayFields; index: number; last: boolean; byId: Map<string, Vendor>; services: ServiceBrief[]; disabled?: boolean; startOpen?: boolean
   from?: string      // where the group slept the night before
   fromHotel?: string | null   // ...and in which hotel: breakfast "at the hotel" is there, and the day's road starts from it
   onChange: (schedule: ScheduleItem[]) => void
+  // Where the day itself can be changed (the builder): lunch and dinner are then picked right in the programme,
+  // and the day's lunch/dinner follow — one change, with the programme.
+  onSetDay?: (patch: Partial<DayFields>) => void
 }) {
   const { t } = useI18n()
   const saved = day.schedule ?? []
@@ -267,6 +271,29 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
     }
     return undefined
   }
+  // A meal added from the programme is the day's lunch or dinner (included, unless the day says otherwise).
+  const addMeal = (m: 'lunch' | 'dinner') => {
+    const next = laid([...items, { id: newId(), kind: 'meal' as ScheduleKind, time: '', end: '', title: '', ref: m, place: '', notes: '' }])
+    const mode = m === 'lunch' ? day.lunch_mode : day.dinner_mode
+    onSetDay!({ schedule: next, ...(mode === 'own' ? (m === 'lunch' ? { lunch_mode: 'included' as const } : { dinner_mode: 'included' as const }) : {}) })
+  }
+  const serving = useMemo(() => new Set(services.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [services])
+  const vendorList = useMemo(() => [...byId.values()], [byId])
+  const mealPicker = (x: ScheduleItem) => {
+    if (!onSetDay || (x.ref !== 'lunch' && x.ref !== 'dinner')) return undefined
+    const m = x.ref
+    if ((m === 'lunch' ? day.lunch_mode : day.dinner_mode) === 'own') return undefined
+    return (
+      <span className="flex min-w-0 flex-1 items-center gap-2">
+        <span className="shrink-0 text-sm text-slate-800">{t(m)}:</span>
+        <span className="min-w-0 flex-1">
+          <VendorSelect className="h-9" vendors={vendorList} types={['restaurant', 'hotel']} only={(v) => v.type !== 'hotel' || serving.has(v.id)}
+            value={(m === 'lunch' ? day.lunch_id : day.dinner_id) ?? null} cities={[...(day.stops ?? []), day.city]}
+            onChange={(v) => onSetDay(m === 'lunch' ? { lunch_id: v, lunch_menu_id: null } : { dinner_id: v, dinner_menu_id: null })} />
+        </span>
+      </span>
+    )
+  }
   const byTime = () => save([...items].sort((a, b) => (a.time || '99').localeCompare(b.time || '99')))
   const timed = items.filter((x) => x.time)
   const first = timed[0]?.time
@@ -363,7 +390,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
                     {before.has(x.id) && <DriveRow leg={before.get(x.id)!} depart={departs.get(x.id) ?? null}
                       samePlace={!disabled && x.kind === 'visit' && !x.ref ? prevPlaceName(x) : undefined}
                       onSamePlace={(place) => set(x.id, { place })} />}
-                    <Step x={x} label={label(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
+                    <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
                       length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)}
                       onSet={(patch) => set(x.id, patch)} onRemove={() => save(items.filter((y) => y.id !== x.id))} />
                   </Fragment>
@@ -377,6 +404,11 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
             <div className="flex flex-wrap items-center gap-2 pt-1">
               {adding ? (
                 <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('progAdd')}>
+                  {onSetDay && (['lunch', 'dinner'] as const).filter((m) => !items.some((x) => x.ref === m)).map((m) => (
+                    <Button type="button" key={m} size="sm" variant="secondary" onClick={() => { addMeal(m); setAdding(false) }}>
+                      {ICON.meal}{t(m)}
+                    </Button>
+                  ))}
                   {ADDABLE.map((k) => (
                     <Button type="button" key={k} size="sm" variant="secondary" onClick={() => { save([...items, { id: newId(), kind: k, time: '', end: '', title: '', ref: null, place: '', notes: '' }]); setAdding(false) }}>
                       <span className={cn('flex h-5 w-5 items-center justify-center rounded', KIND_STYLE[k])}>{ICON[k]}</span>{t(`prog_${k}` as TKey)}
@@ -427,8 +459,8 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   )
 }
 
-function Step({ x, label, disabled, issue, onFix, length, sights, sight, onSet, onRemove }: {
-  x: ScheduleItem; label: { text: string; missing: boolean }; disabled?: boolean; issue?: StepIssue; onFix: (time: string) => void
+function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, onSet, onRemove }: {
+  x: ScheduleItem; label: { text: string; missing: boolean }; picker?: ReactNode; disabled?: boolean; issue?: StepIssue; onFix: (time: string) => void
   length: number; sights: PlaceSuggestion[]; sight?: Vendor
   onSet: (p: Partial<ScheduleItem>) => void; onRemove: () => void
 }) {
@@ -502,7 +534,7 @@ function Step({ x, label, disabled, issue, onFix, length, sights, sight, onSet, 
             <input value={x.title} disabled={disabled} onChange={(e) => onSet({ title: e.target.value })} maxLength={200}
               aria-label={t('progStepName', { kind })} placeholder={t('progNamePh', { kind })}
               className="h-9 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 placeholder:text-slate-400 hover:border-slate-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:border-transparent disabled:bg-transparent" />
-          ) : (
+          ) : picker ? picker : (
             <span className="min-w-0 flex-1 text-sm text-slate-800">
               <span className="break-words">{label.text}</span>
               {label.missing && <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-red-700"><AlertTriangle size={13} aria-hidden />{t('progMissing')}</span>}
