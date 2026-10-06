@@ -1,7 +1,6 @@
 import { Check, Minus, Plus, Wand2 } from 'lucide-react'
 import { useI18n } from '../lib/i18n'
 import { cn } from '../lib/utils'
-import { IconButton } from './ui'
 
 /**
  * The group's rooms as numbers per type — kept as the text the server reads ("10 DBL + 2 SGL"), so older
@@ -52,19 +51,29 @@ export function RoomsPicker({ value, onChange, pax, disabled, id }: {
   const set = (k: RoomType, n: number) => onChange(roomsText({ ...counts, [k]: Math.max(0, Math.min(200, n)) }))
   return (
     <div className="@container space-y-2" id={id}>
-      <div className="grid grid-cols-2 gap-2 @xl:grid-cols-4">
+      {/* One rounded stepper per room type, in a row when there is room: the number can be typed too. */}
+      <div className="grid grid-cols-2 gap-x-4 gap-y-3 @md:grid-cols-4">
         {TYPES.map((k) => {
           const n = counts[k] ?? 0
           const name = t(`roomType_${k}`)
           return (
-            <div key={k} className={cn('rounded-lg border px-2 py-1.5', n ? 'border-brand-200 bg-brand-50/40' : 'border-slate-200')}>
-              <span className="block text-xs font-medium text-slate-600">{name}</span>
-              <span className="mt-0.5 flex items-center gap-0.5" role="group" aria-label={name}>
-                <IconButton size="sm" label={`${t('fewer')} · ${name}`} disabled={disabled || n <= 0} onClick={() => set(k, n - 1)}><Minus size={14} /></IconButton>
+            <div key={k}>
+              <span className="mb-1 block text-xs font-medium text-slate-600">{name}</span>
+              <span role="group" aria-label={name}
+                className={cn('flex h-9 items-center rounded-full border bg-white transition-colors focus-within:ring-2 focus-within:ring-brand-100',
+                  n ? 'border-brand-300' : 'border-slate-300')}>
+                <button type="button" aria-label={`${t('fewer')} · ${name}`} disabled={disabled || n <= 0} onClick={() => set(k, n - 1)}
+                  className="flex h-full w-9 shrink-0 items-center justify-center rounded-l-full text-slate-600 transition hover:bg-slate-100 active:scale-95 disabled:pointer-events-none disabled:opacity-30">
+                  <Minus size={14} aria-hidden />
+                </button>
                 <input type="number" inputMode="numeric" min={0} max={200} value={n || ''} placeholder="0" disabled={disabled}
                   aria-label={name} onChange={(e) => set(k, Number(e.target.value) || 0)}
-                  className="h-8 w-12 shrink-0 rounded-md border border-slate-300 bg-white text-center text-sm font-semibold tabular-nums focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
-                <IconButton size="sm" label={`${t('more')} · ${name}`} disabled={disabled} onClick={() => set(k, n + 1)}><Plus size={14} /></IconButton>
+                  className={cn('h-full min-w-0 flex-1 bg-transparent text-center text-sm font-semibold tabular-nums outline-none [appearance:textfield] placeholder:font-normal placeholder:text-slate-400 [&::-webkit-inner-spin-button]:appearance-none',
+                    n ? 'text-brand-800' : 'text-slate-700')} />
+                <button type="button" aria-label={`${t('more')} · ${name}`} disabled={disabled} onClick={() => set(k, n + 1)}
+                  className="flex h-full w-9 shrink-0 items-center justify-center rounded-r-full text-slate-600 transition hover:bg-slate-100 active:scale-95 disabled:pointer-events-none disabled:opacity-30">
+                  <Plus size={14} aria-hidden />
+                </button>
               </span>
             </div>
           )
