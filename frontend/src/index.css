@@ -153,28 +153,42 @@ body {
 /* Motion (DESIGN.md "Motion"): short and calm, one easing - quick start, soft stop - and nothing bounces.
    Things come from where they belong: drawers from the side, menus from their button, toasts from below,
    an opened section from its heading. All of it is off with "reduce motion" and in the easy-to-see view. */
-:root { --ease-out: cubic-bezier(0.2, 0, 0, 1); --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 280ms; }
-@keyframes drawer-in { from { transform: translateX(100%); } to { transform: none; } }
-@keyframes dialog-in { from { opacity: 0; transform: translateY(8px) scale(0.98); } to { opacity: 1; transform: none; } }
+:root { --ease-out: cubic-bezier(0.2, 0, 0, 1); --dur-fast: 150ms; --dur-base: 260ms; --dur-slow: 340ms; }
+@keyframes drawer-in { from { opacity: 0.4; transform: translateX(100%); } to { opacity: 1; transform: none; } }
+@keyframes dialog-in { from { opacity: 0; transform: translateY(16px) scale(0.96); } to { opacity: 1; transform: none; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-@keyframes pop-in { from { opacity: 0; transform: translateY(-4px) scale(0.98); } to { opacity: 1; transform: none; } }
-@keyframes rise-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-@keyframes reveal { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
-@keyframes page-in { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes pop-in { from { opacity: 0; transform: translateY(-8px) scale(0.95); } to { opacity: 1; transform: none; } }
+@keyframes rise-in { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes reveal { from { opacity: 0; transform: translateY(-8px); } to { opacity: 1; transform: none; } }
+@keyframes page-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @keyframes flash { from { background-color: var(--color-brand-100); } to { background-color: transparent; } }
 @keyframes check-in { from { opacity: 0; transform: scale(0.5); } to { opacity: 1; transform: none; } }
 .animate-drawer { animation: drawer-in var(--dur-slow) var(--ease-out); }
 .animate-dialog { animation: dialog-in var(--dur-base) var(--ease-out); }
 .animate-fade { animation: fade-in var(--dur-fast) linear; }
-.animate-pop { animation: pop-in 160ms var(--ease-out); }
+.animate-pop { animation: pop-in 200ms var(--ease-out); transform-origin: top; }
 .animate-rise { animation: rise-in var(--dur-base) var(--ease-out); }
 .animate-reveal { animation: reveal var(--dur-base) var(--ease-out); }
-.animate-page { animation: page-in var(--dur-base) var(--ease-out); }
+.animate-page { animation: page-in var(--dur-slow) var(--ease-out); }
+/* A list arriving: its items rise in one after another (backwards fill only, so dragging keeps working). */
+.stagger > * { animation: rise-in 360ms var(--ease-out) backwards; }
+.stagger > *:nth-child(2) { animation-delay: 45ms; }
+.stagger > *:nth-child(3) { animation-delay: 90ms; }
+.stagger > *:nth-child(4) { animation-delay: 135ms; }
+.stagger > *:nth-child(5) { animation-delay: 180ms; }
+.stagger > *:nth-child(6) { animation-delay: 225ms; }
+.stagger > *:nth-child(7) { animation-delay: 270ms; }
+.stagger > *:nth-child(8) { animation-delay: 315ms; }
+.stagger > *:nth-child(9) { animation-delay: 360ms; }
+.stagger > *:nth-child(10) { animation-delay: 405ms; }
+.stagger > *:nth-child(11) { animation-delay: 450ms; }
+.stagger > *:nth-child(12) { animation-delay: 495ms; }
+.stagger > *:nth-child(n+13) { animation-delay: 540ms; }
 .animate-flash { animation: flash 900ms ease-out; border-radius: 6px; }
 .animate-check { animation: check-in var(--dur-base) var(--ease-out); }
 @media (prefers-reduced-motion: reduce) {
   .animate-drawer, .animate-dialog, .animate-fade, .animate-pop, .animate-rise, .animate-reveal, .animate-page,
-  .animate-flash, .animate-check { animation: none; }
+  .animate-flash, .animate-check, .stagger > * { animation: none; }
 }
 
 /* Keyboard focus is always visible (WCAG 2.4.7); components with their own ring keep it. */

@@ -71,7 +71,7 @@ export function CalculationsPage() {
                   <th className="px-4 py-3 text-center">{t('status')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="stagger divide-y divide-slate-200">
                 {quotes.data?.map((q) => (
                   <tr key={q.id} onClick={() => navigate(q.id)} className="cursor-pointer hover:bg-slate-50">
                     <td className="px-4 py-3 font-medium">{q.name}</td>

@@ -93,7 +93,7 @@ export function ToursPage() {
                   <th className="px-4 py-3 text-center">{t('stage')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="stagger divide-y divide-slate-100">
                 {rows.map((r) => (
                   <tr key={r.id} onClick={() => navigate(r.id)} className={cn('cursor-pointer hover:bg-slate-50', r.status === 'cancelled' && 'opacity-60')}>
                     <td className="px-4 py-3">

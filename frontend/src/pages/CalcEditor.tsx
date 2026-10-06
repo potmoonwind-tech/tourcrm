@@ -228,8 +228,8 @@ export function CalcEditorPage() {
           <nav role="tablist" aria-label={doc.name} className="no-scrollbar -mb-px flex gap-1 overflow-x-auto">
             {TABS.map(([id, label]) => (
               <button type="button" role="tab" aria-selected={tab === id} key={id} onClick={() => go({ tab: id })}
-                className={cn('shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold',
-                  tab === id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700')}>
+                className={cn('relative shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors duration-200 after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t-full after:bg-brand-600 after:transition-transform after:duration-300 after:ease-[cubic-bezier(0.2,0,0,1)]',
+                  tab === id ? 'text-brand-700 after:scale-x-100' : 'text-slate-500 after:scale-x-0 hover:text-slate-700')}>
                 {t(label)}{id === 'lines' && ` · ${doc.items.length}`}{id === 'hotels' && ` · ${doc.nights.length}`}
               </button>
             ))}

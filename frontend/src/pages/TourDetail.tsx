@@ -97,8 +97,8 @@ export function TourDetailPage() {
           {tabs.map(([id, label, count]) => (
             <button type="button" key={id} id={`tourtab-${id}`} role="tab" aria-selected={tab === id} tabIndex={tab === id ? 0 : -1}
               aria-controls="tour-tabpanel" onClick={() => setTab(id)}
-              className={cn('-mb-px flex shrink-0 items-center gap-2 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold',
-                tab === id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700')}>
+              className={cn('flex items-center gap-2 relative shrink-0 whitespace-nowrap px-4 py-2.5 text-sm font-semibold transition-colors duration-200 after:absolute after:inset-x-3 after:bottom-0 after:h-[3px] after:rounded-t-full after:bg-brand-600 after:transition-transform after:duration-300 after:ease-[cubic-bezier(0.2,0,0,1)]',
+                tab === id ? 'text-brand-700 after:scale-x-100' : 'text-slate-500 after:scale-x-0 hover:text-slate-700')}>
               {label}{count !== null && <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{count}</span>}
             </button>
           ))}

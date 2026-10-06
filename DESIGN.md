@@ -256,7 +256,9 @@ Tasks (`app/routers/tasks.py`) = booking tasks + payment tasks (worked out, neve
 
 Short and calm; motion shows where something came from, never decorates.
 
-- **One easing, three lengths:** `--ease-out` (quick start, soft stop); 120 ms (fades), 200 ms (most), 280 ms (drawers). Nothing bounces or overshoots.
+- **One easing, three lengths:** `--ease-out` (quick start, soft stop); 150 ms (fades), 260 ms (most), 340 ms (pages, drawers). Visible, never bouncy.
+- **Lists arrive in a cascade** (`stagger` on the list: each item rises in 45 ms after the one before) - Build's parts, a tour's days, tours, calculations.
+- **Tabs:** the underline grows in under the chosen tab. **Numbers** that matter (the calculation price) count to their new value.
 - **From where it belongs:** drawers slide from the side (`animate-drawer`), menus pop from their button (`animate-pop`), dialogs rise a little (`animate-dialog`), toasts rise from below (`animate-rise`), an opened section or a new tab's content reveals from its heading (`animate-reveal`), a new page fades up (`animate-page`).
 - **Feedback:** buttons, icon buttons and chips press in slightly when clicked; a changed price flashes softly once (`animate-flash`, never on page open); "Saved" checks in (`animate-check`).
 - **Off when asked:** all animation stops with the system "reduce motion" setting and in the easy-to-see view.

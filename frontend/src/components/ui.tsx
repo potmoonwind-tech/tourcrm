@@ -168,7 +168,7 @@ export function ListRow({ lead, title, meta, onOpen, control, menu, muted }: {
   lead?: ReactNode; title: ReactNode; meta?: ReactNode; onOpen?: () => void; control?: ReactNode; menu?: ReactNode; muted?: boolean
 }) {
   return (
-    <div className={cn('group flex min-h-14 items-center gap-3 rounded-lg border border-slate-200 bg-white pl-3 pr-1 transition-colors hover:border-slate-300', muted && 'opacity-60')}>
+    <div className={cn('group flex min-h-14 items-center gap-3 rounded-lg border border-slate-200 bg-white pl-3 pr-1 transition duration-200 ease-out hover:-translate-y-px hover:border-slate-300 hover:shadow-md', muted && 'opacity-60')}>
       {lead}
       <button type="button" onClick={onOpen} disabled={!onOpen} className={cn('min-w-0 flex-1 rounded py-2 text-left', focus)}>
         <span className="block truncate text-sm font-medium text-slate-800">{title}</span>

@@ -152,7 +152,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
         {view === 'days' && listOpen && !disabled && <Palette vendors={vs} services={services.data ?? []} picked={picked} onPick={setPicked}
           onClose={() => { setListOpen(false); setPicked(null) }}
           onAdd={canCreate ? (tab) => (tab === 'services' ? setNewService({}) : setNewVendor({ type: tab === 'hotels' ? 'hotel' : 'restaurant' })) : undefined} />}
-        <div className="min-w-0 space-y-3">
+        <div className="stagger min-w-0 space-y-3">
           {picked && (
             <p className="flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800">
               <Hand size={16} className="shrink-0" />

@@ -9,7 +9,7 @@ import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, us
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
 import { BedDouble, GripVertical, Bus, ChevronRight, Copy, Pencil, Plus, Ticket, Trash2, User, Users, Utensils, X } from 'lucide-react'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Dialog, Drawer, Menu, toast } from '../../components/overlay'
 import { VendorSelect } from '../../components/tour'
 import { useSearchParams } from 'react-router-dom'
@@ -156,7 +156,7 @@ export function BuildTab({ doc, debounced, result, edit }: { doc: QuoteDoc; debo
 
   return (
     <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-      <div className="min-w-0 space-y-4">
+      <div className="stagger min-w-0 space-y-4">
         <ToFill doc={doc} onItem={setEditing} onNight={setNight} />
         <PeopleCard doc={doc} n={n} edit={edit} />
         <TripBoard doc={doc} n={n} amounts={bd.data?.items.map((x) => x.amount)} beds={bd.data?.hotel_nights} edit={edit} value={parts.trip}
@@ -879,6 +879,32 @@ function RecipeCard({ doc, edit, value }: { doc: QuoteDoc; edit: Edit; value?: s
   )
 }
 
+/** A number that counts to its new value (about 0.4 s) instead of jumping; at once when motion is reduced. */
+function useTween(target: number | undefined, ms = 420): number | undefined {
+  const [shown, setShown] = useState(target)
+  const from = useRef(target)
+  useEffect(() => {
+    if (target == null) return
+    const start = from.current ?? target
+    const still = window.matchMedia('(prefers-reduced-motion: reduce)').matches || document.documentElement.dataset.easy === 'on'
+    if (start === target || still) { from.current = target; setShown(target); return }
+    const t0 = performance.now()
+    let raf = 0
+    const step = (now: number) => {
+      const k = Math.min(1, (now - t0) / ms)
+      const v = start + (target - start) * (1 - Math.pow(1 - k, 3))
+      from.current = v
+      setShown(v)
+      if (k < 1) raf = requestAnimationFrame(step)
+    }
+    raf = requestAnimationFrame(step)
+    // Animation frames pause in a hidden tab: the exact value is shown when the time is up, whatever happens.
+    const done = window.setTimeout(() => { cancelAnimationFrame(raf); from.current = target; setShown(target) }, ms + 80)
+    return () => { cancelAnimationFrame(raf); window.clearTimeout(done) }
+  }, [target, ms])
+  return shown
+}
+
 /** How many times a value changed since it first arrived (0 at first): to show a change, not the loading. */
 function useChanges<T>(value: T): number {
   const [state, setState] = useState({ value, n: 0 })
@@ -932,6 +958,7 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
   const total = byCat.reduce((s, [, v]) => s + v, 0)
   const missing = missingPrices(doc).count
   const priceChanges = useChanges(row?.price_dbl)
+  const shownPrice = useTween(row?.price_dbl)
   const sold = new Set(row?.other?.map((o) => o.currency) ?? [])
   const rates = Object.entries(doc.fx).map(([c, v]) => [c, Number(v)] as const).filter(([c, r]) => r > 0 && c !== cur && !sold.has(c))
   const profit = row ? row.group_revenue - row.group_cost : 0
@@ -958,7 +985,7 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
           <div>
             <div className="text-sm text-slate-500">{row.types?.[0] ? nameOf(row.types[0].id, row.types[0].name) : t('perPersonShort')} · {t('roomDouble')}</div>
             {missing > 0 && <div className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{t('priceIncomplete', { n: missing })}</div>}
-            <div key={priceChanges} className={cn('-mx-1 px-1 text-[32px] font-semibold leading-10 tabular-nums', priceChanges > 0 && 'animate-flash')}>{money(row.price_dbl)} <span className="text-base font-semibold text-slate-500">{cur}</span></div>
+            <div key={priceChanges} className={cn('-mx-1 px-1 text-[32px] font-semibold leading-10 tabular-nums', priceChanges > 0 && 'animate-flash')}>{money(shownPrice ?? row.price_dbl)} <span className="text-base font-semibold text-slate-500">{cur}</span></div>
             <div className="text-sm text-slate-600">
               {t('roomSingle')} +{money(row.single_supplement)}
               {row.price_trp !== null && ` · ${t('roomTriple')} ${money(row.price_trp)}`}
