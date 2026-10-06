@@ -44,8 +44,18 @@ function useNames(): Names {
   return { tourists: t('tourists'), leaders: t('ptLeader'), staff: t('driverAndGuide') }
 }
 
+// The three built-in people keep their default name in any language: shown in the app's language, until renamed.
+const DEFAULT_NAMES: Record<keyof Names, string[]> = {
+  tourists: ['Tourists', 'Paying tourists', 'გადამხდელი ტურისტები'],
+  leaders: ['Tour leader', 'ტურლიდერი'],
+  staff: ['Staff', 'Driver and guide', 'მძღოლი და გიდი'],
+}
+const isDefault = (id: string): id is keyof Names => id in DEFAULT_NAMES
+
 export function peopleOf(d: QuoteDoc, names: Names = NAMES): PersonType[] {
-  if (d.people?.length) return d.people
+  if (d.people?.length) {
+    return d.people.map((p) => isDefault(p.id) && DEFAULT_NAMES[p.id].includes(p.name) && p.name !== names[p.id] ? { ...p, name: names[p.id] } : p)
+  }
   const room: RoomUse = d.leader_room === 'free' ? 'free' : d.leader_single ? 'sgl' : 'dbl'
   return [
     { id: 'tourists', name: names.tourists, role: 'pay', count: null, room: 'dbl' },
@@ -228,6 +238,15 @@ function PeopleCard({ doc, n, edit }: { doc: QuoteDoc; n: number; edit: Edit }) 
           edit((d) => { ensure(d, names); d.people!.push({ id: newId(), name: t(x.key), role: x.role, count: x.count, room: x.room }) }, true)
           setOpen(people.length)
         } }))} />}>
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-700">
+        {t('groupSizesRange')}
+        <Input size="sm" type="number" min={1} max={500} value={doc.pax_min} aria-label={t('groupMin')} className="w-20 text-right"
+          onChange={(e) => edit((d) => { d.pax_min = e.target.value === '' ? 0 : Number(e.target.value) })} />
+        –
+        <Input size="sm" type="number" min={1} max={500} value={doc.pax_max} aria-label={t('groupMax')} className="w-20 text-right"
+          onChange={(e) => edit((d) => { d.pax_max = e.target.value === '' ? 0 : Number(e.target.value) })} />
+        {t('touristsWord')}
+      </div>
       <div className="mb-3 flex flex-wrap gap-1" aria-hidden="true">
         {people.flatMap((p) => Array.from({ length: Math.min(counted(p), 60) }, (_, k) => (
           <span key={`${p.id}${k}`} className={cn('h-2.5 w-2.5 rounded-full', ROLE_DOT[p.role])} />
@@ -816,6 +835,10 @@ function RecipeCard({ doc, edit, value }: { doc: QuoteDoc; edit: Edit; value?: s
         ))}
         <li className="flex items-center gap-2 px-2 text-sm font-medium"><span className="h-2 w-2 rounded-full bg-emerald-500" />{t('stepPrice')}</li>
       </ol>
+      <label className="mt-3 flex items-center gap-2 border-t border-slate-200 pt-3 text-sm text-slate-700">
+        <input type="checkbox" checked={doc.single_profit} onChange={(e) => edit((d) => { d.single_profit = e.target.checked })} className="h-4 w-4 accent-brand-600" />
+        {t('singleProfit')}
+      </label>
       {doc.items.some((it) => it.optional && !it.included) && (
         <label className="mt-3 flex flex-wrap items-center gap-2 border-t border-slate-200 pt-3 text-sm text-slate-600">
           {t('extrasMarkup')}
@@ -923,7 +946,7 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
             </div>
           )}
           <div className="flex flex-wrap gap-2 border-t border-slate-200 pt-3">
-            <button type="button" onClick={() => setParams((p) => { p.set('tab', 'prices'); return p }, { replace: true })} className="text-sm font-medium text-brand-700 hover:underline">{t('allSizesAndTours')} →</button>
+            <button type="button" onClick={() => setParams((p) => { p.set('tab', 'compare'); return p }, { replace: true })} className="text-sm font-medium text-brand-700 hover:underline">{t('allSizesAndTours')} →</button>
           </div>
           {others.length > 0 && (
             <div className="border-t border-slate-200 pt-3">

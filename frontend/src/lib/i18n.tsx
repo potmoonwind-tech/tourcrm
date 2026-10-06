@@ -2650,6 +2650,20 @@ const en = {
   f_rounding_mode: 'rounding',
   f_rounding_step: 'rounding step',
   f_languages: 'languages',
+  calcCompare: 'Compare',
+  calcSend: 'Send',
+  calcDetails: 'Details',
+  calcDetailsHelp: 'Name, route, client, dates, currency and exchange rates',
+  useThisPrice: 'Use this price',
+  useThisPriceSaveFirst: 'Save the changes first',
+  buildViewLabel: 'Show',
+  buildViewSteps: 'Step by step',
+  groupSizesRange: 'Prices for groups of',
+  groupMin: 'Smallest group',
+  groupMax: 'Largest group',
+  sendCalcTitle: 'The calculation for your team',
+  sendCalcHelp: 'Every line, formula and group size, as an Excel file - for checking, not for the client.',
+  sendPriceListTitle: 'The price list for the client',
 }
 
 type Dict = typeof en
@@ -5296,6 +5310,20 @@ const ka: Dict = {
   f_rounding_mode: 'დამრგვალება',
   f_rounding_step: 'დამრგვალების ბიჯი',
   f_languages: 'ენები',
+  calcCompare: 'შედარება',
+  calcSend: 'გაგზავნა',
+  calcDetails: 'დეტალები',
+  calcDetailsHelp: 'სახელი, მარშრუტი, კლიენტი, თარიღები, ვალუტა და კურსები',
+  useThisPrice: 'ფასის გამოყენება',
+  useThisPriceSaveFirst: 'ჯერ შეინახეთ ცვლილებები',
+  buildViewLabel: 'ჩვენება',
+  buildViewSteps: 'ნაბიჯ-ნაბიჯ',
+  groupSizesRange: 'ფასები ჯგუფისთვის:',
+  groupMin: 'უმცირესი ჯგუფი',
+  groupMax: 'უდიდესი ჯგუფი',
+  sendCalcTitle: 'კალკულაცია გუნდისთვის',
+  sendCalcHelp: 'ყველა ხაზი, ფორმულა და ჯგუფის ზომა Excel ფაილად - შესამოწმებლად, არა კლიენტისთვის.',
+  sendPriceListTitle: 'ფასების სია კლიენტისთვის',
 }
 
 export type Lang = 'en' | 'ka'

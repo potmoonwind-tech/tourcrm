@@ -105,12 +105,44 @@ def price_impact(old: QuoteIn, new: QuoteIn) -> list[PriceImpact]:
             for n in sorted(set(a) | set(b))]
 
 
+def _onto_people_and_recipe(d: dict, s: dict) -> None:
+    """A scenario's leaders, staff, profit and rounding also on "Who travels" and "How we price", which
+    decide the price once a calculation has them (the plain fields alone would change nothing)."""
+    def first(rows, **match):
+        return next((r for r in rows if all(r.get(k) == v for k, v in match.items())), None)
+    people, recipe = d.get("people") or [], d.get("recipe") or []
+    leader = first(people, role="free")
+    if leader:
+        if "leaders" in s:
+            leader["count"] = s["leaders"]
+        if "leader_single" in s and leader.get("room") in ("sgl", "dbl"):
+            leader["room"] = "sgl" if s["leader_single"] else "dbl"
+    staff = first(people, role="staff")
+    if staff and "staff" in s:
+        staff["count"] = s["staff"]
+    profit = first(recipe, kind="profit", on=True)
+    if profit:
+        for f, to in (("profit_group", "group"), ("profit_min_pp", "min_pp"), ("margin_floor_pct", "value")):
+            if f in s:
+                profit[to] = s[f]
+    rnd = next((r for r in reversed(recipe) if r.get("kind") == "round" and r.get("on", True)), None)
+    if rnd:
+        if "rounding_step" in s:
+            rnd["value"] = s["rounding_step"]
+        if "rounding_mode" in s:
+            rnd["mode"] = s["rounding_mode"]
+
+
 def apply_patch(doc: QuoteIn, patch: ScenarioPatch) -> tuple[QuoteIn, list[str]]:
     """The calculation with the scenario's changes, plus anything the patch points
     at that the calculation no longer has (a deleted line, a renamed variable)."""
     d = doc.model_dump()
     stale: list[str] = []
-    d.update(patch.settings.model_dump(exclude_none=True))
+    settings = patch.settings.model_dump(exclude_none=True)
+    d.update(settings)
+    if "leader_single" in settings and d.get("leader_room") != "free":   # the room decides once it is set
+        d["leader_room"] = "single" if settings["leader_single"] else "shared"
+    _onto_people_and_recipe(d, settings)
     for k, v in patch.variables.items():
         if k in d["variables"]:
             d["variables"][k] = v

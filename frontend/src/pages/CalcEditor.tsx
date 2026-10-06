@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ask, askText, Menu, toast } from '../components/overlay'
-import { AlertTriangle, ArrowDown, ArrowUp, Calculator, Check as CheckIcon, Copy, Download, FileSpreadsheet, History, Layers, Plus, Printer, Redo2, RefreshCw, Save, Sparkles, Trash2, Undo2, X } from 'lucide-react'
+import { ask, askText, Drawer, Menu, toast } from '../components/overlay'
+import { AlertTriangle, ArrowDown, ArrowUp, Calculator, Check as CheckIcon, ChevronDown, Copy, Download, FileSpreadsheet, History, Layers, Plus, Printer, Redo2, RefreshCw, Save, Settings2, Sparkles, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Modal, VendorSelect } from '../components/tour'
 import { NbgButton } from '../components/money'
-import { Button, Card, ErrorText, Field, FullPageSpinner, Input, Select, Spinner, IconButton, Chip, Textarea } from '../components/ui'
+import { Button, Card, ErrorText, Field, FullPageSpinner, Input, Select, Spinner, IconButton, Chip, SegmentedControl, Textarea } from '../components/ui'
 import {
-  api, type PriceListData, type QuoteDoc, type QuoteNight, type QuoteOut, type QuoteResult, type QuoteStatus, type Tour, type LeaderRoom, type StaffStay,
+  api, type PriceListData, type QuoteDoc, type QuoteNight, type QuoteOut, type QuoteResult, type QuoteStatus, type Tour, type StaffStay,
 } from '../lib/api'
 import { useClients, useSeries, useVendors, wsPath } from '../lib/data'
 import { today } from '../lib/dates'
@@ -28,8 +28,19 @@ import { QuoteStatusPill } from './Calculations'
 import { PageHeader } from './Dashboard'
 import { CURRENCIES } from './Onboarding'
 
-type Tab = 'build' | 'settings' | 'hotels' | 'items' | 'prices' | 'scenarios' | 'pricelist'
-const TABS: [Tab, TKey][] = [['build', 'calcBuild'], ['prices', 'calcPrices'], ['pricelist', 'calcPriceList'], ['scenarios', 'calcScenarios'], ['items', 'calcItems'], ['hotels', 'calcHotels'], ['settings', 'calcSettings']]
+/**
+ * Three places, in the order the work goes: Build the price (who travels, the trip, how we price - or the
+ * same lines and hotels as tables), Compare it (every group size, season and what-if), Send it (the price
+ * list for the client, the calculation file for the team). The calculation's details (name, route, client,
+ * dates, currency, rates) open from the header; "Use this price" turns it into tours and departures.
+ */
+type Tab = 'build' | 'compare' | 'send'
+type BuildView = 'steps' | 'lines' | 'hotels'
+const TABS: [Tab, TKey][] = [['build', 'calcBuild'], ['compare', 'calcCompare'], ['send', 'calcSend']]
+// Links saved before (bookmarks, other pages) still land in the right place.
+const OLD_TABS: Record<string, [Tab, BuildView?]> = {
+  settings: ['build'], hotels: ['build', 'hotels'], items: ['build', 'lines'], prices: ['compare'], scenarios: ['compare'], pricelist: ['send'],
+}
 
 const strip = (q: QuoteOut): QuoteDoc => {
   const { id: _i, updated_at: _u, version: _v, result: _r, ...doc } = q
@@ -39,11 +50,20 @@ const strip = (q: QuoteOut): QuoteDoc => {
 export function CalcEditorPage() {
   const ws = useWorkspace()!
   const { quoteId } = useParams()
-  const { t, lang } = useI18n()
+  const { t } = useI18n()
   const qc = useQueryClient()
   const navigate = useNavigate()
   const [params, setParams] = useSearchParams()
-  const tab = (params.get('tab') ?? 'build') as Tab
+  const rawTab = params.get('tab') ?? 'build'
+  const tab: Tab = OLD_TABS[rawTab]?.[0] ?? (TABS.some(([id]) => id === rawTab) ? rawTab as Tab : 'build')
+  const view = (OLD_TABS[rawTab]?.[1] ?? params.get('view') ?? 'steps') as BuildView
+  const [details, setDetails] = useState(rawTab === 'settings')
+  useEffect(() => {
+    const old = OLD_TABS[rawTab]
+    if (old) setParams((p) => { p.set('tab', old[0]); if (old[1]) p.set('view', old[1]); return p }, { replace: true })
+  }, [rawTab, setParams])
+  const go = (next: { tab?: Tab; view?: BuildView }) =>
+    setParams((p) => { if (next.tab) p.set('tab', next.tab); if (next.view) p.set('view', next.view); return p }, { replace: true })
   const forTour = params.get('for_tour')   // opened from a tour ("Calculate the price")
   const url = wsPath(ws.id, `/quotes/${quoteId}`)
   const saved = useQuery({ queryKey: ['quote', ws.id, quoteId], queryFn: () => api<QuoteOut>(url) })
@@ -128,18 +148,11 @@ export function CalcEditorPage() {
             <IconButton size="lg" label={`${t('undo')} (Ctrl+Z)`} disabled={!canUndo} onClick={undo}><Undo2 size={18} /></IconButton>
             <IconButton size="lg" label={`${t('redo')} (Ctrl+Shift+Z)`} disabled={!canRedo} onClick={redo}><Redo2 size={18} /></IconButton>
           </span>
-          <Button variant="secondary" onClick={() => setRepricing(true)} title={t('updatePricesHelp')}><RefreshCw size={16} />{t('updatePrices')}</Button>
-          <Button variant="secondary" onClick={() => setHistory(true)}><History size={16} />{t('history')} · v{saved.data?.version}</Button>
+          <Button variant="secondary" onClick={() => setDetails(true)} title={t('calcDetailsHelp')}><Settings2 size={16} />{t('calcDetails')}</Button>
+          {result && <UsePriceMenu doc={doc} quoteId={quoteId!} result={result} ready={!dirty && result.errors.length === 0} />}
           <Menu items={[
-            { label: dirty ? t('downloadCalcSaveFirst') : t('downloadCalc'), icon: <FileSpreadsheet size={16} />, disabled: dirty || !!result?.errors.length,
-              onClick: () => {
-                // The saved calculation, at the group size being looked at (?n), in the app's language.
-                const n = Number(params.get('n')) || 19
-                const a = document.createElement('a')
-                a.href = `/api${wsPath(ws.id, `/quotes/${quoteId}/calculation.xlsx?lang=${lang === 'ka' ? 'ka' : 'en'}&tourists=${n}`)}`
-                a.download = ''
-                document.body.appendChild(a); a.click(); a.remove()
-              } },
+            { label: t('updatePrices'), icon: <RefreshCw size={16} />, onClick: () => setRepricing(true) },
+            { label: `${t('history')} · v${saved.data?.version}`, icon: <History size={16} />, onClick: () => setHistory(true) },
             { label: t('duplicate'), icon: <Copy size={16} />, onClick: () => copy.mutate() },
             { label: t('delete'), icon: <Trash2 size={16} />, danger: true,
               onClick: () => void ask({ title: t('confirmDelete'), danger: true, confirmLabel: t('delete') }).then((ok) => ok && del.mutate()) },
@@ -172,26 +185,47 @@ export function CalcEditorPage() {
         )}
         <ErrorText error={preview.error} />
         {forTour && <ForTourBar tourId={forTour} quoteId={quoteId!} ready={!dirty && !!result && result.errors.length === 0} />}
-        <nav className="no-scrollbar flex gap-1 overflow-x-auto border-b border-slate-200">
-          {TABS.map(([id, label]) => (
-            <button type="button" key={id} onClick={() => setParams((p) => { p.set('tab', id); return p }, { replace: true })}
-              className={cn('-mb-px shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold',
-                tab === id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700')}>
-              {t(label)}{id === 'items' && ` · ${doc.items.length}`}{id === 'hotels' && ` · ${doc.nights.length}`}
-            </button>
-          ))}
-        </nav>
-        <PriceStrip doc={doc} result={result} saved={saved.data?.result} dirty={dirty} wideHidden={tab === 'build'} />
+        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-slate-200">
+          <nav role="tablist" aria-label={doc.name} className="no-scrollbar -mb-px flex gap-1 overflow-x-auto">
+            {TABS.map(([id, label]) => (
+              <button type="button" role="tab" aria-selected={tab === id} key={id} onClick={() => go({ tab: id })}
+                className={cn('shrink-0 whitespace-nowrap border-b-2 px-4 py-2.5 text-sm font-semibold',
+                  tab === id ? 'border-brand-600 text-brand-700' : 'border-transparent text-slate-500 hover:text-slate-700')}>
+                {t(label)}
+              </button>
+            ))}
+          </nav>
+          {tab === 'build' && (
+            <SegmentedControl size="sm" className="mb-1.5" label={t('buildViewLabel')} value={view} onChange={(v) => go({ view: v })}
+              options={[['steps', t('buildViewSteps')], ['lines', `${t('calcItems')} · ${doc.items.length}`], ['hotels', `${t('calcHotels')} · ${doc.nights.length}`]]} />
+          )}
+        </div>
+        <PriceStrip doc={doc} result={result} saved={saved.data?.result} dirty={dirty} wideHidden={tab === 'build' && view === 'steps'} />
         <UndoContext.Provider value={undo}>
-        {tab === 'build' && <BuildTab doc={doc} debounced={debounced ?? doc} result={result} edit={edit} />}
-        {tab === 'settings' && <SettingsTab doc={doc} edit={edit} />}
-        {tab === 'hotels' && <HotelsTab doc={doc} edit={edit} />}
-        {tab === 'items' && <ItemsTab doc={doc} debounced={debounced ?? doc} edit={edit} />}
-        {tab === 'prices' && <PricesTab doc={doc} result={result} quoteId={quoteId!} dirty={dirty} />}
-        {tab === 'scenarios' && <ScenariosTab doc={doc} quoteId={quoteId!} dirty={dirty} onApplied={replaced} />}
-        {tab === 'pricelist' && <PriceListTab doc={doc} edit={edit} quoteId={quoteId!} dirty={dirty} />}
+        {tab === 'build' && view === 'steps' && <BuildTab doc={doc} debounced={debounced ?? doc} result={result} edit={edit} />}
+        {tab === 'build' && view === 'lines' && <ItemsTab doc={doc} debounced={debounced ?? doc} edit={edit} />}
+        {tab === 'build' && view === 'hotels' && <HotelsTab doc={doc} edit={edit} />}
+        {tab === 'compare' && (
+          <div className="space-y-8">
+            <PricesTab doc={doc} result={result} />
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-slate-800">{t('calcScenarios')}</h2>
+              <ScenariosTab doc={doc} quoteId={quoteId!} dirty={dirty} onApplied={replaced} />
+            </section>
+          </div>
+        )}
+        {tab === 'send' && (
+          <div className="space-y-8">
+            <section className="space-y-3">
+              <h2 className="text-lg font-semibold text-slate-800">{t('sendPriceListTitle')}</h2>
+              <PriceListTab doc={doc} edit={edit} quoteId={quoteId!} dirty={dirty} />
+            </section>
+            <CalcFileCard quoteId={quoteId!} disabled={dirty || !!result?.errors.length} />
+          </div>
+        )}
         </UndoContext.Provider>
       </div>
+      {details && <DetailsDrawer doc={doc} edit={edit} onClose={() => setDetails(false)} />}
       {repricing && <UpdatePrices doc={doc} edit={edit} onClose={() => setRepricing(false)} />}
       {history && <HistoryModal quoteId={quoteId!} dirty={dirty} onRestored={replaced} onClose={() => setHistory(false)} />}
     </>
@@ -200,17 +234,21 @@ export function CalcEditorPage() {
 
 type EditProps = { doc: QuoteDoc; edit: (fn: (d: QuoteDoc) => void) => void }
 
-// --- settings --------------------------------------------------------------------------
+// --- details --------------------------------------------------------------------------
 
-function SettingsTab({ doc, edit }: EditProps) {
+/** What the calculation is about (name, route, client, dates, currency, rates) - set once, out of the way
+ * of the building. Who travels and the profit are on Build. */
+function DetailsDrawer({ doc, edit, onClose }: EditProps & { onClose: () => void }) {
   const { t } = useI18n()
   const series = useSeries()
   const clients = useClients()
   const [filling, setFilling] = useState(false)
   const num = (v: string) => (v === '' ? 0 : Number(v))
   return (
-    <div className="space-y-4">
-      <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
+    <Drawer title={t('calcDetails')} subtitle={t('calcDetailsHelp')} onClose={onClose} size="md"
+      footer={<div className="flex w-full justify-end"><Button onClick={onClose}>{t('done')}</Button></div>}>
+    <div className="space-y-5">
+      <div className="grid gap-4 sm:grid-cols-2">
         <div className="sm:col-span-2"><Field label={t('name')}><Input value={doc.name} onChange={(e) => edit((d) => { d.name = e.target.value })} /></Field></div>
         <Field label={t('status')}>
           <Select value={doc.status} onChange={(e) => edit((d) => { d.status = e.target.value as QuoteStatus })}>
@@ -231,101 +269,37 @@ function SettingsTab({ doc, edit }: EditProps) {
             toast('currencySwitched')
           }}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</Select>
         </Field>
-        <Field label={t('route')}>
-          <div className="flex gap-2">
-            <Select value={doc.series_id ?? ''} onChange={(e) => edit((d) => { d.series_id = e.target.value || null })}>
+        <div className="sm:col-span-2"><Field label={t('route')}>
+          <div className="flex flex-wrap gap-2">
+            <Select value={doc.series_id ?? ''} onChange={(e) => edit((d) => { d.series_id = e.target.value || null })} className="min-w-0 flex-1">
               <option value="">—</option>
               {series.data?.map((s) => <option key={s.id} value={s.id}>{s.code} — {s.name}</option>)}
             </Select>
             {doc.series_id && <Button type="button" variant="secondary" title={t('fillFromRouteHelp')} onClick={() => setFilling(true)}><Layers size={16} />{t('fillFromRoute')}</Button>}
           </div>
-        </Field>
-        <Field label={t('client')}>
+        </Field></div>
+        <div className="sm:col-span-2"><Field label={t('client')}>
           <Select value={doc.client_id ?? ''} onChange={(e) => edit((d) => { d.client_id = e.target.value || null })}>
             <option value="">—</option>
             {clients.data?.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
           </Select>
-        </Field>
+        </Field></div>
         <Field label={`${t('dates')} ·  ${t('dateFrom').toLowerCase()}`}><Input type="date" value={doc.valid_from ?? ''} onChange={(e) => edit((d) => { d.valid_from = e.target.value || null })} /></Field>
         <Field label={t('dateTo')}><Input type="date" value={doc.valid_to ?? ''} onChange={(e) => edit((d) => { d.valid_to = e.target.value || null })} /></Field>
-      </Card>
-
-      <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label={t('daysWord')}><Input type="number" min={1} max={60} value={doc.days} onChange={(e) => edit((d) => { d.days = num(e.target.value) })} /></Field>
+        <Field label={t('days')}><Input type="number" min={1} max={60} value={doc.days} onChange={(e) => edit((d) => { d.days = num(e.target.value) })} /></Field>
         <Field label={t('groupSizes')}>
           <div className="flex items-center gap-2">
             <Input type="number" min={1} value={doc.pax_min} onChange={(e) => edit((d) => { d.pax_min = num(e.target.value) })} />–
             <Input type="number" min={1} value={doc.pax_max} onChange={(e) => edit((d) => { d.pax_max = num(e.target.value) })} />
           </div>
         </Field>
-        {doc.people?.length ? (
-          <OnBuild text={t('peopleOnBuild', { list: doc.people.map((p) => p.count === null ? p.name : `${p.name} ${p.count}`).join(', ') })} />
-        ) : <>
-          <Field label={t('freeLeaders')}><Input type="number" min={0} max={10} value={doc.leaders} onChange={(e) => edit((d) => { d.leaders = num(e.target.value) })} /></Field>
-          <Field label={t('leadersPer')} hint={t('leadersPerHelp')}>
-            <Input type="number" min={1} max={100} value={doc.leaders_per ?? ''} placeholder="—"
-              onChange={(e) => edit((d) => { d.leaders_per = e.target.value ? num(e.target.value) : null })} />
-          </Field>
-          <Field label={t('leaderRoomKind')}>
-            <Select value={doc.leader_room === 'free' ? 'free' : doc.leader_single ? 'single' : 'shared'}
-              onChange={(e) => edit((d) => { const v = e.target.value as LeaderRoom; d.leader_room = v; d.leader_single = v === 'single' })}>
-              {(['single', 'shared', 'free'] as const).map((v) => <option key={v} value={v}>{t(`leaderRoom_${v}`)}</option>)}
-            </Select>
-          </Field>
-          <Field label={t('staffTravelling')} hint={t('staffTravellingHelp')}><Input type="number" min={0} max={20} value={doc.staff} onChange={(e) => edit((d) => { d.staff = num(e.target.value) })} /></Field>
-        </>}
-      </Card>
-
-      {doc.recipe?.length ? (
-        <Card className="grid gap-4 p-5 sm:grid-cols-2">
-          <OnBuild text={t('recipeOnBuild')} />
-          <Check label={t('singleProfit')} checked={doc.single_profit} onChange={(v) => edit((d) => { d.single_profit = v })} />
-        </Card>
-      ) : <Card className="grid gap-4 p-5 sm:grid-cols-2 lg:grid-cols-4">
-        <Field label={`${t('profitGroup')} (${doc.currency})`} hint={t('profitRuleHint')}><Input type="number" min={0} value={doc.profit_group} onChange={(e) => edit((d) => { d.profit_group = e.target.value })} /></Field>
-        <Field label={`${t('profitMinPp')} (${doc.currency})`}><Input type="number" min={0} value={doc.profit_min_pp} onChange={(e) => edit((d) => { d.profit_min_pp = e.target.value })} /></Field>
-        <Field label={t('marginFloor')}><Input type="number" min={0} value={doc.margin_floor_pct} onChange={(e) => edit((d) => { d.margin_floor_pct = e.target.value })} /></Field>
-        <Field label={t('rounding')} hint={t('roundingStep')}>
-          <div className="flex gap-2">
-            <Select value={doc.rounding_mode} onChange={(e) => edit((d) => { d.rounding_mode = e.target.value as QuoteDoc['rounding_mode'] })}>
-              {(['floor', 'nearest', 'ceil'] as const).map((m) => <option key={m} value={m}>{t(`round_${m}`)}</option>)}
-            </Select>
-            <Input type="number" min={0} step="0.01" title={t('roundingStep')} value={doc.rounding_step} onChange={(e) => edit((d) => { d.rounding_step = e.target.value })} className="w-24" />
-          </div>
-        </Field>
-        <Check label={t('singleProfit')} checked={doc.single_profit} onChange={(v) => edit((d) => { d.single_profit = v })} />
-      </Card>}
-
-      <div className="grid gap-4 lg:grid-cols-[1fr_2fr]">
+      </div>
         <KeyValues title={t('exchangeRates')} hint={t('fxHelp', { cur: doc.currency, ex: doc.currency === 'USD' ? 'GEL' : 'USD', rate: doc.currency === 'USD' ? '2.70' : doc.currency === 'GEL' ? '0.37' : '1.08' })} values={doc.fx} keyPlaceholder="GEL"
           normalizeKey={(k) => k.toUpperCase().slice(0, 3)} onChange={(fx) => edit((d) => { d.fx = fx })} />
-        <Card className="p-5"><OnBuild text={t('inputsOnBuild', { n: Object.keys(doc.variables).length })} /></Card>
-      </div>
-      <Card className="p-5">
-        <Field label={t('notes')}><Input value={doc.notes} onChange={(e) => edit((d) => { d.notes = e.target.value })} /></Field>
-      </Card>
+      <Field label={t('notes')}><Textarea rows={3} value={doc.notes} onChange={(e) => edit((d) => { d.notes = e.target.value })} /></Field>
       {filling && <FillFromRoute doc={doc} edit={edit} onClose={() => setFilling(false)} />}
     </div>
-  )
-}
-
-/** Set on Build: say so (with the way there) instead of showing controls that would do nothing. */
-function OnBuild({ text }: { text: string }) {
-  const { t } = useI18n()
-  const [, setParams] = useSearchParams()
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-900 sm:col-span-2 lg:col-span-4">
-      <span className="min-w-0 flex-1">{text}</span>
-      <button type="button" onClick={() => setParams((p) => { p.set('tab', 'build'); return p }, { replace: true })} className="font-medium text-violet-700 hover:underline">{t('openBuild')} →</button>
-    </div>
-  )
-}
-
-function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
-  return (
-    <label className="flex items-center gap-2 self-end pb-2 text-sm">
-      <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="h-4 w-4" />{label}
-    </label>
+    </Drawer>
   )
 }
 
@@ -475,12 +449,9 @@ function RowActions({ i, n, onMove, onDelete }: { i: number; n: number; onMove: 
 
 // --- prices --------------------------------------------------------------------------------
 
-function PricesTab({ doc, result, quoteId, dirty }: { doc: QuoteDoc; result?: QuoteResult; quoteId: string; dirty: boolean }) {
+function PricesTab({ doc, result }: { doc: QuoteDoc; result?: QuoteResult }) {
   const { t } = useI18n()
   const [open, setOpen] = useState<number | null>(null)
-  const [creating, setCreating] = useState(false)
-  const [seriesMode, setSeriesMode] = useState<'create' | 'apply' | null>(null)
-  const routes = useSeries()
   const [season, setSeason] = useState('')
   if (!result) return <div className="flex justify-center py-10"><Spinner /></div>
   const tiers = (season ? result.seasons?.find((x) => x.id === season)?.tiers : undefined) ?? result.tiers
@@ -492,21 +463,6 @@ function PricesTab({ doc, result, quoteId, dirty }: { doc: QuoteDoc; result?: Qu
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
         <span className="text-sm text-slate-500">{t('hotelsPerPerson')}: <b className="text-slate-900">{money(result.hotel_dbl_pp, doc.currency)}</b> · {result.nights_priced} {t('nights')}</span>
-        <div className="flex-1" />
-        {dirty && <span className="text-sm text-amber-700">{t('saveToCreateTour')}</span>}
-        <Button variant="secondary" disabled={dirty || result.errors.length > 0} onClick={() => setCreating(true)}>
-          <Plus size={16} />{t('createTour')}
-        </Button>
-        {doc.series_id && (
-          <>
-            <Button variant="secondary" disabled={dirty || result.errors.length > 0} onClick={() => setSeriesMode('create')} title={t('createDeparturesHelp')}>
-              <Plus size={16} />{t('createDepartures')}
-            </Button>
-            <Button variant="secondary" disabled={dirty || result.errors.length > 0} onClick={() => setSeriesMode('apply')} title={t('applyToDeparturesHelp')}>
-              {t('applyToDepartures')}
-            </Button>
-          </>
-        )}
       </div>
       {(result.seasons?.length ?? 0) > 0 && (
         <div className="flex flex-wrap gap-1">
@@ -553,6 +509,27 @@ function PricesTab({ doc, result, quoteId, dirty }: { doc: QuoteDoc; result?: Qu
         </table>
       </div>
       {open !== null && <ExplainPrice doc={doc} tourists={open} season={season} onClose={() => setOpen(null)} />}
+    </div>
+  )
+}
+
+/** Where the price goes next, in one place: a new tour, new departures of the route, or departures that exist. */
+function UsePriceMenu({ doc, quoteId, result, ready }: { doc: QuoteDoc; quoteId: string; result: QuoteResult; ready: boolean }) {
+  const { t } = useI18n()
+  const routes = useSeries()
+  const [creating, setCreating] = useState(false)
+  const [seriesMode, setSeriesMode] = useState<'create' | 'apply' | null>(null)
+  return (
+    <>
+      <Menu label={t('useThisPrice')}
+        triggerClassName="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100"
+        trigger={<><CheckIcon size={16} />{t('useThisPrice')}<ChevronDown size={16} className="text-slate-500" /></>}
+        items={[
+          { label: t('useThisPriceSaveFirst'), icon: <AlertTriangle size={16} />, disabled: true, hidden: ready, onClick: () => {} },
+          { label: t('createTour'), icon: <Plus size={16} />, disabled: !ready, onClick: () => setCreating(true) },
+          { label: t('createDepartures'), icon: <Plus size={16} />, disabled: !ready, hidden: !doc.series_id, onClick: () => setSeriesMode('create') },
+          { label: t('applyToDepartures'), icon: <RefreshCw size={16} />, disabled: !ready, hidden: !doc.series_id, onClick: () => setSeriesMode('apply') },
+        ]} />
       {creating && <CreateTourModal doc={doc} quoteId={quoteId} result={result} onClose={() => setCreating(false)} />}
       {seriesMode === 'apply' && <ApplyToDepartures quoteId={quoteId} doc={doc} onClose={() => setSeriesMode(null)} />}
       {seriesMode === 'create' && (
@@ -560,7 +537,30 @@ function PricesTab({ doc, result, quoteId, dirty }: { doc: QuoteDoc; result?: Qu
           <DeparturesForm series={routes.data ?? []} quoteId={quoteId} onDone={() => setSeriesMode(null)} />
         </Modal>
       )}
-    </div>
+    </>
+  )
+}
+
+/** The calculation as an Excel file (every line and formula), at the group size being looked at. */
+function CalcFileCard({ quoteId, disabled }: { quoteId: string; disabled: boolean }) {
+  const ws = useWorkspace()!
+  const { t, lang } = useI18n()
+  const [params] = useSearchParams()
+  const n = Number(params.get('n')) || 19
+  return (
+    <section className="space-y-3">
+      <h2 className="text-lg font-semibold text-slate-800">{t('sendCalcTitle')}</h2>
+      <Card className="flex flex-wrap items-center gap-3 p-4">
+        <FileSpreadsheet size={20} className="shrink-0 text-emerald-700" aria-hidden />
+        <p className="min-w-0 flex-1 text-sm text-slate-600">{t('sendCalcHelp')}</p>
+        {disabled ? <Button variant="secondary" disabled title={t('downloadCalcSaveFirst')}><Download size={16} />{t('downloadCalc')}</Button> : (
+          <a href={`/api${wsPath(ws.id, `/quotes/${quoteId}/calculation.xlsx?lang=${lang === 'ka' ? 'ka' : 'en'}&tourists=${n}`)}`} download
+            className="inline-flex h-10 items-center gap-2 rounded border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100">
+            <Download size={16} />{t('downloadCalc')}
+          </a>
+        )}
+      </Card>
+    </section>
   )
 }
 
