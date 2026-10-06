@@ -1,0 +1,18 @@
+# Local data and secrets never go in the repository
+*.db
+*.db-journal
+.env
+.env.*
+backend/uploads/
+
+# Builds and dependencies
+node_modules/
+frontend/dist/
+.venv/
+__pycache__/
+.pytest_cache/
+*.log
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json

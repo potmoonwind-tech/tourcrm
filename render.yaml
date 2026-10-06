@@ -1,0 +1,27 @@
+# Render Blueprint: one web service (app + API) and a Postgres database, both on the free plan,
+# in Frankfurt (closest to Georgia). New > Blueprint in Render, pick this repository.
+databases:
+  - name: tourcrm-db
+    plan: free
+    region: frankfurt
+    databaseName: tourcrm
+    user: tourcrm
+
+services:
+  - type: web
+    name: tourcrm
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: tourcrm-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      # The site's own address comes from Render (RENDER_EXTERNAL_URL); set APP_URL for a custom domain.
+      - key: ANTHROPIC_API_KEY      # optional: the AI assistant; leave empty to keep it off
+        sync: false

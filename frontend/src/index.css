@@ -1,0 +1,114 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens: monday.com's Vibe design system (colours, type, radii, shadows),
+ * mapped onto Tailwind's palette names so every screen uses them. See DESIGN.md.
+ */
+@theme {
+  --font-sans: "Figtree", "Noto Sans Georgian", ui-sans-serif, system-ui, sans-serif;
+
+  /* Primary (Vibe --primary-color #0073ea, hover #0060b9, selected #cce5ff) */
+  --color-app-bg: #ffffff;   /* the frame around pages (top bar, menu): white; the page panel has a border */
+  --color-brand-50: #f0f7ff;
+  --color-brand-100: #cce5ff;
+  --color-brand-200: #99caff;
+  --color-brand-300: #66b0ff;
+  --color-brand-400: #3391f5;
+  --color-brand-500: #1f84f0;
+  --color-brand-600: #0073ea;
+  --color-brand-700: #0060b9;
+  --color-brand-800: #004d94;
+  --color-brand-900: #003a70;
+
+  /* Neutrals (Vibe greys: text #323338, secondary #676879, borders #d0d4e4 / #c3c6d4, surfaces #f6f7fb) */
+  --color-slate-50: #f6f7fb;
+  --color-slate-100: #ecedf5;
+  --color-slate-200: #d0d4e4;
+  --color-slate-300: #c3c6d4;
+  --color-slate-400: #9699a6;
+  --color-slate-500: #676879;
+  --color-slate-600: #535768;
+  --color-slate-700: #424352;
+  --color-slate-800: #323338;
+  --color-slate-900: #1f2023;
+
+  /* Status label colours (Vibe: done green, working orange, stuck red, bright blue, purple) */
+  --color-emerald-500: #00c875;
+  --color-emerald-600: #00a35c;
+  --color-emerald-700: #00854d;
+  --color-amber-400: #fdab3d;
+  --color-amber-500: #fdab3d;
+  --color-red-500: #e2445c;
+  --color-red-600: #d83a52;
+  --color-red-700: #b63546;
+  --color-sky-500: #579bfc;
+  --color-violet-500: #a25ddc;
+
+  /* Radii: Vibe small 4px (controls), medium 8px (cards), big 16px (dialogs).
+     rounded / rounded-sm / rounded-md / rounded-lg are all the control radius, so no class can drift. */
+  --radius-sm: 4px;
+  --radius-md: 4px;
+  --radius-lg: 4px;
+  --radius-xl: 8px;
+  --radius-2xl: 16px;
+
+  /* Shadows: Vibe xs / small / medium / large */
+  --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
+  --shadow-md: 0 4px 8px rgb(0 0 0 / 0.12);
+  --shadow-lg: 0 6px 20px rgb(0 0 0 / 0.16);
+  --shadow-xl: 0 15px 50px rgb(0 0 0 / 0.24);
+}
+
+body {
+  @apply bg-slate-50 text-slate-800 antialiased;
+}
+
+/* Drawer slides in from the right; dialogs fade/scale in. */
+@keyframes drawer-in { from { transform: translateX(100%); } to { transform: translateX(0); } }
+@keyframes dialog-in { from { opacity: 0; transform: scale(0.98); } to { opacity: 1; transform: scale(1); } }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+.animate-drawer { animation: drawer-in 180ms ease-out; }
+.animate-dialog { animation: dialog-in 140ms ease-out; }
+.animate-fade { animation: fade-in 140ms ease-out; }
+@media (prefers-reduced-motion: reduce) {
+  .animate-drawer, .animate-dialog, .animate-fade { animation: none; }
+}
+
+/* Keyboard focus is always visible (WCAG 2.4.7); components with their own ring keep it. */
+@layer base {
+  :where(button, a, summary, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
+    outline: 2px solid var(--color-brand-600);
+    outline-offset: 2px;
+    border-radius: 4px;
+  }
+}
+
+
+/* --- trip map (components/TripMap.tsx): quiet pins and tooltips on a light base map --- */
+.tm-pin { display: flex; align-items: center; justify-content: center; border-radius: 9999px; box-sizing: border-box;
+  box-shadow: 0 1px 3px rgb(15 23 42 / 0.35); transition: opacity 0.15s; }
+.tm-pin-num { width: 26px; height: 26px; background: var(--color-brand-600); color: #fff; border: 2px solid #fff;
+  font: 600 12px/1 ui-sans-serif, system-ui, sans-serif; }
+.tm-pin-stop { width: 14px; height: 14px; background: #fff; border: 3px solid var(--color-brand-600); }
+.tm-pin-start { width: 14px; height: 14px; background: var(--color-slate-700, #334155); border: 2px solid #fff; }
+.tm-pin.tm-dim { opacity: 0.35; }
+.leaflet-tooltip.tm-tip { border: 0; border-radius: 8px; padding: 6px 9px; font: 13px/1.35 ui-sans-serif, system-ui, sans-serif;
+  color: #0f172a; box-shadow: 0 4px 14px rgb(15 23 42 / 0.15); }
+.leaflet-tooltip.tm-tip span { color: #475569; font-size: 12px; }
+.leaflet-container { font-family: inherit; background: #f8fafc; }
+.tm-tiles { filter: grayscale(1) brightness(1.08) contrast(0.82); }
+.leaflet-control-zoom a { color: #334155; }
+.leaflet-control-attribution { font-size: 10px; }
+
+/* Scrollable rows of tabs / chips without the bar (still scroll by touch, wheel and keyboard). */
+.no-scrollbar { scrollbar-width: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* Selects draw their own 16px chevron (the browser's differs per system and sits too close to the edge). */
+.select-chevron {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23676879' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  background-size: 16px;
+}
