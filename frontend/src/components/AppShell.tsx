@@ -14,7 +14,6 @@ import { Activity } from './Alerts'
 import { useTaskSummary } from '../lib/data'
 import { SearchButton } from './Search'
 import { sectionOf, type Section } from './SectionNav'
-import { Tooltip } from './Tooltip'
 import { ThemePicker } from './ThemePicker'
 
 interface NavItem { to: string; label: TKey; icon: ReactNode; soon?: boolean; badge?: number; tone?: 'orange' | 'red'; section?: Section }
@@ -270,10 +269,11 @@ function UserMenu() {
         {initials || '?'}
       </button>
       {open && (
-        <div className="animate-fade absolute right-0 z-50 mt-2 w-64 rounded-xl border border-slate-200 bg-white p-2 shadow-lg">
+        <div className="animate-fade absolute right-0 z-50 mt-2 w-[min(19rem,calc(100vw-1rem))] rounded-2xl bg-white p-2 shadow-lg">
           <div className="px-2 py-1.5">
             <p className="truncate text-sm font-semibold">{me?.user.full_name || me?.user.email}</p>
-            <p className="truncate text-xs text-slate-500">{me?.user.email} · {t(`role_${ws.role}`)}</p>
+            <p className="truncate text-xs text-slate-500" title={me?.user.email}>{me?.user.email}</p>
+            <p className="text-xs text-slate-500">{t(`role_${ws.role}`)}</p>
           </div>
           <div className="flex items-center justify-between px-2 py-2 text-sm text-slate-600">{t('language')}<LangToggle /></div>
           <div className="flex items-center justify-between px-2 py-2 text-sm text-slate-600">{t('theme')}<ThemePicker size="sm" /></div>
@@ -297,16 +297,16 @@ function UserMenu() {
 function ViewAsSwitch() {
   const { t } = useI18n()
   const v = useViewAs()
+  // In the account menu: the label, the picker full width, and what it does in one line (any language fits).
   return (
-    <Tooltip label={t('viewAsTip')}>
-      <label className="flex items-center justify-between gap-2 text-sm text-slate-600">
-        <span className="flex items-center gap-2"><Eye size={16} aria-hidden />{t('viewAs')}</span>
-        <select value={v ?? ''} onChange={(e) => setViewAs((e.target.value || null) as Job | 'guide' | null)} aria-label={t('viewAs')}
-          className="rounded-md border border-slate-300 bg-white py-1 pl-2 pr-6 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-brand-100">
-          <option value="">{t('viewAsMe')}</option>
-          {(['operations', 'finance', 'sales', 'guide'] as const).map((j) => <option key={j} value={j}>{t(`viewAs_${j}` as TKey)}</option>)}
-        </select>
-      </label>
-    </Tooltip>
+    <label className="flex flex-col gap-1.5 text-sm text-slate-600">
+      <span className="flex items-center gap-2"><Eye size={16} aria-hidden />{t('viewAs')}</span>
+      <select value={v ?? ''} onChange={(e) => setViewAs((e.target.value || null) as Job | 'guide' | null)} aria-describedby="view-as-help"
+        className="h-9 w-full rounded-md border border-slate-300 bg-white pl-2 pr-6 text-sm font-medium text-slate-700 focus:ring-2 focus:ring-brand-100">
+        <option value="">{t('viewAsMe')}</option>
+        {(['operations', 'finance', 'sales', 'guide'] as const).map((j) => <option key={j} value={j}>{t(`viewAs_${j}` as TKey)}</option>)}
+      </select>
+      <span id="view-as-help" className="text-xs text-slate-500">{t('viewAsTip')}</span>
+    </label>
   )
 }

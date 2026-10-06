@@ -63,9 +63,11 @@
 
   /* Shadows: Vibe xs / small / medium / large */
   --shadow-sm: 0 1px 2px rgb(0 0 0 / 0.04);
-  --shadow-md: 0 4px 8px rgb(0 0 0 / 0.12);
-  --shadow-lg: 0 6px 20px rgb(0 0 0 / 0.16);
-  --shadow-xl: 0 15px 50px rgb(0 0 0 / 0.24);
+  /* Floating things (menus, popups, drawers, dialogs) as Google Drive does them: a tight shadow plus a wide,
+     faint one, in a cool grey - they lift clearly off the page without a heavy dark edge. */
+  --shadow-md: 0 1px 2px 0 rgb(60 64 67 / 0.3), 0 2px 6px 2px rgb(60 64 67 / 0.15);
+  --shadow-lg: 0 1px 3px 0 rgb(60 64 67 / 0.3), 0 4px 8px 3px rgb(60 64 67 / 0.15);
+  --shadow-xl: 0 2px 3px 0 rgb(60 64 67 / 0.3), 0 6px 10px 4px rgb(60 64 67 / 0.15);
 }
 
 /* The app's colour, per person (Settings → Appearance). Blue above is the default. Each 600 shade keeps
