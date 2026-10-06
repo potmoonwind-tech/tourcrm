@@ -84,7 +84,11 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
       try {
         const d = await api<{ lat: number; lon: number; street: string; city: string }>(
           wsPath(ws.id, `/places/details?id=${encodeURIComponent(p.place_id)}&session=${session}`))
-        p = { ...p, lat: d.lat, lon: d.lon, street: d.street || p.street, city: d.city || p.city }
+        // The town as the list showed it ("…, Batumi, Georgia"): Google's address parts are
+        // sometimes in the local script or spelling ("ბათუმი", "T'bilisi").
+        const shown = p.detail.split(', ')
+        const town = shown.length >= 2 ? shown[shown.length - 2] : ''
+        p = { ...p, lat: d.lat, lon: d.lon, street: d.street || p.street, city: town || d.city || p.city }
       } catch { /* typed name still works */ }
       setSession(crypto.randomUUID())
     }
