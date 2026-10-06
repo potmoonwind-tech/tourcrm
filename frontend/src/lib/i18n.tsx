@@ -2687,6 +2687,14 @@ const en = {
   transportPlanLines: "Transport plan",
   transportPlanHint: "Worked out from the vehicles and km - change it under Transport, in the Days view.",
   nightsAfterLastDay: "Nights after the last day, still priced: {list}",
+  dragNight: "Move night: {name}",
+  dragNightTip: "Drag to change the order (or Space, then the arrow keys)",
+  addRoomColumn: "{room} room",
+  roomGaps: "{room} price needs every night: nights {list} have none, so there is no {room} price yet.",
+  noPriceShort: "no price",
+  singleSameAsDouble: "Empty: the single room costs the same as the double",
+  doubleEmptyHelp: "Empty: this night is not counted in the price",
+  pickFromCatalogue: "Pick a hotel from the catalogue",
 }
 
 type Dict = typeof en
@@ -5370,6 +5378,14 @@ const ka: Dict = {
   transportPlanLines: "ტრანსპორტის გეგმა",
   transportPlanHint: "გამოითვლება მანქანებით და კმ-ით - შეცვალეთ ტრანსპორტში, დღეების ხედში.",
   nightsAfterLastDay: "ღამეები ბოლო დღის შემდეგ, მაინც ითვლება: {list}",
+  dragNight: "ღამის გადატანა: {name}",
+  dragNightTip: "გადაათრიეთ რიგის შესაცვლელად (ან Space, შემდეგ ისრები)",
+  addRoomColumn: "{room} ნომერი",
+  roomGaps: "{room} ფასს ყველა ღამე სჭირდება: ღამეებს {list} არ აქვთ, ამიტომ {room} ფასი ჯერ არ არის.",
+  noPriceShort: "ფასი არ არის",
+  singleSameAsDouble: "ცარიელი: ერთადგილიანი ღირს იმდენივე, რაც ორადგილიანი",
+  doubleEmptyHelp: "ცარიელი: ეს ღამე ფასში არ ითვლება",
+  pickFromCatalogue: "სასტუმროს არჩევა კატალოგიდან",
 }
 
 export type Lang = 'en' | 'ka'

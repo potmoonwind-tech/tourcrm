@@ -551,7 +551,7 @@ function ToFill({ doc, onItem, onNight }: { doc: QuoteDoc; onItem: (i: number) =
   )
 }
 
-function NightDrawer({ doc, index, edit, onClose }: { doc: QuoteDoc; index: number; edit: Edit; onClose: () => void }) {
+export function NightDrawer({ doc, index, edit, onClose }: { doc: QuoteDoc; index: number; edit: Edit; onClose: () => void }) {
   const { t } = useI18n()
   const nt = doc.nights[index]
   const vendors = useVendors()

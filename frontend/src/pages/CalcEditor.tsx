@@ -1,22 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, askText, Drawer, Menu, toast } from '../components/overlay'
-import { AlertTriangle, ArrowDown, ArrowUp, Calculator, Check as CheckIcon, ChevronDown, CloudOff, Copy, Download, Eye, FileSpreadsheet, History, Layers, Loader2, Plus, Printer, Redo2, RefreshCw, Settings2, Sparkles, Trash2, Undo2, X } from 'lucide-react'
+import { AlertTriangle, Calculator, Check as CheckIcon, ChevronDown, CloudOff, Copy, Download, Eye, FileSpreadsheet, History, Layers, Loader2, Plus, Printer, Redo2, RefreshCw, Settings2, Sparkles, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
-import { Modal, VendorSelect } from '../components/tour'
+import { Modal } from '../components/tour'
 import { NbgButton } from '../components/money'
 import { Button, Card, ErrorText, Field, FullPageSpinner, Input, Select, Spinner, IconButton, Chip, Textarea } from '../components/ui'
 import {
-  api, can, type PriceListData, type QuoteDoc, type QuoteNight, type QuoteOut, type QuoteResult, type QuoteStatus, type Tour, type StaffStay,
+  api, can, type PriceListData, type QuoteDoc, type QuoteOut, type QuoteResult, type QuoteStatus, type Tour,
 } from '../lib/api'
-import { useClients, useSeries, useVendors, wsPath } from '../lib/data'
+import { useClients, useSeries, wsPath } from '../lib/data'
 import { today } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
 import { cn, money } from '../lib/utils'
 import { ExplainPrice } from './calc/ExplainPrice'
 import { HistoryModal } from './calc/HistoryModal'
-import { ItemsTab, newId } from './calc/ItemsTab'
+import { ItemsTab } from './calc/ItemsTab'
+import { HotelsTable } from './calc/HotelsTable'
 import { BuildTab, PriceStrip, switchCurrency } from './calc/BuildTab'
 import { ScenariosTab } from './calc/ScenariosTab'
 import { FillFromRoute, UpdatePrices } from './calc/RouteTools'
@@ -221,7 +222,7 @@ export function CalcEditorPage() {
         <UndoContext.Provider value={undo}>
         {tab === 'build' && <BuildTab doc={doc} debounced={debounced ?? doc} result={result} edit={edit} />}
         {tab === 'lines' && <ItemsTab doc={doc} debounced={debounced ?? doc} edit={edit} />}
-        {tab === 'hotels' && <HotelsTab doc={doc} edit={edit} />}
+        {tab === 'hotels' && <HotelsTable doc={doc} edit={edit} />}
         {tab === 'compare' && (
           <div className="space-y-8">
             <PricesTab doc={doc} result={result} />
@@ -366,118 +367,6 @@ function KeyValues({ title, hint, values, notes, keyPlaceholder, normalizeKey, o
       </div>
       <Button type="button" size="sm" variant="secondary" className="mt-3" onClick={() => setRows([...rows, ['', '0', '']])}><Plus size={16} />{t('add')}</Button>
     </Card>
-  )
-}
-
-// --- hotels --------------------------------------------------------------------------------
-
-function HotelsTab({ doc, edit }: EditProps) {
-  const { t } = useI18n()
-  // Driver, guide…: from the people when the calculation has its own, else the old "staff" number.
-  const staff = doc.people?.length ? doc.people.filter((p) => p.role === 'staff').reduce((s, p) => s + (p.count ?? 0), 0) : doc.staff
-  const vendors = useVendors()
-  const hotels = (vendors.data ?? []).filter((v) => v.type === 'hotel')
-  const set = (i: number, patch: Partial<QuoteNight>) => edit((d) => { Object.assign(d.nights[i], patch) })
-  return (
-    <Card>
-      <div className="overflow-x-auto">
-        <table className={cn("w-full text-sm", staff > 0 ? "min-w-[1250px]" : "min-w-[1000px]")}>
-          <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
-            <tr>
-              <th className="w-12 px-3 py-2">{t('night')}</th><th className="w-40 px-2 py-2">{t('city')}</th>
-              <th className="px-2 py-2">{t('hotel')}</th><th className="w-24 px-2 py-2">{t('currency')}</th>
-              <th className="w-28 px-2 py-2 text-right">{t('roomDouble')} <span className="block normal-case text-slate-400">{t('pricePerRoom')}</span></th>
-              <th className="w-28 px-2 py-2 text-right">{t('roomSingle')}</th><th className="w-28 px-2 py-2 text-right">{t('roomTriple')}</th>
-              <th className="w-28 px-2 py-2 text-right">{t('roomQuad')}</th>
-              {staff > 0 && <th className="w-64 px-2 py-2">{t('staffStay')} <span className="block normal-case text-slate-400">{t('staffStayWho', { n: staff })}</span></th>}
-              <th className="w-20" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {doc.nights.map((n, i) => (
-              <tr key={i}>
-                <td className="px-3 font-semibold">{i + 1}</td>
-                <td className="px-1 py-1"><Input size="sm" value={n.city} onChange={(e) => set(i, { city: e.target.value })} /></td>
-                <td className="px-1 py-1">
-                  <div className="flex gap-1">
-                    <VendorSelect className="h-9 w-40" vendors={hotels} types={['hotel']} value={n.vendor_id}
-                      onChange={(id) => set(i, { vendor_id: id, hotel_name: id ? hotels.find((h) => h.id === id)?.name ?? n.hotel_name : n.hotel_name })} />
-                    <Input size="sm" value={n.hotel_name} onChange={(e) => set(i, { hotel_name: e.target.value })} />
-                  </div>
-                </td>
-                <td className="px-1 py-1"><Select size="sm" value={n.currency} onChange={(e) => set(i, { currency: e.target.value })}>{CURRENCIES.map((c) => <option key={c}>{c}</option>)}</Select></td>
-                {(['price_dbl', 'price_sgl', 'price_trp', 'price_quad'] as const).map((k) => (
-                  <td key={k} className="px-1 py-1">
-                    <Input size="sm" className="text-right" type="number" min={0} step="any" value={n[k] ?? ''} onChange={(e) => set(i, { [k]: e.target.value === '' ? null : e.target.value })} />
-                  </td>
-                ))}
-                {staff > 0 && <td className="min-w-[15rem] px-1 py-1"><StaffStayCell night={n} staff={staff} onChange={(p) => set(i, p)} /></td>}
-                <td className="px-1"><RowActions i={i} n={doc.nights.length} onMove={(by) => edit((d) => { const [x] = d.nights.splice(i, 1); d.nights.splice(i + by, 0, x) })}
-                  onDelete={() => void ask({ title: t('confirmDeleteNight'), danger: true, confirmLabel: t('delete') }).then((ok) => ok && edit((d) => { d.nights.splice(i, 1) }))} /></td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <div className="flex flex-wrap items-center gap-3 border-t border-slate-200 p-3">
-        {(doc.seasons?.length ?? 0) > 0 && <span className="text-xs text-amber-700">{t('seasonPricesOnBuild')}</span>}
-        {staff > 0 && doc.nights.length > 1 && (
-          <label className="flex items-center gap-2 text-sm text-slate-600">{t('staffStayAll')}
-            <Select size="sm" className="w-56" value="" onChange={(e) => {
-       const v = e.target.value as StaffStay
-       if (v) edit((d) => { d.nights.forEach((x) => { x.staff_stay = v }) })
-      }}>
-              <option value="">—</option>
-              {STAFF_STAYS.map((v) => <option key={v} value={v}>{t(`staffStay_${v}`)}</option>)}
-            </Select>
-          </label>
-        )}
-        <Button size="sm" variant="secondary" onClick={() => edit((d) => {
-          const last = d.nights.at(-1)
-          d.nights.push({ id: newId(), city: last?.city ?? '', vendor_id: null, hotel_name: '', currency: last?.currency ?? d.currency, price_dbl: null, price_sgl: null, price_trp: null })
-        })}><Plus size={16} />{t('addNight')}</Button>
-      </div>
-    </Card>
-  )
-}
-
-const STAFF_STAYS: StaffStay[] = ['none', 'same', 'own', 'allowance', 'free']
-
-/** Where the driver and guide sleep this night, and what it costs (added to the group cost). */
-function StaffStayCell({ night, staff, onChange }: { night: QuoteNight; staff: number; onChange: (p: Partial<QuoteNight>) => void }) {
-  const { t } = useI18n()
-  const stay = night.staff_stay ?? 'none'
-  return (
-    <div className="space-y-1">
-      <Select size="sm" value={stay} onChange={(e) => onChange({ staff_stay: e.target.value as StaffStay })}>
-        {STAFF_STAYS.map((v) => <option key={v} value={v}>{t(`staffStay_${v}`)}</option>)}
-      </Select>
-      {(stay === 'own' || stay === 'allowance') && (
-        <div className="flex gap-1">
-          {stay === 'own' && <Input size="sm" className="min-w-0 flex-1" value={night.staff_hotel ?? ''} placeholder={t('staffHotelPh')} onChange={(e) => onChange({ staff_hotel: e.target.value })} />}
-          <Input size="sm" className="w-24 text-right" type="number" min={0} step="any" value={night.staff_price ?? ''}
-      placeholder={stay === 'allowance' ? t('perPersonShort') : t('perRoomShort')} title={`${stay === 'allowance' ? t('allowancePp') : t('pricePerRoom')} (${night.staff_currency ?? night.currency})`}
-      onChange={(e) => onChange({ staff_price: e.target.value === '' ? null : e.target.value })} />
-          <span className="self-center text-xs text-slate-500">{night.staff_currency ?? night.currency}</span>
-        </div>
-      )}
-      {(stay === 'same' || stay === 'own') && staff > 1 && (
-        <label className="flex items-center gap-1.5 text-xs text-slate-600">
-          <input type="checkbox" checked={!!night.staff_twin} onChange={(e) => onChange({ staff_twin: e.target.checked })} />{t('staffTwin')}
-        </label>
-      )}
-    </div>
-  )
-}
-
-function RowActions({ i, n, onMove, onDelete }: { i: number; n: number; onMove: (by: number) => void; onDelete: () => void }) {
-  const { t } = useI18n()
-  return (
-    <div className="flex items-center justify-end">
-      <IconButton size="sm" label={t('moveUp')} disabled={i === 0} onClick={() => onMove(-1)}><ArrowUp size={16} /></IconButton>
-      <IconButton size="sm" label={t('moveDown')} disabled={i === n - 1} onClick={() => onMove(1)}><ArrowDown size={16} /></IconButton>
-      <IconButton size="sm" label={t('delete')} tone="danger" onClick={onDelete}><Trash2 size={16} /></IconButton>
-    </div>
   )
 }
 
