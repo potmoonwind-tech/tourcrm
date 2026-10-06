@@ -253,6 +253,15 @@ export function Menu({ items, label, kind = 'more', icon, trigger, triggerClassN
   }, [open])   // eslint-disable-line react-hooks/exhaustive-deps
   const shown = items.filter((i) => !i.hidden)
   if (!shown.length) return null
+  // "+ Add" with only one thing to add: the button does it, no list of one.
+  if (kind === 'add' && !trigger && shown.length === 1) {
+    const only = shown[0]
+    return (
+      <Button variant="tertiary" size="sm" disabled={only.disabled} onClick={only.onClick} title={only.label === label ? undefined : only.label}>
+        {icon ?? <Plus size={16} />}{label}
+      </Button>
+    )
+  }
   const toggle = () => setOpen(!open)
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === 'Escape' && open) { e.stopPropagation(); setOpen(false); (ref.current?.querySelector('[aria-haspopup]') as HTMLElement | null)?.focus() }

@@ -173,13 +173,12 @@ export function CalcEditorPage() {
           {result && <UsePriceMenu doc={doc} quoteId={quoteId!} result={result} ready={!dirty && result.errors.length === 0} />}
           <Menu items={[
             { label: t('updatePrices'), icon: <RefreshCw size={16} />, onClick: () => setRepricing(true) },
-            { label: `${t('history')} · v${saved.data?.version}`, icon: <History size={16} />, onClick: () => setHistory(true) },
             { label: t('duplicate'), icon: <Copy size={16} />, onClick: () => copy.mutate() },
             { label: t('delete'), icon: <Trash2 size={16} />, danger: true,
               onClick: () => void ask({ title: t('confirmDelete'), danger: true, confirmLabel: t('delete') }).then((ok) => ok && del.mutate()) },
           ]} />
           <SaveState state={!canSave ? 'readonly' : failed ? 'failed' : dirty || save.isPending ? 'saving' : 'saved'}
-            onRetry={() => doc && save.mutate({ body: doc, auto: false })} />
+            onRetry={() => doc && save.mutate({ body: doc, auto: false })} onHistory={() => setHistory(true)} />
         </div>} />
       <div className="space-y-4 p-4 md:p-8">
         <ErrorText error={save.error} />
@@ -253,14 +252,18 @@ export function CalcEditorPage() {
 type EditProps = { doc: QuoteDoc; edit: (fn: (d: QuoteDoc) => void) => void }
 
 /** Where the saving is, in the header's corner: saving…, saved, not saved (try again), or view only. */
-function SaveState({ state, onRetry }: { state: 'saving' | 'saved' | 'failed' | 'readonly'; onRetry: () => void }) {
+function SaveState({ state, onRetry, onHistory }: { state: 'saving' | 'saved' | 'failed' | 'readonly'; onRetry: () => void; onHistory: () => void }) {
   const { t } = useI18n()
   return (
-    <span aria-live="polite" title={state === 'readonly' ? undefined : t('autosaveTip')}
+    <span aria-live="polite" title={state === 'readonly' ? undefined : t('autosaveTipHistory')}
       className={cn('inline-flex h-10 items-center gap-1.5 px-2 text-sm', state === 'failed' ? 'text-red-700' : 'text-slate-500')}>
       {state === 'saving' && <><Loader2 size={16} className="animate-spin" aria-hidden />{t('autosaveSaving')}</>}
-      {state === 'saved' && <><CheckIcon size={16} className="text-emerald-600" aria-hidden />{t('autosaveSaved')}</>}
-      {state === 'readonly' && <><Eye size={16} aria-hidden />{t('autosaveViewOnly')}</>}
+      {state === 'saved' && (
+        <button type="button" onClick={onHistory} className="inline-flex h-8 items-center gap-1.5 rounded px-2 hover:bg-slate-100 hover:text-slate-800">
+          <CheckIcon size={16} className="text-emerald-600" aria-hidden />{t('autosaveSaved')}<History size={14} aria-hidden /><span className="sr-only">· {t('history')}</span>
+        </button>
+      )}
+      {state === 'readonly' && <button type="button" onClick={onHistory} className="inline-flex h-8 items-center gap-1.5 rounded px-2 hover:bg-slate-100"><Eye size={16} aria-hidden />{t('autosaveViewOnly')} · {t('history')}</button>}
       {state === 'failed' && <>
         <CloudOff size={16} aria-hidden />{t('autosaveFailed')}
         <Button size="sm" variant="secondary" onClick={onRetry}>{t('autosaveRetry')}</Button>

@@ -2695,6 +2695,8 @@ const en = {
   singleSameAsDouble: "Empty: the single room costs the same as the double",
   doubleEmptyHelp: "Empty: this night is not counted in the price",
   pickFromCatalogue: "Pick a hotel from the catalogue",
+  dragStep: "Move step: {name}",
+  autosaveTipHistory: "Changes save by themselves. Click to see every saved version (History). Ctrl+S keeps a version of its own.",
 }
 
 type Dict = typeof en
@@ -5386,6 +5388,8 @@ const ka: Dict = {
   singleSameAsDouble: "ცარიელი: ერთადგილიანი ღირს იმდენივე, რაც ორადგილიანი",
   doubleEmptyHelp: "ცარიელი: ეს ღამე ფასში არ ითვლება",
   pickFromCatalogue: "სასტუმროს არჩევა კატალოგიდან",
+  dragStep: "ნაბიჯის გადატანა: {name}",
+  autosaveTipHistory: "ცვლილებები თავისით ინახება. დააჭირეთ ყველა შენახული ვერსიის სანახავად (ისტორია). Ctrl+S ცალკე ვერსიას ინახავს.",
 }
 
 export type Lang = 'en' | 'ka'

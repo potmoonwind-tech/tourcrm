@@ -5,7 +5,10 @@
  *   How do we price?  its own recipe from cost to price (profit, markup, commission, VAT, rounding…)
  * …with the price always in view, for any group size.
  */
-import { ArrowDown, ArrowUp, BedDouble, Bus, ChevronRight, Copy, Pencil, Plus, Ticket, Trash2, User, Users, Utensils, X } from 'lucide-react'
+import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
+import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
+import { BedDouble, GripVertical, Bus, ChevronRight, Copy, Pencil, Plus, Ticket, Trash2, User, Users, Utensils, X } from 'lucide-react'
 import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Dialog, Drawer, Menu, toast } from '../../components/overlay'
 import { VendorSelect } from '../../components/tour'
@@ -756,7 +759,13 @@ function RecipeCard({ doc, edit, value }: { doc: QuoteDoc; edit: Edit; value?: s
   const steps = recipeOf(doc)
   const people = peopleOf(doc, names).filter((p) => p.role === 'pay')
   const set = (i: number, patch: Partial<PriceStep>) => edit((d) => { ensure(d, names); Object.assign(d.recipe![i], patch) })
-  const move = (i: number, by: number) => edit((d) => { ensure(d, names); const [x] = d.recipe!.splice(i, 1); d.recipe!.splice(i + by, 0, x) }, true)
+  // Steps run top to bottom (a markup before or after the commission is a different price): dragged into order.
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+  const onDragEnd = (e: DragEndEvent) => {
+    const from = steps.findIndex((x) => x.id === e.active.id), to = e.over ? steps.findIndex((x) => x.id === e.over!.id) : -1
+    if (from >= 0 && to >= 0 && from !== to) edit((d) => { ensure(d, names); d.recipe = arrayMove(d.recipe!, from, to) }, true)
+  }
   const addStep = (kind: StepKind) => edit((d) => {
     ensure(d, names)
     const ref = kind === 'relative' ? people[0]?.id ?? null : null
@@ -782,9 +791,14 @@ function RecipeCard({ doc, edit, value }: { doc: QuoteDoc; edit: Edit; value?: s
         items={STEP_KINDS.map((k) => ({ label: t(`step_${k}` as TKey), onClick: () => addStep(k) }))} />}>
       <ol className="space-y-2">
         <li className="flex items-center gap-2 px-2 text-sm text-slate-500"><span className="h-2 w-2 rounded-full bg-slate-300" />{t('stepCost')}</li>
+        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+        <SortableContext items={steps.map((s) => s.id)} strategy={verticalListSortingStrategy}>
         {steps.map((s, i) => (
-          <li key={s.id} className={cn('rounded-lg border border-slate-200 bg-white py-2 pl-3 pr-1', !s.on && 'bg-slate-50 opacity-60')}>
+          <SortableStep key={s.id} id={s.id} name={s.label || t(`step_${s.kind}` as TKey)}
+            className={cn('rounded-lg border border-slate-200 bg-white py-2 pl-1 pr-1', !s.on && 'bg-slate-50 opacity-60')}>
+            {(handle) => <>
             <div className="flex flex-wrap items-center gap-2">
+              {handle}
               <input type="checkbox" checked={s.on} onChange={(e) => set(i, { on: e.target.checked })} aria-label={t('stepOn')} className="h-4 w-4 accent-brand-600" />
               <StepName value={s.label} fallback={t(`step_${s.kind}` as TKey)} onChange={(v) => set(i, { label: v })} />
               {s.kind === 'profit' && <>
@@ -810,11 +824,8 @@ function RecipeCard({ doc, edit, value }: { doc: QuoteDoc; edit: Edit; value?: s
               </>}
               {s.kind === 'formula' && <Input size="sm" value={s.formula ?? ''} onChange={(e) => set(i, { formula: e.target.value })} className="min-w-0 flex-1 font-mono" placeholder="max(cost * 1.15, cost + 120)" />}
               <span className="ml-auto">
-                <Menu kind="icon" label={`${t('moreActions')}: ${s.label || t(`step_${s.kind}` as TKey)}`} items={[
-                  { label: t('moveUp'), icon: <ArrowUp size={16} />, disabled: i === 0, onClick: () => move(i, -1) },
-                  { label: t('moveDown'), icon: <ArrowDown size={16} />, disabled: i === steps.length - 1, onClick: () => move(i, 1) },
-                  { label: t('delete'), icon: <Trash2 size={16} />, danger: true, onClick: () => remove((d) => { ensure(d, names); d.recipe!.splice(i, 1) }) },
-                ]} />
+                <IconButton size="sm" tone="danger" label={`${t('delete')}: ${s.label || t(`step_${s.kind}` as TKey)}`}
+                  onClick={() => remove((d) => { ensure(d, names); d.recipe!.splice(i, 1) })}><Trash2 size={16} /></IconButton>
               </span>
             </div>
             {s.kind === 'markup' && (
@@ -846,8 +857,11 @@ function RecipeCard({ doc, edit, value }: { doc: QuoteDoc; edit: Edit; value?: s
                 })}
               </div>
             )}
-          </li>
+            </>}
+          </SortableStep>
         ))}
+        </SortableContext>
+        </DndContext>
         <li className="flex items-center gap-2 px-2 text-sm font-medium"><span className="h-2 w-2 rounded-full bg-emerald-500" />{t('stepPrice')}</li>
       </ol>
       <label className="mt-3 flex items-center gap-2 border-t border-slate-200 pt-3 text-sm text-slate-700">
@@ -862,6 +876,23 @@ function RecipeCard({ doc, edit, value }: { doc: QuoteDoc; edit: Edit; value?: s
         </label>
       )}
     </Section>
+  )
+}
+
+/** A pricing step you can drag by its handle (or Space + arrow keys). */
+function SortableStep({ id, name, className, children }: { id: string; name: string; className: string; children: (handle: ReactNode) => ReactNode }) {
+  const { t } = useI18n()
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const handle = (
+    <button type="button" {...attributes} {...listeners} aria-label={t('dragStep', { name })} title={t('dragNightTip')}
+      className="flex h-8 w-6 cursor-grab touch-none items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing">
+      <GripVertical size={16} aria-hidden />
+    </button>
+  )
+  return (
+    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn(className, isDragging && 'relative z-10 shadow-lg')}>
+      {children(handle)}
+    </li>
   )
 }
 
