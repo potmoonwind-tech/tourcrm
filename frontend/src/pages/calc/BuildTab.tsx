@@ -175,6 +175,7 @@ export function BuildTab({ doc, debounced, result, edit }: { doc: QuoteDoc; debo
 
       {editing !== null && doc.items[editing] && (
         <LineEditor doc={doc} index={editing} calc={bd.data?.items[editing]} sample={n} edit={edit} onClose={() => setEditing(null)}
+          tourPrice={row?.price_dbl}
           onDuplicate={() => { edit((d) => { d.items.splice(editing + 1, 0, { ...structuredClone(d.items[editing]), id: newId() }) }, true); setEditing(editing + 1) }}
           onDelete={() => { remove((d) => { d.items.splice(editing, 1) }); setEditing(null) }} />
       )}

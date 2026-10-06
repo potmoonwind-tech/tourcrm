@@ -7,7 +7,7 @@ import { Button, Card, Chip, Field, IconButton, Input, Select } from '../../comp
 import { kindLine, KindsDialog, TravelEditor, useKinds, withTravel } from './kinds'
 import {
   api, QUOTE_CATEGORIES, VENDOR_TYPES,
-  type Breakdown, type ItemCalc, type QuoteBasis, type QuoteCategory, type QuoteDoc, type QuoteItem, type QuoteWho,
+  type Breakdown, type ItemCalc, type QuoteBasis, type QuoteCategory, type QuoteDoc, type QuoteItem, type QuoteResult, type QuoteWho,
 } from '../../lib/api'
 import { useVendors, wsPath } from '../../lib/data'
 import { useI18n, type TKey } from '../../lib/i18n'
@@ -37,7 +37,7 @@ export function useBreakdown(doc: QuoteDoc, tourists: number, season = '') {
   })
 }
 
-export function ItemsTab({ doc, debounced, edit }: { doc: QuoteDoc; debounced: QuoteDoc; edit: Edit }) {
+export function ItemsTab({ doc, debounced, edit, result }: { doc: QuoteDoc; debounced: QuoteDoc; edit: Edit; result?: QuoteResult }) {
   const { t } = useI18n()
   const [sample, setSample] = useSample(doc)
   const [editing, setEditing] = useState<number | null>(null)
@@ -112,6 +112,7 @@ export function ItemsTab({ doc, debounced, edit }: { doc: QuoteDoc; debounced: Q
 
       {editing !== null && doc.items[editing] && (
         <LineEditor doc={doc} index={editing} calc={calc?.[editing]} sample={n} edit={edit} onClose={() => setEditing(null)}
+          tourPrice={result?.tiers.find((x) => x.tourists === n)?.price_dbl}
           onDuplicate={() => { edit((d) => { d.items.splice(editing + 1, 0, { ...structuredClone(d.items[editing]), id: newId() }) }); setEditing(editing + 1) }}
           onDelete={() => { edit((d) => { d.items.splice(editing, 1) }); setEditing(null) }} />
       )}
@@ -168,11 +169,15 @@ function Section({ label, children, hint }: { label: string; children: ReactNode
   )
 }
 
-export function LineEditor({ doc, index, calc, sample, edit, onClose, onDuplicate, onDelete }: {
+export function LineEditor({ doc, index, calc, sample, edit, onClose, onDuplicate, onDelete, tourPrice }: {
   doc: QuoteDoc; index: number; calc?: ItemCalc; sample: number; edit: Edit
   onClose: () => void; onDuplicate: () => void; onDelete: () => void
+  tourPrice?: number   // the tour's price per person for the sample group, now (the panel covers the price card)
 }) {
   const { t } = useI18n()
+  // The price when the panel opened, to show what this line's changes did to it.
+  const [startPrice, setStartPrice] = useState(tourPrice)
+  if (startPrice == null && tourPrice != null) setStartPrice(tourPrice)
   const vendors = useVendors()
   const it = doc.items[index]
   const set = (patch: Partial<QuoteItem>) => edit((d) => { Object.assign(d.items[index], patch) })
@@ -367,6 +372,22 @@ export function LineEditor({ doc, index, calc, sample, edit, onClose, onDuplicat
                 <span className="text-sm text-slate-600">{calc ? sentence(it, calc, doc, t, sample) : '…'}</span>
                 <span className="text-lg font-semibold tabular-nums text-brand-700">{money(calc?.amount ?? 0, doc.currency)}</span>
               </p>}
+          {tourPrice != null && (
+            <p className="mt-2 flex flex-wrap items-baseline justify-between gap-2 border-t border-brand-100 pt-2 text-sm">
+              <span className="text-slate-600">{t('tourPricePp')}</span>
+              <span className="tabular-nums font-semibold text-slate-800">
+                {startPrice != null && startPrice !== tourPrice && <>
+                  <span className="font-normal text-slate-400 line-through">{money(startPrice)}</span>{' → '}
+                </>}
+                {money(tourPrice, doc.currency)}
+                {startPrice != null && startPrice !== tourPrice && (
+                  <span className={cn('ml-2 rounded px-1.5 text-xs', tourPrice > startPrice ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800')}>
+                    {tourPrice > startPrice ? '+' : '−'}{money(Math.abs(tourPrice - startPrice))}
+                  </span>
+                )}
+              </span>
+            </p>
+          )}
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

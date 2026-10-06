@@ -2706,6 +2706,7 @@ const en = {
   placeNoPrices: "No activity with a price here yet.",
   placeAddFirst: "Add an activity and its price",
   placeNoPriceOption: "no price yet",
+  tourPricePp: "Tour price per person",
 }
 
 type Dict = typeof en
@@ -5408,6 +5409,7 @@ const ka: Dict = {
   placeNoPrices: "აქ ფასიანი აქტივობა ჯერ არ არის.",
   placeAddFirst: "აქტივობის და ფასის დამატება",
   placeNoPriceOption: "ფასი ჯერ არ არის",
+  tourPricePp: "ტურის ფასი ერთ ადამიანზე",
 }
 
 export type Lang = 'en' | 'ka'

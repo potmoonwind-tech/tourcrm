@@ -239,7 +239,7 @@ export function CalcEditorPage() {
         <UndoContext.Provider value={undo}>
         <div key={tab} className="animate-reveal">
         {tab === 'build' && <BuildTab doc={doc} debounced={debounced ?? doc} result={result} edit={edit} />}
-        {tab === 'lines' && <ItemsTab doc={doc} debounced={debounced ?? doc} edit={edit} />}
+        {tab === 'lines' && <ItemsTab doc={doc} debounced={debounced ?? doc} edit={edit} result={result} />}
         {tab === 'hotels' && <HotelsTable doc={doc} edit={edit} />}
         {tab === 'compare' && (
           <div className="space-y-8">
