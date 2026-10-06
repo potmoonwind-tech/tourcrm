@@ -159,7 +159,7 @@ export function ToastHost() {
   return (
     <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-4 z-[70] flex flex-col items-center gap-2 px-4 md:right-6 md:left-auto md:items-end">
       {list.map((x) => (
-        <div key={x.id} className={cn('animate-dialog flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg',
+        <div key={x.id} className={cn('animate-rise flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg',
           x.tone === 'ok' ? 'bg-slate-800' : 'bg-red-600', x.action && 'pointer-events-auto py-1.5 pr-1.5')}>
           {x.tone === 'ok' ? <Check size={16} className="text-emerald-400" /> : <X size={16} />}
           {t(x.key as Parameters<typeof t>[0])}
@@ -288,7 +288,7 @@ export function Menu({ items, label, kind = 'more', icon, trigger, triggerClassN
       )}
       {open && createPortal(
         <ul ref={list} role="menu" onKeyDown={onKey} style={at ?? { top: -9999, left: -9999 }}
-          className="animate-fade fixed z-[70] max-h-[min(24rem,80vh)] min-w-52 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+          className="animate-pop fixed z-[70] max-h-[min(24rem,80vh)] min-w-52 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
           {shown.map((i) => (
             <li key={i.label}>
               <button type="button" role="menuitem" disabled={i.disabled} onClick={() => { setOpen(false); i.onClick() }}

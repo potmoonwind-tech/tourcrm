@@ -27,7 +27,7 @@ const focus = 'focus-visible:outline-2 focus-visible:outline-offset-2 focus-visi
 const disabled = 'disabled:pointer-events-none disabled:opacity-40'
 
 const buttonClass = (variant: Variant, size: Size, className?: string) => cn(
-  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded font-medium transition-colors',
+  'inline-flex shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded font-medium transition duration-150 ease-out active:scale-[0.98]',
   focus, disabled,
   size === 'md' ? 'h-10 px-4 text-sm' : 'h-8 px-2 text-sm',
   variants[variant], className,
@@ -52,7 +52,7 @@ export function IconButton({ label, size = 'md', tone = 'default', className, ch
   return (
     <Tooltip label={label} describe={false}>
       <button type={type} aria-label={label} {...props}
-        className={cn('inline-flex shrink-0 items-center justify-center rounded text-slate-600 transition-colors', focus, disabled,
+        className={cn('inline-flex shrink-0 items-center justify-center rounded text-slate-600 transition duration-150 ease-out active:scale-95', focus, disabled,
           size === 'sm' ? 'h-8 w-8' : size === 'md' ? 'h-9 w-9' : 'h-10 w-10',
           tone === 'danger' ? 'hover:bg-red-50 hover:text-red-600' : 'hover:bg-slate-100 hover:text-slate-800', className)}>
         {children}
@@ -157,7 +157,7 @@ export function Panel({ id, icon, title, subtitle, value, actions, open = true, 
         {value !== undefined && value !== null && <span className="hidden shrink-0 text-sm font-medium tabular-nums text-slate-700 sm:inline">{value}</span>}
         {actions && <span className="flex shrink-0 items-center gap-1">{actions}</span>}
       </div>
-      {open && children && <div className="border-t border-slate-200 p-4">{children}</div>}
+      {open && children && <div className="animate-reveal border-t border-slate-200 p-4">{children}</div>}
     </section>
   )
 }
@@ -184,7 +184,7 @@ export function ListRow({ lead, title, meta, onOpen, control, menu, muted }: {
 export function Chip({ on, onClick, children, className, title }: { on?: boolean; onClick?: () => void; children: ReactNode; className?: string; title?: string }) {
   return (
     <button type="button" aria-pressed={on} onClick={onClick} title={title}
-      className={cn('inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition-colors', focus,
+      className={cn('inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-sm font-medium transition duration-150 ease-out active:scale-[0.97]', focus,
         on ? 'border-brand-600 bg-brand-50 text-brand-800' : 'border-slate-300 bg-white text-slate-700 hover:bg-slate-50', className)}>
       {on && <Check size={14} aria-hidden />}{children}
     </button>

@@ -879,6 +879,15 @@ function RecipeCard({ doc, edit, value }: { doc: QuoteDoc; edit: Edit; value?: s
   )
 }
 
+/** How many times a value changed since it first arrived (0 at first): to show a change, not the loading. */
+function useChanges<T>(value: T): number {
+  const [state, setState] = useState({ value, n: 0 })
+  if (state.value === value) return state.n
+  const n = state.value == null ? state.n : state.n + 1   // first arrival (loaded): not a change
+  setState({ value, n })
+  return n
+}
+
 /** A pricing step you can drag by its handle (or Space + arrow keys). */
 function SortableStep({ id, name, className, children }: { id: string; name: string; className: string; children: (handle: ReactNode) => ReactNode }) {
   const { t } = useI18n()
@@ -922,6 +931,7 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
   }, [breakdown, n])
   const total = byCat.reduce((s, [, v]) => s + v, 0)
   const missing = missingPrices(doc).count
+  const priceChanges = useChanges(row?.price_dbl)
   const sold = new Set(row?.other?.map((o) => o.currency) ?? [])
   const rates = Object.entries(doc.fx).map(([c, v]) => [c, Number(v)] as const).filter(([c, r]) => r > 0 && c !== cur && !sold.has(c))
   const profit = row ? row.group_revenue - row.group_cost : 0
@@ -948,7 +958,7 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
           <div>
             <div className="text-sm text-slate-500">{row.types?.[0] ? nameOf(row.types[0].id, row.types[0].name) : t('perPersonShort')} · {t('roomDouble')}</div>
             {missing > 0 && <div className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{t('priceIncomplete', { n: missing })}</div>}
-            <div className="text-[32px] font-semibold leading-10 tabular-nums">{money(row.price_dbl)} <span className="text-base font-semibold text-slate-500">{cur}</span></div>
+            <div key={priceChanges} className={cn('-mx-1 px-1 text-[32px] font-semibold leading-10 tabular-nums', priceChanges > 0 && 'animate-flash')}>{money(row.price_dbl)} <span className="text-base font-semibold text-slate-500">{cur}</span></div>
             <div className="text-sm text-slate-600">
               {t('roomSingle')} +{money(row.single_supplement)}
               {row.price_trp !== null && ` · ${t('roomTriple')} ${money(row.price_trp)}`}

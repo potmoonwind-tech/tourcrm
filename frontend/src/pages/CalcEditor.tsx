@@ -237,6 +237,7 @@ export function CalcEditorPage() {
         </div>
         <PriceStrip doc={doc} result={result} saved={saved.data?.result} dirty={dirty} wideHidden={tab === 'build'} />
         <UndoContext.Provider value={undo}>
+        <div key={tab} className="animate-reveal">
         {tab === 'build' && <BuildTab doc={doc} debounced={debounced ?? doc} result={result} edit={edit} />}
         {tab === 'lines' && <ItemsTab doc={doc} debounced={debounced ?? doc} edit={edit} />}
         {tab === 'hotels' && <HotelsTable doc={doc} edit={edit} />}
@@ -258,6 +259,7 @@ export function CalcEditorPage() {
             <CalcFileCard quoteId={quoteId!} disabled={dirty || !!result?.errors.length} />
           </div>
         )}
+        </div>
         </UndoContext.Provider>
       </div>
       {asking && (
@@ -291,7 +293,7 @@ function SaveState({ state, onRetry, onHistory }: { state: 'saving' | 'saved' | 
       {state === 'held' && <><CloudOff size={16} aria-hidden />{t('autosaveHeld')}</>}
       {state === 'saved' && (
         <button type="button" onClick={onHistory} className="inline-flex h-8 items-center gap-1.5 rounded px-2 hover:bg-slate-100 hover:text-slate-800">
-          <CheckIcon size={16} className="text-emerald-600" aria-hidden />{t('autosaveSaved')}<History size={14} aria-hidden /><span className="sr-only">· {t('history')}</span>
+          <CheckIcon size={16} className="animate-check text-emerald-600" aria-hidden />{t('autosaveSaved')}<History size={14} aria-hidden /><span className="sr-only">· {t('history')}</span>
         </button>
       )}
       {state === 'readonly' && <button type="button" onClick={onHistory} className="inline-flex h-8 items-center gap-1.5 rounded px-2 hover:bg-slate-100"><Eye size={16} aria-hidden />{t('autosaveViewOnly')} · {t('history')}</button>}

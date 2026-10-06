@@ -103,7 +103,7 @@ export function TourDetailPage() {
             </button>
           ))}
         </div>
-        <div id="tour-tabpanel" role="tabpanel" aria-labelledby={`tourtab-${tab}`} className="space-y-6">
+        <div key={tab} id="tour-tabpanel" role="tabpanel" aria-labelledby={`tourtab-${tab}`} className="animate-reveal space-y-6">
         {cancelling && <CancelTourModal tour={tr} onClose={() => setCancelling(false)} onDone={() => { setCancelling(false); setTab('costs') }} />}
         {tab === 'bookings' && <BookingsTab tour={tr} canEdit={canEdit} />}
         {tab === 'meals' && <MealsTab tour={tr} onTab={setTab} />}

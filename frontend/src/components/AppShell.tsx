@@ -144,7 +144,7 @@ export function AppShell() {
           {/* relative: hidden screen-reader text (absolute) stays inside the scrolling panel instead of
               stretching the whole window, which made a second scrollbar and empty space below. */}
           <div ref={panel} className="app-panel relative min-h-[calc(100vh-3.5rem)] bg-white md:h-full md:min-h-0 md:overflow-y-auto md:rounded-2xl md:border">
-            <Outlet />
+            <div key={pathname} className="animate-page"><Outlet /></div>
           </div>
         </main>
       </div>
