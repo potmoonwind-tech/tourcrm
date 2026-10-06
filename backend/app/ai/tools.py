@@ -18,14 +18,15 @@ from sqlalchemy.orm import Session, selectinload
 
 from .. import catalog
 from ..deps import WorkspaceCtx
-from ..models import AiSession, Client, Series, Tour, Vendor
+from ..models import AiSession, Client, Quote, Series, Tour, Vendor
 from ..routers.pricing import ServiceIn
+from ..quote_schemas import BUILT_IN_KINDS, CalcStyle
 from ..schemas import ClientCreate, Flight, ParticipantIn, SeriesColor, TourStatus, VendorCreate
-from . import sheets
+from . import docs, sheets
 
 PLAN_LIMIT = 2000
 PROPOSAL = re.compile(r"^p\d+$")
-MODEL_OF = {"vendor": Vendor, "client": Client, "route": Series, "tour": Tour}
+MODEL_OF = {"vendor": Vendor, "client": Client, "route": Series, "tour": Tour, "calculation": Quote}
 
 
 class ToolError(Exception):
@@ -80,7 +81,7 @@ TOOLS: list[dict[str, Any]] = [
         "description": "List what already exists in the agency's CRM, to reuse records instead of proposing duplicates. "
                        "Call it before proposing suppliers, clients, routes or tours. Returns at most 300 rows; use search to narrow.",
         "input_schema": {"type": "object", "properties": {
-            "kind": {"type": "string", "enum": ["vendors", "clients", "routes", "tours"]},
+            "kind": {"type": "string", "enum": ["vendors", "clients", "routes", "tours", "calculations"]},
             "search": {"type": "string", "description": "Part of a name, code or city"}},
             "required": ["kind"]},
     },
@@ -96,6 +97,15 @@ TOOLS: list[dict[str, Any]] = [
             "file": {"type": "string"}, "sheet": {"type": "string"},
             "start_row": {"type": "integer"}, "rows": {"type": "integer", "description": "At most 300"}},
             "required": ["file", "sheet", "start_row"]},
+    },
+    {
+        "name": "read_document",
+        "description": "Read more lines of an uploaded Word or text document (the message shows only the start). "
+                       "Lines are numbered from 1; a long page is cut short, the result says where to go on.",
+        "input_schema": {"type": "object", "properties": {
+            "file": {"type": "string"}, "start_line": {"type": "integer"},
+            "lines": {"type": "integer", "description": "At most 400"}},
+            "required": ["file", "start_line"]},
     },
     {
         "name": "propose_vendors",
@@ -179,6 +189,32 @@ TOOLS: list[dict[str, Any]] = [
             "required": ["tour", "people"]},
     },
     {
+        "name": "propose_calculation",
+        "description": "Propose a price calculation (cost and selling price per person for each group size) from a route, "
+                       "new or existing. Hotels, meals and day services come from the route and are priced from the "
+                       "suppliers' saved prices on prices_on; anything without a saved price stays empty for the person "
+                       "to fill. Add lines only for costs the route can't know (flights, train, visas, entry tickets...).",
+        "input_schema": {"type": "object", "properties": {
+            "route": _REF, "name": {"type": "string", "description": "Leave out to name it after the route"},
+            "prices_on": {"type": "string", "description": "YYYY-MM-DD: prices valid on this date (the season); default today"},
+            "valid_to": {"type": "string", "description": "YYYY-MM-DD: last day the calculation is valid"},
+            "pax_min": {"type": "integer", "description": "Smallest paying group size priced"},
+            "pax_max": {"type": "integer", "description": "Largest; at most 60 sizes from pax_min"},
+            "leaders": {"type": "integer", "description": "Free places (tour leaders): 1 for \"19+1\""},
+            "client": _REF, "notes": {"type": "string"},
+            "lines": {"type": "array", "description": "Extra costs", "items": {"type": "object", "properties": {
+                "name": {"type": "string"},
+                "kind": {"type": "string", "description": "hotel, meal, transport, guide, ticket, activity, tips, border, other, "
+                                                          "or one of the agency's own kinds (named at the start of the conversation)"},
+                "price": {"type": "number", "description": "Leave out when the source gives no price: it stays empty, to fill"},
+                "currency": {"type": "string"},
+                "per": {"type": "string", "enum": ["person", "group"], "description": "person = each tourist pays it; group = shared"},
+                "quantity": {"type": "string", "description": "How many (a number, or \"days\"); default 1"},
+                "notes": {"type": "string"}},
+                "required": ["name", "kind"]}}},
+            "required": ["route"]},
+    },
+    {
         "name": "remove_proposals",
         "description": "Take proposals out of the plan (to correct them, propose again after removing).",
         "input_schema": {"type": "object", "properties": {"ids": {"type": "array", "items": {"type": "string"}}}, "required": ["ids"]},
@@ -234,6 +270,29 @@ class TourDraft(BaseModel):
     notes: str | None = Field(default=None, max_length=5000)
 
 
+class LineDraft(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    kind: str = Field(min_length=1, max_length=40)
+    price: float | None = Field(default=None, ge=0)
+    currency: str | None = Field(default=None, min_length=3, max_length=3)
+    per: Literal["person", "group"] = "person"
+    quantity: str = Field(default="1", max_length=100)
+    notes: str = Field(default="", max_length=1000)
+
+
+class CalcDraft(BaseModel):
+    route: str
+    name: str | None = Field(default=None, max_length=200)
+    prices_on: date | None = None
+    valid_to: date | None = None
+    pax_min: int = Field(default=10, ge=1, le=500)
+    pax_max: int = Field(default=25, ge=1, le=500)
+    leaders: int | None = Field(default=None, ge=0, le=10)
+    client: str | None = None
+    notes: str = Field(default="", max_length=5000)
+    lines: list[LineDraft] = Field(default_factory=list, max_length=60)
+
+
 class Prices(BaseModel):
     vendor: str
     services: list[ServiceIn] = Field(min_length=1, max_length=60)
@@ -281,8 +340,11 @@ def _list(db: Session, ctx: WorkspaceCtx, s: AiSession, a: dict):
     elif kind == "tours":
         rows = [{"id": t.id, "code": t.code, "start": t.start_date, "end": t.end_date, "pax": t.pax, "status": t.status}
                 for t in db.scalars(select(Tour).where(Tour.workspace_id == ws).order_by(Tour.start_date.desc())) if hit(t.code, t.name)]
+    elif kind == "calculations":
+        rows = [{"id": q.id, "name": q.name, "route_id": q.series_id, "currency": q.currency, "valid_to": q.valid_to, "status": q.status}
+                for q in db.scalars(select(Quote).where(Quote.workspace_id == ws).order_by(Quote.updated_at.desc())) if hit(q.name)]
     else:
-        raise ToolError("kind must be vendors, clients, routes or tours")
+        raise ToolError("kind must be vendors, clients, routes, tours or calculations")
     more = f" (first 300 of {len(rows)} — search to narrow)" if len(rows) > 300 else ""
     return _dump(rows[:300]) + more, f"Looked at {kind}"
 
@@ -311,6 +373,19 @@ def _sheet(db: Session, ctx: WorkspaceCtx, s: AiSession, a: dict):
     end = start + len(part) - 1
     tail = f"\n(rows {start}–{end} of {len(rows)})" if part else f"(no rows from {start}; the sheet has {len(rows)})"
     return sheets.as_text(part, start) + tail, f"Reading {f['name']} · {a.get('sheet')} rows {start}–{end}"
+
+
+def _document(db: Session, ctx: WorkspaceCtx, s: AiSession, a: dict):
+    f = next((f for f in s.files if f["name"] == a.get("file") and f["kind"] == "doc"), None)
+    if not f:
+        raise ToolError(f"No document named {a.get('file')!r}; files: {[x['name'] for x in s.files]}")
+    lines = f["lines"]
+    start = max(1, int(a.get("start_line") or 1))
+    n = docs.fit(lines[start - 1:], max(1, min(400, int(a.get("lines") or 200))), docs.PAGE_CHARS)
+    part = lines[start - 1:start - 1 + n]
+    end = start + len(part) - 1
+    tail = f"\n(lines {start}–{end} of {len(lines)})" if part else f"(no lines from {start}; the document has {len(lines)})"
+    return docs.as_text(part, start) + tail, f"Reading {f['name']} lines {start}–{end}"
 
 
 # --- proposals -------------------------------------------------------------------------------------
@@ -428,6 +503,27 @@ def _tours(db, ctx, s, a):
     return _dump(made), f"Proposed {len(made)} tour{'s' if len(made) != 1 else ''}"
 
 
+def _calculation(db, ctx, s, a):
+    d = CalcDraft.model_validate(a)
+    ref(db, ctx, s, d.route, "route", "route")
+    ref(db, ctx, s, d.client, "client", "client")
+    if d.pax_max < d.pax_min or d.pax_max - d.pax_min > 60:
+        raise ToolError("pax_max must be at least pax_min, at most 60 sizes apart")
+    if d.prices_on and d.valid_to and d.valid_to < d.prices_on:
+        raise ToolError("valid_to is before prices_on")
+    own = {k.id for k in CalcStyle.model_validate(ctx.workspace.calc_style or {}).kinds}
+    for x in d.lines:
+        if x.kind not in BUILT_IN_KINDS and x.kind not in own:
+            raise ToolError(f"line {x.name!r}: kind {x.kind!r} is unknown; use one of {sorted(BUILT_IN_KINDS | own)}")
+        if x.price is not None and not x.currency:
+            raise ToolError(f"line {x.name!r}: a price needs its currency")
+    data = d.model_dump(mode="json", exclude_none=True)
+    title = d.name or _name(db, s, d.route) or "Calculation"
+    pid = _add(s, "calculation", data, f"{title} · {d.pax_min}–{d.pax_max} pax"
+                                       f"{f' + {d.leaders} free' if d.leaders else ''}")
+    return _dump({"id": pid}), f"Proposed a calculation for {title}"
+
+
 def _people(db, ctx, s, a):
     tour = ref(db, ctx, s, a.get("tour"), "tour", "tour")
     if not tour:
@@ -461,8 +557,9 @@ def _name(db: Session, s: AiSession, value: str) -> str:
 
 
 HANDLERS = {
-    "list_records": _list, "get_vendor_prices": _prices, "read_sheet": _sheet,
+    "list_records": _list, "get_vendor_prices": _prices, "read_sheet": _sheet, "read_document": _document,
     "propose_vendors": _vendors, "propose_prices": _price_items, "propose_clients": _clients,
     "propose_route": _route, "propose_tours": _tours, "propose_participants": _people, "remove_proposals": _remove,
+    "propose_calculation": _calculation,
 }
 Kind = Literal["vendor", "prices", "client", "route", "tour", "participants"]

@@ -13,13 +13,14 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..deps import WorkspaceCtx
-from ..models import AiSession, Service, Vendor
-from ..routers import catalog as catalog_api, people, pricing, series, tours
+from ..models import AiSession, Quote, Service, Vendor
+from ..quote_schemas import CalcStyle, QuoteIn, QuoteItemIn
+from ..routers import catalog as catalog_api, people, pricing, quotes, series, tours
 from ..routers.pricing import ServiceIn
 from ..schemas import ClientCreate, DayFields, ParticipantIn, SeriesIn, TourCreate, VendorCreate
 from .tools import PROPOSAL
 
-ORDER = ["vendor", "client", "prices", "route", "tour", "participants"]
+ORDER = ["vendor", "client", "prices", "route", "calculation", "tour", "participants"]
 
 
 class Skip(Exception):
@@ -126,6 +127,41 @@ def _tour(db, ctx, d, resolve):
     return t.id
 
 
+def _calculation(db, ctx, d, resolve):
+    """Made exactly like "New calculation → from a route" (the agency's way, prices on that date), then the
+    group sizes, free places and extra lines. Lines without a price stay empty: "to fill"."""
+    route_id, client_id = resolve(d["route"]), resolve(d.get("client"))
+    own = {k.id: k for k in CalcStyle.model_validate(ctx.workspace.calc_style or {}).kinds}
+    currency = ctx.workspace.base_currency
+    lines = []
+    for x in d.get("lines") or []:
+        kind = own.get(x["kind"])
+        lines.append(QuoteItemIn(
+            name=x["name"], category=kind.base if kind else x["kind"], kind=kind.id if kind else None,
+            currency=x.get("currency") or currency, unit_price=x.get("price") or 0, quantity=x.get("quantity") or "1",
+            basis="per_person" if x.get("per", "person") == "person" else "group", notes=x.get("notes") or ""))
+    made = quotes.create_quote(quotes.QuoteCreate(preset="blank", series_id=route_id, name=d.get("name"),
+                                                  on_date=date.fromisoformat(d["prices_on"]) if d.get("prices_on") else None),
+                               ctx=ctx, db=db)
+    q = db.get(Quote, made.id)
+    doc = quotes.doc_of(q)
+    doc.pax_min, doc.pax_max = d.get("pax_min", doc.pax_min), d.get("pax_max", doc.pax_max)
+    if d.get("leaders") is not None:
+        doc.leaders = d["leaders"]
+        free = next((p for p in doc.people if p.role == "free" and p.count is not None), None)
+        if free:
+            free.count, free.per = d["leaders"], None
+    if d.get("valid_to"):
+        doc.valid_to = date.fromisoformat(d["valid_to"])
+    doc.client_id = client_id or doc.client_id
+    doc.notes = d.get("notes") or doc.notes
+    doc.items = [*doc.items, *lines]
+    doc = QuoteIn.model_validate(doc.model_dump())
+    quotes.save_doc(db, q, doc, ctx.user.id, "assistant")
+    db.commit()
+    return q.id
+
+
 def _participants(db, ctx, d, resolve):
     tour_id = resolve(d["tour"])
     for person in d["people"]:
@@ -133,4 +169,5 @@ def _participants(db, ctx, d, resolve):
     return tour_id
 
 
-SAVE = {"vendor": _vendor, "client": _client, "prices": _prices, "route": _route, "tour": _tour, "participants": _participants}
+SAVE = {"vendor": _vendor, "client": _client, "prices": _prices, "route": _route, "calculation": _calculation, "tour": _tour,
+        "participants": _participants}

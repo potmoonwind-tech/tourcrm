@@ -14,7 +14,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from .. import ratelimit
-from ..ai import agent, apply as applying, keys, sheets
+from ..ai import agent, apply as applying, docs, keys, sheets
 from ..config import settings
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_jobs, require_role
@@ -137,9 +137,19 @@ async def send(session_id: str, request: Request, background: BackgroundTasks, t
             stored.append({"name": name, "kind": "sheet", "sheets": parsed})
             blocks.append({"type": "text", "text": sheets.preview(name, parsed)})
             continue
+        if name.lower().endswith(docs.DOC_EXT):
+            try:
+                doc = docs.read(name, data)
+            except ValueError as e:
+                raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{name}: {e}") from e
+            stored.append({"name": name, "kind": "doc", **doc})
+            blocks.append({"type": "text", "text": docs.preview(name, doc)})
+            continue
+        if name.lower().endswith(".doc"):
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{name}: an old Word file — save it as .docx or PDF")
         kind = "pdf" if data[:5] == b"%PDF-" else image_kind(data)
         if kind not in ("pdf", *IMAGE_TYPES):
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{name}: send Excel, CSV, PDF or a photo (JPEG, PNG, WebP)")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{name}: send Excel, CSV, Word, PDF or a photo (JPEG, PNG, WebP)")
         client = client or agent.make_client(ctx.workspace)
         mime = "application/pdf" if kind == "pdf" else IMAGE_TYPES[kind]
         try:

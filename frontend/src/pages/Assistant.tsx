@@ -8,6 +8,7 @@ import { AlertTriangle, Check, ChevronDown, FileSpreadsheet, FileText, Image as 
 import { useEffect, useMemo, useRef, useState, type DragEvent, type FormEvent } from 'react'
 import { ask, Label } from '../components/overlay'
 import { EmptyState } from '../components/tour'
+import { Link } from 'react-router-dom'
 import { Button, ButtonLink, Card, ErrorText, Spinner } from '../components/ui'
 import { api, ApiError, atLeast } from '../lib/api'
 import { useVendors, wsPath } from '../lib/data'
@@ -16,7 +17,7 @@ import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
 import { PageHeader } from './Dashboard'
 
-type Kind = 'vendor' | 'prices' | 'client' | 'route' | 'tour' | 'participants'
+type Kind = 'vendor' | 'prices' | 'client' | 'route' | 'calculation' | 'tour' | 'participants'
 interface Proposal {
   id: string; kind: Kind; label: string; status: 'proposed' | 'applied' | 'failed'
   result_id: string | null; error: string; data: Record<string, unknown>
@@ -26,8 +27,8 @@ interface AiSession { id: string; title: string; status: 'idle' | 'running' | 'e
 interface Brief { id: string; title: string; status: string; proposed: number; applied: number; updated_at: string }
 interface AiStatus { available: boolean; spent_usd: number; limit_usd: number }
 
-const KINDS: Kind[] = ['vendor', 'prices', 'client', 'route', 'tour', 'participants']
-const ACCEPT = '.xlsx,.xlsm,.csv,.tsv,.pdf,image/jpeg,image/png,image/webp'
+const KINDS: Kind[] = ['vendor', 'prices', 'client', 'route', 'calculation', 'tour', 'participants']
+const ACCEPT = '.xlsx,.xlsm,.csv,.tsv,.docx,.txt,.pdf,image/jpeg,image/png,image/webp'
 
 export function AssistantPage() {
   const ws = useWorkspace()!
@@ -205,6 +206,7 @@ function FileIcon({ name }: { name: string }) {
   const n = name.toLowerCase()
   if (/\.(xlsx|xlsm|csv|tsv)$/.test(n)) return <FileSpreadsheet size={13} className="text-emerald-600" />
   if (n.endsWith('.pdf')) return <FileText size={13} className="text-red-500" />
+  if (/\.(docx|txt|md)$/.test(n)) return <FileText size={13} className="text-blue-600" />
   return <ImageIcon size={13} className="text-sky-600" />
 }
 
@@ -287,6 +289,7 @@ function PlanPanel({ s, url, onSaved }: { s: AiSession; url: string; onSaved: (d
 
 function PlanItem({ p, checked, onToggle, nameOf }: { p: Proposal; checked: boolean; onToggle: () => void; nameOf: (r?: string | null) => string }) {
   const { t } = useI18n()
+  const ws = useWorkspace()!
   const [open, setOpen] = useState(false)
   const done = p.status === 'applied'
   return (
@@ -299,7 +302,9 @@ function PlanItem({ p, checked, onToggle, nameOf }: { p: Proposal; checked: bool
           {p.status === 'failed' && <span className="block text-xs text-red-700">{p.error}</span>}
         </button>
         <span className="shrink-0 text-[11px] text-slate-400">{p.id}</span>
-        {done ? <Label tone="green" wide={false}>{t('aiSavedOne')}</Label> : null}
+        {done && p.kind === 'calculation' && p.result_id
+          ? <Link to={`/w/${ws.id}/calculations/${p.result_id}`} className="shrink-0 text-xs font-medium text-brand-700 hover:underline">{t('aiOpen')}</Link>
+          : done ? <Label tone="green" wide={false}>{t('aiSavedOne')}</Label> : null}
         <ChevronDown size={15} onClick={() => setOpen(!open)} className={cn('mt-0.5 shrink-0 cursor-pointer text-slate-400 transition-transform', open && 'rotate-180')} />
       </div>
       {open && <div className="ml-6 mt-2 rounded-lg bg-slate-50 p-2.5 text-xs text-slate-700"><Details p={p} nameOf={nameOf} /></div>}
@@ -342,6 +347,23 @@ function Details({ p, nameOf }: { p: Proposal; nameOf: (r?: string | null) => st
               {day.extras?.length > 0 && <span className="text-slate-500"> · {day.extras.map((x: any) => x.service).join(', ')}</span>}</li>
           ))}
         </ol>
+      </div>
+    )
+  }
+  if (p.kind === 'calculation') {
+    return (
+      <div className="space-y-1">
+        {[row(t('route'), nameOf(d.route)), row(t('aiCalcSizes'), `${d.pax_min ?? 10}–${d.pax_max ?? 25}${d.leaders ? ` + ${d.leaders}` : ''}`),
+          row(t('aiCalcPricesOn'), d.prices_on), row(t('aiCalcValidTo'), d.valid_to), row(t('client'), nameOf(d.client)), row(t('notes'), d.notes)]}
+        {d.lines?.length > 0 && (
+          <ul className="pt-1">
+            {(d.lines as any[]).map((x, i) => (   // eslint-disable-line @typescript-eslint/no-explicit-any
+              <li key={i}>{x.name} · {x.price != null ? `${x.price} ${x.currency}` : <span className="text-amber-700">{t('aiCalcToFill')}</span>}
+                {x.per === 'group' ? ` · ${t('aiCalcPerGroup')}` : ''}</li>
+            ))}
+          </ul>
+        )}
+        <p className="pt-1 text-slate-500">{t('aiCalcHow')}</p>
       </div>
     )
   }

@@ -207,3 +207,85 @@ def test_agency_key_in_settings(make_client, monkeypatch):
     assert nino.put(f"{base}/ai/key", json={"key": key}).status_code == 403
     assert c.delete(f"{base}/ai/key").status_code == 204
     assert c.get(f"{base}/ai/status").json()["available"] is False
+
+
+def _docx(body: str) -> bytes:
+    """A minimal Word file with this body XML."""
+    import io
+    import zipfile
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("word/document.xml", '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">'
+                                        f"<w:body>{body}</w:body></w:document>")
+        z.writestr("word/media/image1.png", b"png")
+    return buf.getvalue()
+
+
+def _p(t, style=None, listed=False):
+    ppr = (f'<w:pPr>{f"<w:pStyle w:val=\"{style}\"/>" if style else ""}{"<w:numPr/>" if listed else ""}</w:pPr>'
+           if style or listed else "")
+    return f"<w:p>{ppr}<w:r><w:t>{t}</w:t></w:r></w:p>"
+
+
+def test_a_word_programme_is_read_and_paged(make_client, claude):
+    c, base, _ = agency(make_client)
+    days = "".join(_p(f"Day {i}: Tbilisi - Kazbegi", style="Heading2") + _p("Lunch: local restaurant", listed=True)
+                   + _p("x" * 400) for i in range(1, 61))
+    table = "<w:tbl><w:tr><w:tc>" + _p("Hotel") + "</w:tc><w:tc>" + _p("Rooms Kazbegi") + _p("or similar") + "</w:tc></w:tr></w:tbl>"
+    fake = claude([
+        ([use(1, "read_document", file="ZK.docx", start_line=150, lines=400)], "tool_use"),
+        ([text("Read it.")], "end_turn"),
+    ])
+    s = mk(c, f"{base}/ai/sessions", {})
+    r = c.post(f"{base}/ai/sessions/{s['id']}/messages", data={"text": "Make a route from this programme"},
+               files=[("files", ("ZK.docx", _docx(days + table), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"))])
+    assert r.status_code == 200, r.text
+    first = str(fake.sent[0]["messages"][0]["content"])
+    assert "Document 'ZK.docx': 181 lines, 1 pictures left out" in first and "# Day 1: Tbilisi - Kazbegi" in first
+    assert "- Lunch: local restaurant" in first and "read the rest with read_document" in first
+    assert "Day 60" not in first                                    # only the start, the rest by the tool
+    page = fake.sent[1]["messages"][-1]["content"][0]["content"]
+    assert page.startswith("150\t") and "Hotel | Rooms Kazbegi / or similar" in page and page.endswith("(lines 150–181 of 181)")
+    assert not fake.uploads                                         # read here, not sent as a file
+
+    assert c.post(f"{base}/ai/sessions/{s['id']}/messages", files=[("files", ("old.doc", b"\xd0\xcf\x11\xe0", "application/msword"))]
+                  ).status_code == 422
+
+
+def test_a_calculation_from_a_proposed_route(make_client, claude):
+    c, base, _ = agency(make_client)
+    v = mk(c, f"{base}/vendors", {"name": "Rooms Kazbegi", "type": "hotel", "city": "Kazbegi", "currency": "USD"})
+    c.put(f"{base}/vendors/{v['id']}/services", json=[
+        {"code": "room_DBL", "name": "Double", "category": "hotel", "unit": "room_night", "rates": [{"price": "150", "currency": "USD"}]}])
+    c.put(f"{base}/calc-style/kinds", json=[{"id": "visa", "name": "Visa", "base": "other"}])
+    flight = {"name": "Flight Urumqi – Tbilisi", "kind": "ticket", "per": "person"}
+    fake = claude([
+        ([use(1, "propose_route", code="zs", name="Georgia 10 days", days=[
+            {"city": "Tbilisi"}, {"city": "Kazbegi", "hotel": v["id"]}, {"city": "Tbilisi"}])], "tool_use"),
+        ([use(2, "propose_calculation", route="p1", pax_min=10, pax_max=25, leaders=1, lines=[{**flight, "kind": "plane"}])], "tool_use"),
+        ([use(3, "propose_calculation", route="p1", pax_min=10, pax_max=25, leaders=1, valid_to="2027-03-31",
+              lines=[flight, {"name": "Azerbaijan e-visa", "kind": "visa", "price": 26, "currency": "USD"}])], "tool_use"),
+        ([text("A route and its calculation; the flight has no price in the programme.")], "end_turn"),
+    ])
+    s = mk(c, f"{base}/ai/sessions", {})
+    c.post(f"{base}/ai/sessions/{s['id']}/messages", data={"text": "Route and 19+1 calculation from this programme"})
+    assert "Its own kinds of cost: visa (Visa)" in str(fake.sent[0]["messages"][0]["content"])
+    bad = fake.sent[2]["messages"][-1]["content"][0]
+    assert bad["is_error"] and "'plane' is unknown" in bad["content"]          # a made-up kind comes back to be fixed
+    s = c.get(f"{base}/ai/sessions/{s['id']}").json()
+    assert [(p["kind"], p["label"]) for p in s["plan"]] == [("route", "ZS · Georgia 10 days · 3 days"),
+                                                           ("calculation", "Georgia 10 days · 10–25 pax + 1 free")]
+    assert c.get(f"{base}/quotes").json() == []                                # nothing saved yet
+
+    s = c.post(f"{base}/ai/sessions/{s['id']}/apply", json={"ids": ["p2"]}).json()   # the route not ticked
+    assert s["plan"][1]["status"] == "failed" and "p1" in s["plan"][1]["error"]
+    s = c.post(f"{base}/ai/sessions/{s['id']}/apply", json={"ids": ["p1", "p2"]}).json()
+    assert [p["status"] for p in s["plan"]] == ["applied", "applied"]
+    q = c.get(f"{base}/quotes/{s['plan'][1]['result_id']}").json()
+    assert (q["series_id"], q["pax_min"], q["pax_max"], q["leaders"], q["valid_to"]) == (s["plan"][0]["result_id"], 10, 25, 1, "2027-03-31")
+    kazbegi = next(n for n in q["nights"] if n["city"] == "Kazbegi")
+    assert kazbegi["hotel_name"] == "Rooms Kazbegi" and float(kazbegi["price_dbl"]) == 150
+    lines = {i["name"]: i for i in q["items"]}
+    assert float(lines["Flight Urumqi – Tbilisi"]["unit_price"]) == 0 and lines["Flight Urumqi – Tbilisi"]["category"] == "ticket"
+    visa = lines["Azerbaijan e-visa"]
+    assert (visa["kind"], visa["category"], float(visa["unit_price"]), visa["basis"]) == ("visa", "other", 26, "per_person")

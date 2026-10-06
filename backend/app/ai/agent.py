@@ -41,12 +41,22 @@ already exists under the same or a very similar name - refer to the existing id 
 - Take facts only from the files and messages: never invent prices, dates, people, phone numbers or passport data. \
 If something important is missing or ambiguous (which currency? per person or per room? which year?), make no guess: \
 leave it out, and say so in your summary. Ask a question instead of proposing when you can't tell what the person wants.
-- Read every row of a spreadsheet you are importing (read_sheet pages through it) - the message shows only the start.
+- Read every row of a spreadsheet you are importing (read_sheet pages through it) - the message shows only the start. \
+The same for Word documents (read_document).
+- A tour programme (Word or PDF: "Day 1: ...", meals, hotel class, sights) becomes a route: one day per programme day, \
+city = where the group sleeps, stops = places visited, lunch/dinner mode from the meal lines (X or "free" = own). \
+Name hotels and restaurants only when the programme names them; "a 5* hotel in Tbilisi" goes in the day's notes, \
+not as a supplier. Programmes are often machine-translated: keep place names as the agency writes them in the CRM.
 - Send proposals in batches of at most 40 items per call.
 - Hotel prices are per room per night (codes room_SGL, room_DBL, room_TWN, room_TRP, room_QUAD, unit room_night). \
 Restaurant lunch/dinner prices are per person (codes lunch, dinner). Seasons are valid_from/valid_to; group-size \
 prices are min_pax/max_pax. Use the agency's base currency only when the source says nothing else and it is clearly local.
-- Order: suppliers, then their prices, then clients, then routes, then tours, then participants. Later proposals can \
+- Calculations (propose_calculation) are made from a route - an existing one or one you propose. Hotels, meals and \
+day services are priced from the suppliers' saved prices; what has no price stays empty for the person to fill, so \
+never put a price in a line unless the source gives it. Add lines only for what the route can't know (flights, \
+trains, visas, entry tickets). "19+1" means one free place (leaders 1). Make a calculation when the person asks for \
+prices or a calculation, not for every route.
+- Order: suppliers, then their prices, then clients, then routes, then calculations, then tours, then participants. Later proposals can \
 refer to earlier ones by their plan id (p1, p2...).
 - Write to the person in their language (Georgian or English, as they write), briefly. End with a short summary: \
 what you proposed, what you skipped and why, and what they should check before confirming."""
@@ -176,5 +186,7 @@ def user_turn(s: AiSession, ws: Workspace, text: str, blocks: list[dict]) -> Non
     """Add the person's message (and file blocks) to the history. Volatile facts (today's date,
     the agency) go here, not in the cached system prompt."""
     first = not s.history
-    intro = (f"[Agency: {ws.name}. Base currency: {ws.base_currency}. Today: {date.today().isoformat()}.]\n\n" if first else "")
+    kinds = ", ".join(f"{k.get('id')} ({k.get('name')})" for k in (ws.calc_style or {}).get("kinds") or [])
+    intro = (f"[Agency: {ws.name}. Base currency: {ws.base_currency}. Today: {date.today().isoformat()}."
+             f"{f' Its own kinds of cost: {kinds}.' if kinds else ''}]\n\n" if first else "")
     s.history = [*s.history, {"role": "user", "content": [*blocks, {"type": "text", "text": intro + (text or "(see the files)")}]}]
