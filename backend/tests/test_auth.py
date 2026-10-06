@@ -48,7 +48,7 @@ def test_duplicate_workspace_names_get_unique_slugs(make_client):
 def test_each_person_picks_the_apps_colour(make_client):
     c = make_client()
     signup(c, "nino@a.com")
-    assert c.get("/api/auth/me").json()["user"]["theme"] == "blue"
+    assert c.get("/api/auth/me").json()["user"]["theme"] == "clay"
     assert c.patch("/api/auth/me", json={"theme": "green"}).json()["user"]["theme"] == "green"
     assert c.get("/api/auth/me").json()["user"]["theme"] == "green"
     assert c.patch("/api/auth/me", json={"theme": "pink"}).status_code == 422
@@ -60,5 +60,5 @@ def test_easier_to_see(make_client):
     u = c.get("/api/auth/me").json()["user"]
     assert (u["easy_view"], u["text_size"]) == (False, "normal")
     u = c.patch("/api/auth/me", json={"easy_view": True, "text_size": "larger"}).json()["user"]
-    assert (u["easy_view"], u["text_size"], u["theme"]) == (True, "larger", "blue")
+    assert (u["easy_view"], u["text_size"], u["theme"]) == (True, "larger", "clay")
     assert c.patch("/api/auth/me", json={"text_size": "huge"}).status_code == 422

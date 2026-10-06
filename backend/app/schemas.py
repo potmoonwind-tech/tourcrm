@@ -44,12 +44,12 @@ class UserOut(_Out):
     id: str
     email: str
     full_name: str
-    theme: str = "blue"
+    theme: str = "clay"
     easy_view: bool = False
     text_size: str = "normal"
 
 
-Theme = Literal["blue", "green", "violet"]
+Theme = Literal["clay", "blue", "green", "violet"]
 
 
 class MeUpdate(BaseModel):

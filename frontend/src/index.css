@@ -61,6 +61,31 @@
 
 /* The app's colour, per person (Settings → Appearance). Blue above is the default. Each 600 shade keeps
    white text readable on buttons (at least 4.5:1). */
+/* Clay (the default): Claude's warm look - ivory surfaces, warm greys, near-black text, terracotta accent.
+   The 600 shade is a deeper clay than Claude's #d97757 so white button text stays readable (4.95:1). */
+:root[data-theme="clay"] {
+  --color-app-bg: #faf9f5;
+  --color-brand-50: #fbf1ec;
+  --color-brand-100: #f6dfd4;
+  --color-brand-200: #eebfa9;
+  --color-brand-300: #e39d7e;
+  --color-brand-400: #d97757;
+  --color-brand-500: #c96442;
+  --color-brand-600: #b5532f;
+  --color-brand-700: #964227;
+  --color-brand-800: #78351f;
+  --color-brand-900: #5c2918;
+  --color-slate-50: #f5f4ed;
+  --color-slate-100: #efede4;
+  --color-slate-200: #dedbd0;
+  --color-slate-300: #cbc8bc;
+  --color-slate-400: #8d8b84;
+  --color-slate-500: #6b6963;
+  --color-slate-600: #55534e;
+  --color-slate-700: #3d3c38;
+  --color-slate-800: #2b2a27;
+  --color-slate-900: #141413;
+}
 :root[data-theme="green"] {
   --color-brand-50: #effbf5;
   --color-brand-100: #d3f3e3;
