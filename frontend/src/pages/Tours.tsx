@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { ChevronDown, Plus, Search } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { CodeChip, EmptyState, Modal, PhaseLabel } from '../components/tour'
 import { useGuardedClose, useUnsaved } from '../components/overlay'
 import { QuickClientDialog } from '../components/QuickAdd'
 import { RoomsPicker, roomsText, suggestRooms } from '../components/RoomsPicker'
-import { Button, ButtonLink, ErrorText, Field, Input, Select } from '../components/ui'
+import { Button, ButtonLink, ErrorText, Field, Input, SegmentedControl, Select } from '../components/ui'
 import { SetupNudge, useSetup } from '../components/GetStarted'
 import { api, atLeast, TOUR_STATUSES, type Tour, type TourStatus, type TourSummary, can } from '../lib/api'
 import { CURRENCIES } from './Onboarding'
@@ -51,14 +51,8 @@ export function ToursPage() {
       <div className="space-y-4 p-4 md:p-8">
         <SetupNudge step="tours" />
         <div className="flex flex-wrap items-center gap-3">
-          <div className="inline-flex max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-white p-0.5 text-sm">
-            {(['current', 'past', 'all'] as Range[]).map((r) => (
-              <button type="button" key={r} onClick={() => setRange(r)}
-                className={cn('shrink-0 whitespace-nowrap rounded-md px-3 py-1.5 font-medium', range === r ? 'bg-brand-600 text-white' : 'text-slate-600 hover:bg-slate-50')}>
-                {r === 'current' ? `${t('phase_running')} + ${t('phase_upcoming').toLowerCase()}` : r === 'past' ? t('phase_finished') : t('all')}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl label={t('dates')} value={range} onChange={setRange}
+            options={[['current', `${t('phase_running')} + ${t('phase_upcoming').toLowerCase()}`], ['past', t('phase_finished')], ['all', t('all')]]} />
           <Select value={status} onChange={(e) => setStatus(e.target.value as TourStatus | '')} className="w-44">
             <option value="">{t('status')}: {t('all')}</option>
             {TOUR_STATUSES.map((s) => <option key={s} value={s}>{t(`status_${s}`)}</option>)}
@@ -69,7 +63,12 @@ export function ToursPage() {
           </div>
         </div>
 
-        {tours.isSuccess && rows.length === 0 ? (
+        {tours.isPending ? (
+          // Loading: the table's shape, not an empty table that reads as "no tours".
+          <div className="space-y-2 rounded-xl border border-slate-200 bg-white p-4" aria-busy="true" aria-label={t('loading')}>
+            {[0, 1, 2, 3, 4].map((i) => <div key={i} className="h-10 animate-pulse rounded-md bg-slate-100" />)}
+          </div>
+        ) : tours.isSuccess && rows.length === 0 ? (
           setup.data?.tours === 0 ? (
             <EmptyState title={t('noToursYet')} hint={t('noToursHint')} action={atLeast(ws.role, 'staff') && (
               <div className="flex flex-wrap justify-center gap-2">
@@ -83,7 +82,7 @@ export function ToursPage() {
           )
         ) : (
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
-            <table className="w-full min-w-[760px] text-sm">
+            <table className={cn('w-full min-w-[760px] text-sm transition-opacity', tours.isFetching && 'opacity-70')}>
               <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium text-slate-500">
                 <tr>
                   <th className="px-4 py-3">{t('tourCode')}</th>
@@ -97,7 +96,13 @@ export function ToursPage() {
               <tbody className="divide-y divide-slate-100">
                 {rows.map((r) => (
                   <tr key={r.id} onClick={() => navigate(r.id)} className={cn('cursor-pointer hover:bg-slate-50', r.status === 'cancelled' && 'opacity-60')}>
-                    <td className="px-4 py-3"><CodeChip code={r.code} color={r.color} /></td>
+                    <td className="px-4 py-3">
+                      {/* The link makes the row reachable by keyboard and screen readers; the row click is for the mouse. */}
+                      <Link to={r.id} onClick={(e) => e.stopPropagation()} aria-label={t('openTourCode', { code: r.code })}
+                        className="inline-block rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                        <CodeChip code={r.code} color={r.color} />
+                      </Link>
+                    </td>
                     <td className="px-4 py-3">
                       <p className="font-medium">{r.client_name ?? '—'}</p>
                       {r.name && <p className="text-xs text-slate-500">{r.name}</p>}

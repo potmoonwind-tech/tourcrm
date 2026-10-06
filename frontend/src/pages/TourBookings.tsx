@@ -4,7 +4,7 @@
  * (when / how / by the office or the guide in cash). Changes save as you make them.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { AlertTriangle, ArrowRightLeft, BedDouble, Bus, CheckCircle2, Mail, MapPin, Phone as PhoneIcon, Ticket, User, Utensils } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, BedDouble, Bus, CheckCircle2, ChevronDown, Mail, MapPin, Phone as PhoneIcon, Ticket, User, Utensils } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { Label, type Tone } from '../components/overlay'
 import { EmptyState } from '../components/tour'
@@ -99,6 +99,8 @@ function BookingCard({ tour, b, members, canEdit }: { tour: Tour; b: Booking; me
   const canChange = can(ws2, 'operations') && !tour.closed_at
   const [changing, setChanging] = useState(false)
   const [emailing, setEmailing] = useState(false)
+  // The booking's own fields fold away; they open by themselves when something needs doing there.
+  const [open, setOpen] = useState(() => b.state === 'changed' || b.state === 'cancel')
   // The last email to this supplier about this tour.
   const lastMail = useMailLog(tour.id).data?.find((m) => m.vendor_id === b.vendor.id)
   return (
@@ -135,13 +137,18 @@ function BookingCard({ tour, b, members, canEdit }: { tour: Tour; b: Booking; me
             </p>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/* The status picker says where it stands; the badge only when the plan moved under it. */}
+          {(b.state === 'changed' || b.state === 'cancel') && <Label tone={STATE_TONE[b.state]} wide={false}>{t(`bstate_${b.state}` as TKey)}</Label>}
+          <Select className="h-8 w-36 text-xs" value={b.status} disabled={!canEdit || save.isPending} aria-label={`${t('status')} · ${b.vendor.name}`}
+            onChange={(e) => save.mutate({ status: e.target.value as Booking['status'] })}>
+            {BOOKING_STATUSES.map((s) => <option key={s} value={s}>{t(`bstatus_${s}` as TKey)}</option>)}
+          </Select>
           {canEdit && (
             <Tooltip label={b.vendor.email ? t('emailBookingTip', { email: b.vendor.email }) : t('emailBookingTipNoAddress')}>
               <Button size="sm" variant="secondary" onClick={() => setEmailing(true)}><Mail size={14} aria-hidden />{t('emailButton')}</Button>
             </Tooltip>
           )}
-          <Label tone={STATE_TONE[b.state]} wide={false}>{t(`bstate_${b.state}` as TKey)}</Label>
         </div>
       </div>
       {lastMail && (
@@ -157,12 +164,16 @@ function BookingCard({ tour, b, members, canEdit }: { tour: Tour; b: Booking; me
           <AlertTriangle size={14} />{b.state === 'changed' ? t('bstateChangedHelp') : b.state === 'cancel' ? t('bstateCancelHelp') : t('bookingLate', { date: fmt(b.book_by, lang) })}
         </p>
       )}
-      <fieldset disabled={!canEdit || save.isPending} className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-6">
-        <Mini label={t('status')}>
-          <Select className={sel} value={b.status} onChange={(e) => save.mutate({ status: e.target.value as Booking['status'] })}>
-            {BOOKING_STATUSES.map((s) => <option key={s} value={s}>{t(`bstatus_${s}` as TKey)}</option>)}
-          </Select>
-        </Mini>
+      <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 border-t border-slate-100 pt-2 text-xs text-slate-600">
+        {b.book_by && <span className={cn(late && 'font-medium text-red-700')}>{t('bookBy')}: {fmt(b.book_by, lang)}</span>}
+        <span>{t('whoBooks')}: {name(b.assignee_id ?? b.default_assignee_id) ?? t('nobodyYet')}</span>
+        {b.reference && <span>{t('confirmationNo')}: <span className="font-medium text-slate-800">{b.reference}</span></span>}
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={`booking-${b.id}`}
+          className="ml-auto inline-flex h-7 items-center gap-1 rounded px-1.5 font-medium text-brand-700 hover:bg-brand-50">
+          {t('bookingDetails')}<ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} aria-hidden />
+        </button>
+      </div>
+      {open && <fieldset id={`booking-${b.id}`} disabled={!canEdit || save.isPending} className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
         <Mini label={t('confirmationNo')}>
           <Input className={sel} value={ref} placeholder="—" onChange={(e) => setRef(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); (e.target as HTMLInputElement).blur() } }}
@@ -194,7 +205,7 @@ function BookingCard({ tour, b, members, canEdit }: { tour: Tour; b: Booking; me
             </Select>
           </div>
         </Mini>
-      </fieldset>
+      </fieldset>}
       {b.state === 'ok' && b.confirmed_at && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-700"><CheckCircle2 size={13} />{t('confirmedOn', { date: fmt(b.confirmed_at.slice(0, 10), lang) })}</p>
       )}
