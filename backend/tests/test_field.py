@@ -87,3 +87,18 @@ def test_changes_reach_the_team_until_they_say_got_it(make_client):
     assert c.post(f"/api/field/{gl}/ack").status_code == 200
     assert c.get(f"/api/field/{gl}").json()["changes"] == []
     assert {x["role"]: x for x in c.get(f"{url}/changes").json()["team"]}["guide"]["unseen"] == 0
+
+
+def test_breakfast_at_the_hotel_is_where_the_group_slept(make_client):
+    c, base, _ = agency(make_client)
+    t, url, g, d = tour_with_staff(c, base)
+    tour = c.get(url).json()
+    slept = tour["days"][0]["hotel"]
+    assert slept and tour["days"][1]["breakfast_mode"] == "hotel"
+    gp = c.get(f"/api/field/{mk(c, f'{url}/staff/{g['id']}/field-link', {})['token']}").json()
+    assert gp["days"][0]["breakfast"] is None                                   # day 1: no night before
+    assert gp["days"][1]["breakfast"]["name"] == slept["name"] and gp["days"][1]["breakfast"]["address"] == "Rustaveli Ave 37"
+    [row] = c.get(f"{base}/day/{tour['days'][1]['date']}").json()
+    assert row["prev_hotel"]["id"] == slept["id"]
+    [first] = c.get(f"{base}/day/{tour['days'][0]['date']}").json()
+    assert first["prev_hotel"] is None

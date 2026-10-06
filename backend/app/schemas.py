@@ -595,6 +595,7 @@ class DayViewRow(BaseModel):
     staff_today: list["StaffOut"]
     is_first_day: bool
     is_last_day: bool
+    prev_hotel: VendorRef | None = None    # where the group slept: breakfast "at the hotel" is there
 
 
 # --- Milestone 3: staff, participants, import --------------------------------------

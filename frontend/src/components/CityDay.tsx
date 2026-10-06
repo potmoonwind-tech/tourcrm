@@ -186,6 +186,7 @@ function Column({ date, row, services, byId }: { date: string; row: DayViewRow; 
         <span className="text-xs tabular-nums text-slate-500">{paxText(row.tour)}</span>
       </Link>
       <DayProgramme day={toFields(row.day)} index={row.day.day_number - 1} last={row.is_last_day} byId={byId} services={services}
+        fromHotel={row.prev_hotel?.id ?? null}
         disabled={!atLeast(ws.role, 'staff')} startOpen onChange={(s) => save.mutate(s)} />
     </Card>
   )

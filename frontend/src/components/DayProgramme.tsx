@@ -136,9 +136,10 @@ export function dayLegs(day: DayFields, from: string | undefined, factor: number
   }))
 }
 
-export function DayProgramme({ day, index, last, byId, services, disabled, startOpen, from, onChange }: {
+export function DayProgramme({ day, index, last, byId, services, disabled, startOpen, from, fromHotel, onChange }: {
   day: DayFields; index: number; last: boolean; byId: Map<string, Vendor>; services: ServiceBrief[]; disabled?: boolean; startOpen?: boolean
   from?: string      // where the group slept the night before
+  fromHotel?: string | null   // ...and in which hotel: breakfast "at the hotel" is there, and the day's road starts from it
   onChange: (schedule: ScheduleItem[]) => void
 }) {
   const { t } = useI18n()
@@ -160,7 +161,10 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
     if (!r) return { text: x.title, missing: false }
     if (r === 'breakfast') {
       const mode = day.breakfast_mode ?? 'hotel'
-      if (mode === 'hotel') return { text: t('progBreakfast'), missing: false }
+      if (mode === 'hotel') {
+        const slept = byId.get(fromHotel ?? '')
+        return { text: slept ? `${t('breakfast')}: ${slept.name}` : t('progBreakfast'), missing: false }
+      }
       if (mode === 'own') return { text: `${t('breakfast')}: ${t('mealOwn')}`, missing: false }
       return { text: `${t('breakfast')}: ${byId.get(day.breakfast_id ?? '')?.name ?? '—'}${mode === 'tourists' ? ` (${t('mealTourists')})` : ''}`, missing: !day.breakfast_id }
     }
@@ -201,7 +205,8 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
   // The catalogue's sights and activities (free ones too), suggested first when a visit is typed.
   const sights = useMemo(() => [...byId.values()].filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
     .map((v): PlaceSuggestion => ({ name: v.name, detail: [v.city, v.visit_minutes ? dur(v.visit_minutes) : ''].filter(Boolean).join(' · '), kind: '', lat: 0, lon: 0, own: true })), [byId])
-  const path = pathOf(raw, day, byId, from, last)
+  const start = index > 0 ? byId.get(fromHotel ?? '')?.address || from : from
+  const path = pathOf(raw, day, byId, start, last)
   const road = useQuery({
     queryKey: ['day-road', ws.id, path.map((p) => p.place.toLowerCase())],
     queryFn: () => api<{ legs: MapLeg[] }>(wsPath(ws.id, '/distances'), { method: 'POST', body: { cities: path.map((p) => p.place) } }),

@@ -159,7 +159,7 @@ export interface Tour extends TourSummary {
   leaders?: number; staff_table?: boolean   // of pax, free tour leaders · leader + driver + guide eat at their own table
   route_changed?: boolean   // its route's days were edited after this tour copied them
 }
-export interface DayViewRow { tour: TourSummary; day: TourDay; staff_today: StaffAssignment[]; is_first_day: boolean; is_last_day: boolean }
+export interface DayViewRow { tour: TourSummary; day: TourDay; staff_today: StaffAssignment[]; is_first_day: boolean; is_last_day: boolean; prev_hotel?: VendorRef | null }
 
 // --- Milestone 3 ---------------------------------------------------------------
 export type StaffRole = 'guide' | 'driver' | 'transport' | 'tour_leader' | 'assistant' | 'other'

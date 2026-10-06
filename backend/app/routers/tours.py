@@ -11,7 +11,7 @@ from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
 from ..models import Client, Participant, Series, SeriesDay, StaffAssignment, Tour, TourDay, Vendor
 from ..schemas import (
-    DayFields, DayViewRow, StaffOut, TourCreate, TourDayOut, TourDayUpdate, TourOut, TourStatus, TourSummary, TourUpdate,
+    DayFields, DayViewRow, StaffOut, TourCreate, TourDayOut, TourDayUpdate, TourOut, TourStatus, TourSummary, TourUpdate, VendorRef,
 )
 from ..scoping import check_day_refs, check_refs, get_owned
 from .lifecycle import phase
@@ -411,9 +411,14 @@ def day_view(day: date, include_cancelled: bool = False, ctx: WorkspaceCtx = Dep
         stmt = stmt.where(Tour.status != "cancelled")
     days = db.scalars(stmt).all()
     counts = participant_counts(db, [d.tour_id for d in days])
+    # Last night's hotel of each group (breakfast "at the hotel" is there, and the day starts from it).
+    nights = {n.tour_id: n.hotel for n in db.scalars(
+        select(TourDay).where(TourDay.tour_id.in_([d.tour_id for d in days]), TourDay.date == day - timedelta(days=1))
+        .options(selectinload(TourDay.hotel)))} if days else {}
     return [
         DayViewRow(tour=summary(d.tour, counts.get(d.tour_id, 0)), day=TourDayOut.model_validate(d),
                    staff_today=[StaffOut.model_validate(a) for a in d.tour.staff if a.covers(d.day_number)],
-                   is_first_day=d.date == d.tour.start_date, is_last_day=d.date == d.tour.end_date)
+                   is_first_day=d.date == d.tour.start_date, is_last_day=d.date == d.tour.end_date,
+                   prev_hotel=VendorRef.model_validate(nights[d.tour_id]) if nights.get(d.tour_id) else None)
         for d in days
     ]

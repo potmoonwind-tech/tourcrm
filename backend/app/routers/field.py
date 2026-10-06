@@ -211,11 +211,13 @@ def field_page(token: str, request: Request, db: Session = Depends(get_db)):
     menu_ids = {m for d in days for m in (d.breakfast_menu_id, d.lunch_menu_id, d.dinner_menu_id) if m}
     extra_ids = {e.get("service_id") for d in days for e in (d.extras or []) if isinstance(e, dict)}
     services = {sv.id: sv for sv in db.scalars(select(Service).where(Service.id.in_(menu_ids | extra_ids)))} if menu_ids | extra_ids else {}
+    slept = {d.day_number: d.hotel for d in t.days}      # breakfast "at the hotel": last night's hotel
     out_days = [FieldDay(
         number=d.day_number, date=d.date, city=d.city, stops=d.stops or [], km=d.km,
         lunch_mode=d.lunch_mode or "included", dinner_mode=d.dinner_mode or "included", flights=d.flights or [], schedule=d.schedule or [], border=d.border_crossing, notes=d.notes,
         breakfast_mode=d.breakfast_mode or "hotel",
-        breakfast=_place(d.breakfast, services.get(d.breakfast_menu_id)) if (d.breakfast_mode or "hotel") not in ("hotel", "own") else None,
+        breakfast=(_place(slept.get(d.day_number - 1)) if (d.breakfast_mode or "hotel") == "hotel"
+                   else None if d.breakfast_mode == "own" else _place(d.breakfast, services.get(d.breakfast_menu_id))),
         hotel=_place(d.hotel), lunch=_place(d.lunch, services.get(d.lunch_menu_id)),
         dinner=_place(d.dinner, services.get(d.dinner_menu_id)),
         extras=_extras(d.extras, services)) for d in days]

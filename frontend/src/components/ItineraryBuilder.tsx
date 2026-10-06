@@ -158,7 +158,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           <SortableContext items={keys.current} strategy={verticalListSortingStrategy}>
             {days.map((d, i) => (
               <DayCard key={keys.current[i]} id={keys.current[i]} index={i} day={d} date={dates?.[i]} last={i === days.length - 1}
-                prevCity={i > 0 ? days[i - 1].city : undefined}
+                prevCity={i > 0 ? days[i - 1].city : undefined} prevHotel={i > 0 ? days[i - 1].hotel_id : null}
                 vendors={vs} byId={byId} disabled={disabled} fixedLength={fixedLength} dragging={dragging} picked={picked}
                 menus={services.data ?? []} canCreate={canCreate}
                 onNewVendor={(type, then) => setNewVendor({ type, city: d.city, then })}
@@ -309,10 +309,11 @@ function Chip({ item, selected, lifted }: { item: Item; selected?: boolean; lift
 // --- day card --------------------------------------------------------------------------------
 
 function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLength, dragging, picked, alerts,
-  menus, canCreate, onNewVendor, onNewService, prevCity,
+  menus, canCreate, onNewVendor, onNewService, prevCity, prevHotel,
   onSet, onPlace, onDuplicate, onInsert, onRemove, onHotelNext }: {
   id: string; index: number; day: DayFields; date?: string; last: boolean; vendors: Vendor[]; byId: Map<string, Vendor>
   prevCity?: string
+  prevHotel?: string | null
   disabled?: boolean; fixedLength?: boolean; dragging: Item | null; picked: Item | null; alerts: TourAlert[]
   menus: ServiceBrief[]; canCreate: boolean
   onNewVendor: (type: VendorType, then: (v: Vendor) => void) => void
@@ -441,7 +442,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           <DayServices value={day.extras} disabled={disabled} onChange={(extras) => onSet({ extras })}
             onAddNew={canCreate ? (vendorId) => onNewService(vendorId, false, (s) => s.id && onSet({ extras: [...day.extras, { id: slotId(), service_id: s.id, quantity: null, notes: '' }] })) : undefined} />
         </SlotBox>
-        <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity}
+        <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel}
           onChange={(schedule) => onSet({ schedule })} />
         {/* Border crossings and notes are rare: folded away until used. */}
         {more || day.border_crossing || day.notes ? (
