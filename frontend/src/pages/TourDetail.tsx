@@ -8,7 +8,7 @@ import { CodeChip } from '../components/tour'
 import { Button, Card, ErrorText, Field, FullPageSpinner, Input, Select, Textarea } from '../components/ui'
 import { QuickClientDialog } from '../components/QuickAdd'
 import { parseRooms, RoomsPicker, roomsText } from '../components/RoomsPicker'
-import { api, atLeast, TOUR_STATUSES, type DayFields, type QuoteOut, type Tour, type TourStatus, can } from '../lib/api'
+import { api, atLeast, TOUR_STATUSES, type BusReturn, type DayFields, type QuoteOut, type Tour, type TourStatus, can } from '../lib/api'
 import { useClients, wsPath } from '../lib/data'
 import { addDays, diffDays, fmt, today } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
@@ -333,24 +333,27 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
   const qc = useQueryClient()
   const saved = tour.days.map(toFields)
   const [draft, setDraft] = useState<DayFields[] | null>(null)
+  const [back, setBack] = useState<BusReturn | null | undefined>(undefined)   // undefined: as saved
   const alerts = useAlerts(tour.id)
   const days = draft ?? saved
-  const dirty = !!draft && JSON.stringify(draft) !== JSON.stringify(saved)
+  const busReturn = back === undefined ? tour.bus_return ?? null : back
+  const dirty = (!!draft && JSON.stringify(draft) !== JSON.stringify(saved))
+    || (back !== undefined && JSON.stringify(back) !== JSON.stringify(tour.bus_return ?? null))
   // Longer or shorter: the end date moves; new days come empty, the last day goes with its content.
   const resize = useMutation({
     mutationFn: (end_date: string) => api<Tour>(wsPath(ws.id, `/tours/${tour.id}`), { method: 'PATCH', body: { end_date } }),
     onSuccess: (t2) => { onSaved(t2); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
   })
   const save = useMutation({
-    mutationFn: () => api<Tour>(wsPath(ws.id, `/tours/${tour.id}/itinerary`), { method: 'PUT', body: { days } }),
-    onSuccess: (t2) => { onSaved(t2); setDraft(null); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
+    mutationFn: () => api<Tour>(wsPath(ws.id, `/tours/${tour.id}/itinerary`), { method: 'PUT', body: { days, bus_return: busReturn } }),
+    onSuccess: (t2) => { onSaved(t2); setDraft(null); setBack(undefined); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
   })
   return (
     <div className="space-y-3">
       {dirty && (
         <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm shadow-md">
           <span className="min-w-0 flex-1 font-medium text-brand-900">{t('unsavedItinerary')}</span>
-          <Button size="sm" variant="secondary" onClick={() => setDraft(null)}>{t('discard')}</Button>
+          <Button size="sm" variant="secondary" onClick={() => { setDraft(null); setBack(undefined) }}>{t('discard')}</Button>
           <Button size="sm" disabled={save.isPending} onClick={() => save.mutate()}>{t('saveChanges')}</Button>
         </div>
       )}
@@ -363,7 +366,8 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
       )}
       <ItineraryBuilder days={days} dates={tour.days.map((d) => d.date)} fixedLength disabled={!canEdit}
         stickTop={dirty ? 'top-16' : 'top-0'}
-        alerts={dirty ? [] : alerts.data ?? []} onChange={setDraft} />
+        alerts={dirty ? [] : alerts.data ?? []} onChange={setDraft}
+        busReturn={busReturn} onBusReturn={(b) => setBack(b)} />
       {canEdit && !tour.closed_at && (
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="secondary" disabled={dirty || resize.isPending} title={dirty ? t('saveFirst') : undefined}

@@ -217,6 +217,8 @@ class Series(Base):
     # Who works which days on this route: [{role, from_day, to_day, vendor_id, label}] - a Georgian guide
     # days 1-5, an Armenian one days 6-7. Calculations price it; new departures get these people.
     staff_plan: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    # The bus back to its garage after the last day ({"on": "last"|"next", "to": town, "km": n}); None: not needed.
+    bus_return: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     days: Mapped[list["SeriesDay"]] = relationship(
         back_populates="series", cascade="all, delete-orphan", order_by="SeriesDay.day_number")
@@ -300,6 +302,7 @@ class Tour(Base):
     # When its days were last copied from the route again ("Update departures from the route").
     route_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rooms: Mapped[str] = mapped_column(String(200), default="")
+    bus_return: Mapped[dict | None] = mapped_column(JSON, nullable=True)   # as the route's (copied from it)
     # This group shares plates differently from the agency's usual (None = the agency's).
     plate_share: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # Of `pax`, the free tour leaders who came with the group (19+1 → 1). They eat at the staff table.

@@ -28,6 +28,7 @@ def _apply(db: Session, ctx: WorkspaceCtx, s: Series, body: SeriesIn) -> None:
     for d in body.days:
         check_day_refs(db, ctx, d.model_dump(mode="json"))
     s.code, s.name, s.color, s.notes = body.code, body.name, body.color, body.notes
+    s.bus_return = body.bus_return.model_dump() if body.bus_return else None
     if body.staff_plan is not None:
         n = len(body.days)
         for x in body.staff_plan:
@@ -124,6 +125,7 @@ def push_days(series_id: str, body: PushIn, ctx: WorkspaceCtx = Depends(can_ope)
                     setattr(day, k, getattr(src, k))
                 day.extras = [dict(x) for x in src.extras or []]
             t.route_synced_at = utcnow()
+            t.bus_return = dict(s.bus_return) if s.bus_return else None   # the drive back moves with the days
             changes.record(db, t, before, ctx.user.id)
             for text in staff_from_plan(db, t, s)[0]:
                 staff_change.record(db, t, text, ctx.user.id)

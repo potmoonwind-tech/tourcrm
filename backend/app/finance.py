@@ -283,8 +283,10 @@ def _plan(t: Tour, services: dict[str, Service], ctx: _Ctx) -> list[_Plan]:
             if s is None:
                 ctx.warnings.append(f"Day {d.day_number}: a service was removed from the price catalog")
                 continue
+            # km and fuel on the last day include the drive back to the garage.
+            km = (d.km or 0) + ((t.bus_return or {}).get("km") or 0) if d.day_number == len(t.days) and t.bus_return else d.km
             qty = Decimal(str(x["quantity"])) if x.get("quantity") is not None else auto_quantity(
-                s.unit, pax, sum(rooms.values()), d.km, ctx.fuel_l_per_100km)
+                s.unit, pax, sum(rooms.values()), km, ctx.fuel_l_per_100km)
             if qty is None:
                 qty = Decimal(1)
                 ctx.warnings.append(f"Day {d.day_number}: set how many '{s.name}' (counted as 1)")
@@ -341,14 +343,20 @@ def _plan(t: Tour, services: dict[str, Service], ctx: _Ctx) -> list[_Plan]:
                 else:
                     plans.append(_Plan(f"{meal}:{d.id}", vendor, "meal", what, d.date, None, n, meal))
     n_days = len(t.days)
+    back = t.bus_return or {}
     for a in t.staff:
         end = a.end_day or n_days
         days = end - a.start_day + 1
         if days <= 0:
             continue
+        what = f"{a.role} × {days} days"
+        # The bus (and its driver) drive back to the garage the day after the group leaves: one more day.
+        if back.get("on") == "next" and a.role in ("transport", "driver") and end >= n_days:
+            end, days = end + 1, days + 1
+            what = f"{a.role} × {days} days (incl. the drive back{' to ' + back['to'] if back.get('to') else ''})"
         start_date = t.start_date + timedelta(days=a.start_day - 1)
         end_date = t.start_date + timedelta(days=end - 1)
-        plans.append(_Plan(f"staff:{a.id}", a.vendor, STAFF_CATEGORY[a.role], f"{a.role} × {days} days",
+        plans.append(_Plan(f"staff:{a.id}", a.vendor, STAFF_CATEGORY[a.role], what,
                            start_date, end_date if end_date != start_date else None, Decimal(days), "day"))
     return plans
 

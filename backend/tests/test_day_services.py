@@ -138,3 +138,36 @@ def test_the_guide_sees_one_line_per_place():
                 "c": NS(name="Garni Temple entrance", vendor_id="g", vendor=garni)}
     slots = [{"service_id": "a"}, {"service_id": "c"}, {"service_id": "b", "optional": True}, {"service_id": "gone"}]
     assert _extras(slots, services) == ["KTW Patardzeuli · Wine tasting, Bread baking (optional)", "Garni Temple entrance"]
+
+
+def test_the_bus_drives_back_to_its_garage(make_client):
+    """The tour ends in Batumi; the bus goes back to Tbilisi the next day: one more bus day, and its km."""
+    c, base, _ = agency(make_client)
+    bus = mk(c, f"{base}/vendors", {"name": "Caucasus Coaches", "type": "transport"})
+    route = mk(c, f"{base}/series", {"code": "BT", "days": [{"city": "Tbilisi"}, {"city": "Kutaisi", "km": 230}, {"city": "Batumi", "km": 150}],
+                                     "bus_return": {"on": "next", "to": "Tbilisi", "km": 380}})
+    assert route["bus_return"] == {"on": "next", "to": "Tbilisi", "km": 380}
+
+    # A tour from the route keeps it; its bus is paid one more day.
+    t = mk(c, f"{base}/tours", {"series_id": route["id"], "start_date": "2026-05-01", "pax": 20})
+    tour = c.get(f"{base}/tours/{t['id']}").json()
+    assert tour["bus_return"]["on"] == "next"
+    mk(c, f"{base}/tours/{t['id']}/staff", {"vendor_id": bus["id"], "role": "transport"})
+    c.post(f"{base}/tours/{t['id']}/costs/generate")
+    line = next(x for x in c.get(f"{base}/tours/{t['id']}/costs").json()["lines"] if x["vendor"]["id"] == bus["id"])
+    assert line["quantity"] == 4 and "drive back to Tbilisi" in line["description"]
+
+    # Back the same day: the bus days stay; saving the itinerary without it clears it.
+    days = [{k: v for k, v in d.items() if k not in ("id", "day_number", "date", "hotel", "lunch", "dinner", "breakfast")} for d in tour["days"]]
+    for d in days:
+        for slot in ("hotel", "lunch", "dinner", "breakfast", "staff_hotel"):
+            d.pop(slot, None)
+    r = c.put(f"{base}/tours/{t['id']}/itinerary", json={"days": days, "bus_return": {"on": "last", "to": "Tbilisi", "km": 380}})
+    assert r.status_code == 200, r.text
+    c.post(f"{base}/tours/{t['id']}/costs/generate")
+    line = next(x for x in c.get(f"{base}/tours/{t['id']}/costs").json()["lines"] if x["vendor"]["id"] == bus["id"])
+    assert line["quantity"] == 3
+
+    # A calculation from the route: the agency's "empty bus days" input is the return day.
+    q = c.post(f"{base}/quotes", json={"preset": "hm", "series_id": route["id"]}).json()
+    assert float(q["variables"]["bus_extra_days"]) == 1

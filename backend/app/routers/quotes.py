@@ -189,6 +189,14 @@ def create_quote(body: QuoteCreate, ctx: WorkspaceCtx = Depends(can_ope_sal), db
             built.items = [i for i in built.items if not (i.category == "transport" and i.day is None)]
             if not src.transport.km:
                 src.transport.km = Decimal(sum(d.km or 0 for d in route.days))
+        back = (tour.bus_return if tour is not None else getattr(route, "bus_return", None)) or {}
+        if back:
+            if src.transport is not None:
+                src.transport.km += Decimal(back.get("km") or 0)
+                if back.get("on") == "next":
+                    src.transport.extra_days += 1
+            if "bus_extra_days" in src.variables:   # the agency's own "empty bus days" input
+                src.variables["bus_extra_days"] = Decimal(1 if back.get("on") == "next" else 0)
         fx = {**suggested_fx(db, ctx, src.currency, _used_currencies(built.nights, built.items)), **src.fx}
         src = QuoteIn.model_validate({
             **src.model_dump(), "fx": fx, "series_id": route.id, "days": max(1, len(route.days)), "valid_from": on,

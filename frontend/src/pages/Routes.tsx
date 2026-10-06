@@ -90,6 +90,7 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
   const initial = () => ({
     code: series?.code ?? '', name: series?.name ?? '', color: series?.color ?? 'indigo', notes: series?.notes ?? '',
     days: series?.days.map(({ day_number: _, ...d }) => d) ?? [blankDay()],
+    bus_return: series?.bus_return ?? null,
   })
   const [f, setF] = useState(initial)
   const [start] = useState(() => JSON.stringify(initial()))
@@ -150,7 +151,8 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
               </div>
             </div>
           </div>
-          <ItineraryBuilder days={f.days} disabled={!canEdit} onChange={(days) => setF({ ...f, days })} />
+          <ItineraryBuilder days={f.days} disabled={!canEdit} onChange={(days) => setF({ ...f, days })}
+            busReturn={f.bus_return} onBusReturn={(bus_return) => setF({ ...f, bus_return })} />
         </fieldset>
         {!canEdit && <ErrorText error={save.error || remove.error} />}
       </form>

@@ -11,7 +11,7 @@ from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
 from ..models import Client, Participant, Series, SeriesDay, StaffAssignment, Tour, TourDay, Vendor
 from ..schemas import (
-    DayFields, DayViewRow, StaffOut, TourCreate, TourDayOut, TourDayUpdate, TourOut, TourStatus, TourSummary, TourUpdate, VendorRef,
+    BusReturn, DayFields, DayViewRow, StaffOut, TourCreate, TourDayOut, TourDayUpdate, TourOut, TourStatus, TourSummary, TourUpdate, VendorRef,
 )
 from ..scoping import check_day_refs, check_refs, get_owned
 from .lifecycle import phase
@@ -54,7 +54,7 @@ def participant_counts(db: Session, tour_ids: list[str]) -> dict[str, int]:
 
 def full(t: Tour, money: bool = False) -> TourOut:
     return TourOut(**summary(t).model_dump(), notes=t.notes, plate_share=t.plate_share, leaders=t.leaders or 0,
-                   staff_table=bool(t.staff_table),
+                   staff_table=bool(t.staff_table), bus_return=t.bus_return,
                    days=[TourDayOut.model_validate(d) for d in t.days],
                    price_pp=t.price_pp if money else None, price_currency=t.price_currency if money else None,
                    route_changed=_route_changed(t))
@@ -288,6 +288,8 @@ def create_tour(body: TourCreate, ctx: WorkspaceCtx = Depends(write), db: Sessio
     db.add(t)
     sync_days(t, series.days if series else None)
     if series:
+        t.bus_return = dict(series.bus_return) if series.bus_return else None
+    if series:
         db.flush()
         staff_from_plan(db, t, series)
     db.commit()
@@ -348,6 +350,7 @@ class ItineraryIn(BaseModel):
     """Every day's content, in order (the builder saves the whole plan at once, e.g. after
     days were dragged into a new order). Dates stay; content moves between them."""
     days: list[DayFields] = Field(max_length=60)
+    bus_return: BusReturn | None = None
 
 
 @router.put("/tours/{tour_id}/itinerary", response_model=TourOut)
@@ -362,6 +365,7 @@ def save_itinerary(tour_id: str, body: ItineraryIn, ctx: WorkspaceCtx = Depends(
     for day, new in zip(sorted(t.days, key=lambda x: x.day_number), body.days):
         for k, v in new.model_dump(mode="json").items():
             setattr(day, k, v)
+    t.bus_return = body.bus_return.model_dump() if body.bus_return else None
     changes.record(db, t, before, ctx.user.id)
     db.commit()
     return full(_load(db, ctx, tour_id), ctx.can("operations", "finance", "sales"))

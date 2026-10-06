@@ -438,6 +438,14 @@ class StaffPlanItem(BaseModel):
         return self
 
 
+class BusReturn(BaseModel):
+    """The bus driving back to its garage when the tour ends elsewhere: on the last day, or the next day
+    (one more bus day to pay). Its km count with the trip's."""
+    on: Literal["last", "next"] = "last"
+    to: str = Field(default="", max_length=100)
+    km: int | None = Field(default=None, ge=0, le=5000)
+
+
 class SeriesIn(BaseModel):
     code: str = Field(min_length=1, max_length=20)
     name: str = Field(default="", max_length=200)
@@ -445,6 +453,7 @@ class SeriesIn(BaseModel):
     notes: str = Field(default="", max_length=5000)
     days: list[DayFields] = Field(default_factory=list, max_length=60)
     staff_plan: list[StaffPlanItem] | None = Field(default=None, max_length=20)   # None: leave as it is
+    bus_return: BusReturn | None = None
 
     @field_validator("code")
     @classmethod
@@ -460,6 +469,7 @@ class SeriesOut(_Out):
     notes: str
     days: list[SeriesDayOut]
     staff_plan: list[StaffPlanItem] = []
+    bus_return: BusReturn | None = None
 
 
 class TourUpdate(BaseModel):
@@ -579,6 +589,7 @@ class TourSummary(BaseModel):
 
 class TourOut(TourSummary):
     plate_share: int | None = None       # this group's people per plate (None = the agency's)
+    bus_return: BusReturn | None = None
     leaders: int = 0
     staff_table: bool = False
     notes: str
