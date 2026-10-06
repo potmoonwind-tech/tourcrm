@@ -431,10 +431,13 @@ _LATIN = str.maketrans({
 
 def town_key(name: str) -> str:
     """One spelling for a town in any alphabet, to tell whether two names are the same town:
-    "Tbilisi", "თბილისი" and "Тбилиси" are one; "Qazbegi" and "Kazbegi" too."""
+    "Tbilisi", "თბილისი" and "Тбилиси" are one; "Qazbegi" and "Kazbegi" too. Georgian gives foreign
+    names an ending "-ი" and drops the "Y" ("ერევანი" = Yerevan): a last "i" and a first "y" before a
+    vowel don't count, on both sides."""
     s = name.split(",")[0].strip().lower().translate(_LATIN)
-    s = re.sub(r"[^a-z0-9]", "", s)
-    return s.replace("q", "k").replace("'", "")
+    s = re.sub(r"[^a-z0-9]", "", s).replace("q", "k")
+    s = re.sub(r"^y(?=[aeiou])", "", s)
+    return s[:-1] if len(s) > 3 and s.endswith("i") else s
 
 
 def suggest(q: str, countries: list[str] | None = None, timeout: float = 4.0, session: str | None = None,

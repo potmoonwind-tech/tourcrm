@@ -111,6 +111,9 @@ def test_a_town_is_the_same_in_any_alphabet():
     assert k("სიღნაღი") == k("Sighnaghi") and k("ბათუმი") == k("Batumi") and k("ქუთაისი") == k("Kutaisi")
     assert k("ყაზბეგი") == k("Kazbegi") == k("Qazbegi") and k("მცხეთა") == k("Mtskheta")
     assert k("Tbilisi") != k("Batumi")
+    # Georgian adds "-ი" to foreign names and has no "Y": still the same town.
+    assert k("ერევანი") == k("Yerevan") == k("Ереван") == k("Erevan")
+    assert k("გუდაური") == k("Gudauri") != k("Kazbegi")
 
 
 def test_google_answers_in_the_agencys_language(google, make_client):

@@ -30,5 +30,9 @@ const LATIN: Record<string, string> = {
   ы: 'y', ь: '', э: 'e', ю: 'yu', я: 'ya',
 }
 /** One spelling for a town in any alphabet: "Tbilisi" = "თბილისი" = "Тбилиси"; "Qazbegi" = "Kazbegi". */
-export const townKey = (name: string) =>
-  [...(name.split(',')[0] ?? '').trim().toLowerCase()].map((c) => LATIN[c] ?? c).join('').replace(/[^a-z0-9]/g, '').replace(/q/g, 'k')
+// Georgian gives foreign names an ending "-ი" and drops the "Y" (ერევანი = Yerevan): neither counts.
+export const townKey = (name: string) => {
+  const s = [...(name.split(',')[0] ?? '').trim().toLowerCase()].map((c) => LATIN[c] ?? c).join('')
+    .replace(/[^a-z0-9]/g, '').replace(/q/g, 'k').replace(/^y(?=[aeiou])/, '')
+  return s.length > 3 && s.endsWith('i') ? s.slice(0, -1) : s
+}
