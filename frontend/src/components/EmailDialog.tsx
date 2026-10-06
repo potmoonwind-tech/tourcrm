@@ -17,7 +17,7 @@ import { Button, ErrorText, Field, Input, Select, Spinner } from './ui'
 
 export const MAIL_KINDS = ['booking_request', 'booking_change', 'booking_cancel', 'restaurant', 'payment'] as const
 export const MAIL_LANGS = ['en', 'ka', 'ru'] as const
-interface Draft { kind: string; language: string; to: string; subject: string; body: string; has_account: boolean }
+interface Draft { kind: string; language: string; to: string; subject: string; body: string; has_account: boolean; can_attach_rooming?: boolean }
 export interface MailLogRow { id: string; tour_id: string | null; vendor_id: string | null; kind: string; sender: string; to: string; subject: string; body: string; error: string; sent_at: string }
 
 /** The tour's sent emails (shared by every booking card of the tour). */
@@ -36,6 +36,7 @@ export function EmailDialog({ tourId, bookingId, supplier, startKind, onClose }:
   const [language, setLanguage] = useState<string>(ws.language === 'ka' ? 'ka' : 'en')
   const [f, setF] = useState({ to: '', cc: '', subject: '', body: '' })
   const [markRequested, setMarkRequested] = useState(true)
+  const [rooming, setRooming] = useState(true)   // a hotel: the rooming list goes along unless unticked
   const draft = useQuery({
     queryKey: ['mail-draft', ws.id, bookingId, kind ?? '', language],
     queryFn: () => api<Draft>(wsPath(ws.id, `/tours/${tourId}/bookings/${bookingId}/email-draft`), { method: 'POST', body: { kind, language } }),
@@ -53,7 +54,8 @@ export function EmailDialog({ tourId, bookingId, supplier, startKind, onClose }:
   const send = useMutation({
     mutationFn: () => api<MailLogRow>(wsPath(ws.id, '/mail/send'), {
       method: 'POST',
-      body: { to: split(f.to), cc: split(f.cc), subject: f.subject, body: f.body, tour_id: tourId, booking_id: bookingId, kind, mark_requested: markRequested },
+      body: { to: split(f.to), cc: split(f.cc), subject: f.subject, body: f.body, tour_id: tourId, booking_id: bookingId, kind, mark_requested: markRequested,
+        attach_rooming: !!draft.data?.can_attach_rooming && rooming },
     }),
     onSettled: () => qc.invalidateQueries({ queryKey: ['mail-log', ws.id, tourId] }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['bookings', ws.id, tourId] }); qc.invalidateQueries({ queryKey: ['tasks', ws.id] }); onClose() },
@@ -63,9 +65,16 @@ export function EmailDialog({ tourId, bookingId, supplier, startKind, onClose }:
     <Dialog wide title={t('emailTo', { name: supplier })} onClose={onClose}
       footer={!noAccount && (
         <>
-          <label className="mr-auto flex items-center gap-2 text-sm text-slate-700">
-            <input type="checkbox" className="size-4" checked={markRequested} onChange={(e) => setMarkRequested(e.target.checked)} />{t('emailMarkRequested')}
-          </label>
+          <span className="mr-auto flex flex-col gap-1">
+            <label className="flex items-center gap-2 text-sm text-slate-700">
+              <input type="checkbox" className="size-4" checked={markRequested} onChange={(e) => setMarkRequested(e.target.checked)} />{t('emailMarkRequested')}
+            </label>
+            {draft.data?.can_attach_rooming && (
+              <label className="flex items-center gap-2 text-sm text-slate-700">
+                <input type="checkbox" className="size-4" checked={rooming} onChange={(e) => setRooming(e.target.checked)} />{t('emailAttachRooming')}
+              </label>
+            )}
+          </span>
           <Button variant="secondary" onClick={onClose}>{t('cancel')}</Button>
           <Button disabled={send.isPending || !f.to.trim() || !f.subject.trim() || !f.body.trim()} onClick={() => send.mutate()}>
             <Send size={15} aria-hidden />{send.isPending ? t('emailSending') : t('emailSend')}

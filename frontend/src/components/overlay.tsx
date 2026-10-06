@@ -9,7 +9,8 @@
  *  - Label: monday's coloured status label.
  */
 import { AlertTriangle, Check, MoreHorizontal, Plus, X } from 'lucide-react'
-import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useI18n } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { Button, IconButton, Input } from './ui'
@@ -222,13 +223,34 @@ export function Menu({ items, label, kind = 'more', icon, trigger, triggerClassN
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
   const list = useRef<HTMLUListElement>(null)
+  // The list sits on top of the page (never cut off by a scrolling column), under its button — or above
+  // it when there is no room below — and follows it when the page scrolls.
+  const [at, setAt] = useState<{ top?: number; bottom?: number; left: number } | null>(null)
+  const place = () => {
+    const b = ref.current?.getBoundingClientRect()
+    if (!b) return
+    const h = (list.current?.offsetHeight ?? 0) || 44 + 36 * items.filter((i) => !i.hidden).length
+    const w = Math.max(list.current?.offsetWidth ?? 0, 208)
+    const left = Math.min(Math.max(8, b.right - w), window.innerWidth - w - 8)
+    const below = window.innerHeight - b.bottom
+    setAt(below >= h + 8 || below >= b.top ? { top: b.bottom + 4, left } : { bottom: window.innerHeight - b.top + 4, left })
+  }
+  useLayoutEffect(() => { if (open) place() }, [open])   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (!open) return
-    const close = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false) }
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node) && !list.current?.contains(e.target as Node)) setOpen(false)
+    }
     document.addEventListener('mousedown', close)
-    setTimeout(() => list.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus(), 0)
-    return () => document.removeEventListener('mousedown', close)
-  }, [open])
+    window.addEventListener('scroll', place, true)
+    window.addEventListener('resize', place)
+    setTimeout(() => { place(); list.current?.querySelector<HTMLButtonElement>('button:not(:disabled)')?.focus() }, 0)
+    return () => {
+      document.removeEventListener('mousedown', close)
+      window.removeEventListener('scroll', place, true)
+      window.removeEventListener('resize', place)
+    }
+  }, [open])   // eslint-disable-line react-hooks/exhaustive-deps
   const shown = items.filter((i) => !i.hidden)
   if (!shown.length) return null
   const toggle = () => setOpen(!open)
@@ -255,8 +277,9 @@ export function Menu({ items, label, kind = 'more', icon, trigger, triggerClassN
           <MoreHorizontal size={16} />{label}
         </Button>
       )}
-      {open && (
-        <ul ref={list} role="menu" className="animate-fade absolute right-0 z-40 mt-1 min-w-52 rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
+      {open && createPortal(
+        <ul ref={list} role="menu" onKeyDown={onKey} style={at ?? { top: -9999, left: -9999 }}
+          className="animate-fade fixed z-[70] max-h-[min(24rem,80vh)] min-w-52 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
           {shown.map((i) => (
             <li key={i.label}>
               <button type="button" role="menuitem" disabled={i.disabled} onClick={() => { setOpen(false); i.onClick() }}
@@ -266,7 +289,7 @@ export function Menu({ items, label, kind = 'more', icon, trigger, triggerClassN
               </button>
             </li>
           ))}
-        </ul>
+        </ul>, document.body,
       )}
     </div>
   )

@@ -84,7 +84,7 @@ def test_participants_and_rooming(make_client):
     x = c.get(f"{base}/tours/{t['id']}/rooming-list.xlsx")
     assert x.status_code == 200
     ws = load_workbook(io.BytesIO(x.content)).active
-    assert ws["D4"].value == "A" and ws["B4"].value == "R1"  # grouped rooms first
+    assert ws["E4"].value == "A" and ws["B4"].value == "1"  # grouped rooms first ("R1" reads as room 1)
 
     assert c.delete(url).status_code == 204
     assert c.get(url).json() == []

@@ -104,3 +104,30 @@ def test_no_mailbox_no_sending_and_failures_are_logged(make_client, monkeypatch)
     # Another server: never an internal address.
     r = c.put(f"{base}/mail/account", json={"provider": "other", "email": "n@x.ge", "password": "p", "smtp_host": "localhost", "smtp_port": 587})
     assert r.status_code == 422
+
+
+def test_the_rooming_list_goes_to_the_hotel(make_client):
+    """Rooms in order, the bed in words, the note for the hotel - attached to the hotel's email."""
+    import io
+    from openpyxl import load_workbook
+    c, base, _ = agency(make_client)
+    c.put(f"{base}/mail/account", json={"provider": "gmail", "email": "nino@gmail.com", "password": "abcd abcd abcd abcd"})
+    t, b = setup_booking(c, base)
+    url = f"{base}/tours/{t['id']}/participants"
+    for name, room, kind, note in [("Ana Berg", "R10", "TWN", ""), ("Leo Berg", "R10", "TWN", ""),
+                                   ("Mia Holm", "R2", "DBL", "Couple: one big bed"), ("Tom Holm", "R2", "DBL", "Couple: one big bed")]:
+        mk(c, url, {"full_name": name, "room_group": room, "room_type": kind, "room_note": note})
+    assert c.get(url).json()[2]["room_note"] == "Couple: one big bed"
+
+    rows = list(load_workbook(io.BytesIO(c.get(f"{base}/tours/{t['id']}/rooming-list.xlsx").content)).active.iter_rows(min_row=4, values_only=True))
+    assert [(r[1], r[2], r[3], r[4], r[10]) for r in rows] == [
+        ("2", "DBL", "1 double bed", "Mia Holm", "Couple: one big bed"), ("2", "DBL", "1 double bed", "Tom Holm", "Couple: one big bed"),
+        ("10", "TWN", "2 single beds", "Ana Berg", None), ("10", "TWN", "2 single beds", "Leo Berg", None)]
+
+    d = c.post(f"{base}/tours/{t['id']}/bookings/{b['id']}/email-draft", json={"language": "en"}).json()
+    assert d["can_attach_rooming"] is True
+    r = c.post(f"{base}/mail/send", json={"to": [d["to"]], "subject": d["subject"], "body": d["body"],
+                                         "tour_id": t["id"], "booking_id": b["id"], "attach_rooming": True})
+    assert r.status_code == 200, r.text
+    [att] = list(SENT[-1].iter_attachments())
+    assert att.get_filename() == "ZK-1011-rooming-list.xlsx" and len(att.get_content()) > 1000

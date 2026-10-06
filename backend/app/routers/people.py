@@ -207,18 +207,44 @@ def rooming_summary(tour_id: str, ctx: WorkspaceCtx = Depends(office), db: Sessi
     return rooming(_tour(db, ctx, tour_id))
 
 
+# What the hotel reads from the room type: a couple in a DBL gets one big bed, two friends in a TWN two beds.
+BEDS = {"SGL": "1 single bed", "DBL": "1 double bed", "TWN": "2 single beds", "TRP": "3 beds", "QUAD": "4 beds"}
+
+
+def room_order(code: str) -> tuple:
+    """Room codes in a person's order: "R2" before "R10", numbers before words."""
+    m = re.fullmatch(r"\D*(\d+)", code.strip())
+    return (0, int(m.group(1)), code) if m else (1, 0, code.strip().lower())
+
+
+def room_label(code: str) -> str:
+    m = re.fullmatch(r"[A-Za-z]?(\d+)", code.strip())
+    return m.group(1) if m else code.strip()
+
+
 @router.get("/rooming-list.xlsx")
 def rooming_list(tour_id: str, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
     """The list hotels and border posts ask for, grouped by room."""
     t = _tour(db, ctx, tour_id)
+    return Response(rooming_xlsx(t),
+                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    headers={"Content-Disposition": f'attachment; filename="{rooming_filename(t)}"'})
+
+
+def rooming_filename(t: Tour) -> str:
+    return f"{_safe(t.code)}-rooming-list.xlsx"
+
+
+def rooming_xlsx(t: Tour) -> bytes:
+    """The rooming list as an Excel file (downloaded, or attached to the hotel's email)."""
     wb = Workbook()
     ws = wb.active
     ws.title = "Rooming list"
     ws.append([f"{t.code}  ·  {t.client.name if t.client else ''}  ·  "
                f"{t.start_date:%d.%m.%Y} – {t.end_date:%d.%m.%Y}  ·  {len(t.participants)} pax  ·  {rooming(t).text}"])
     ws["A1"].font = Font(bold=True, size=12)
-    header = ["#", "Room", "Room type", "Full name", "Gender", "Date of birth", "Nationality",
-              "Passport", "Passport expiry", "Phone", "Notes"]
+    header = ["#", "Room", "Room type", "Beds", "Full name", "Gender", "Date of birth", "Nationality",
+              "Passport", "Passport expiry", "Room note (for the hotel)", "Phone", "Notes"]
     ws.append([])
     ws.append(header)
     for cell in ws[3]:
@@ -226,22 +252,20 @@ def rooming_list(tour_id: str, ctx: WorkspaceCtx = Depends(office), db: Session 
         cell.fill = PatternFill("solid", fgColor="4F46E5")
         cell.alignment = Alignment(vertical="center")
     # Roommates next to each other; unlabelled people keep list order at the end.
-    people = sorted(t.participants, key=lambda p: (p.room_group.strip() == "", p.room_group.strip().lower(), p.position))
+    people = sorted(t.participants, key=lambda p: (p.room_group.strip() == "", room_order(p.room_group), p.position))
     for i, p in enumerate(people, 1):
-        ws.append([i, p.room_group, p.room_type, p.full_name, p.gender, p.birth_date, p.nationality,
-                   p.passport_number, p.passport_expiry, p.phone, p.notes])
+        ws.append([i, room_label(p.room_group), p.room_type, BEDS.get(p.room_type, ""), p.full_name, p.gender, p.birth_date,
+                   p.nationality, p.passport_number, p.passport_expiry, p.room_note, p.phone, p.notes])
     for row in ws.iter_rows(min_row=4):
-        for c in (row[5], row[8]):
+        for c in (row[6], row[9]):
             c.number_format = "DD.MM.YYYY"
-    for col, width in zip("ABCDEFGHIJK", (5, 10, 10, 30, 8, 14, 16, 16, 16, 18, 30)):
+    for col, width in zip("ABCDEFGHIJKLM", (5, 8, 10, 14, 30, 8, 14, 16, 16, 16, 30, 18, 30)):
         ws.column_dimensions[col].width = width
     ws.freeze_panes = "A4"
     buf = io.BytesIO()
     defuse(wb)
     wb.save(buf)
-    return Response(buf.getvalue(),
-                    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                    headers={"Content-Disposition": f'attachment; filename="{_safe(t.code)}-rooming-list.xlsx"'})
+    return buf.getvalue()
 
 
 def _safe(name: str) -> str:

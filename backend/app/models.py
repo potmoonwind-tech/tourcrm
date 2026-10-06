@@ -423,6 +423,8 @@ class Participant(Base):
     room_type: Mapped[str] = mapped_column(String(10), default="")
     # Free label shared by roommates ("R1", "Wang family"); same label = same room.
     room_group: Mapped[str] = mapped_column(String(40), default="")
+    # For the hotel, the same on everyone in the room ("couple: one big bed", "honeymoon").
+    room_note: Mapped[str] = mapped_column(String(300), default="", server_default="")
     phone: Mapped[str] = mapped_column(String(50), default="")
     notes: Mapped[str] = mapped_column(Text, default="")
     position: Mapped[int] = mapped_column(Integer, default=0)

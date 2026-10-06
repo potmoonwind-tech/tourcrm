@@ -10,6 +10,7 @@ from .. import bookings as bk, mail, ratelimit
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_jobs, require_role
 from ..models import MailAccount, MailLog, MailTemplate, Tour, TourBooking, utcnow
+from .people import rooming_filename, rooming_xlsx
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["mail"])
 office = require_role("staff")
@@ -167,6 +168,7 @@ class DraftOut(BaseModel):
     subject: str
     body: str
     has_account: bool    # your mailbox is connected
+    can_attach_rooming: bool = False   # a hotel, and the tour has its people: the rooming list can go along
 
 
 def _booking(db: Session, ctx: WorkspaceCtx, tour_id: str, booking_id: str) -> tuple[Tour, TourBooking]:
@@ -191,7 +193,8 @@ def email_draft(tour_id: str, booking_id: str, body: DraftIn, ctx: WorkspaceCtx 
                                  agency=ctx.workspace.name, signature=acc.signature if acc else "",
                                  agency_share=ctx.workspace.plate_share or 1)
     return DraftOut(kind=kind, language=lang, to=b.vendor.email or "", subject=mail.fill(tpl.subject, values),
-                    body=mail.fill(tpl.body, values), has_account=acc is not None)
+                    body=mail.fill(tpl.body, values), has_account=acc is not None,
+                    can_attach_rooming=b.vendor.type == "hotel" and bool(t.participants))
 
 
 # --- sending -----------------------------------------------------------------------------------------
@@ -205,6 +208,7 @@ class SendIn(BaseModel):
     booking_id: str | None = None
     kind: str = Field(default="", max_length=30)
     mark_requested: bool = True      # a booking still "to book" becomes "requested"
+    attach_rooming: bool = False     # the tour's rooming list (Excel) goes along
 
 
 class LogOut(BaseModel):
@@ -246,8 +250,12 @@ def send_mail(body: SendIn, ctx: WorkspaceCtx = Depends(office), db: Session = D
     try:
         if password is None:
             raise mail.MailError("Enter your app password again (Settings → Email)")
+        files = []
+        if body.attach_rooming and t is not None and t.participants:
+            files.append((rooming_filename(t), rooming_xlsx(t), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
         mail.send(acc.smtp_host, acc.smtp_port, acc.username, password, sender=acc.email, from_name=acc.from_name,
-                  to=[str(x) for x in body.to], cc=[str(x) for x in body.cc], subject=body.subject, body=body.body)
+                  to=[str(x) for x in body.to], cc=[str(x) for x in body.cc], subject=body.subject, body=body.body,
+                  attachments=files)
     except mail.MailError as e:
         log.error = str(e)[:500]
         db.add(log)

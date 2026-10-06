@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, Dialog, toast } from '../components/overlay'
 import { AlertTriangle, ArrowRightLeft, BedDouble, Copy, Download, MessageCircle, Plus, Smartphone, Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
-import { useSearchParams } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { ImportDialog } from '../components/ImportDialog'
 import { EmptyState, Phone, VendorSelect } from '../components/tour'
 import { awayDuring, awayText } from '../components/GuideInfo'
@@ -10,7 +10,8 @@ import { TeamChanges } from '../components/TeamChanges'
 import { HandOver } from '../components/HandOver'
 import { Tooltip } from '../components/Tooltip'
 import { QuickVendorDialog } from '../components/QuickAdd'
-import { Button, Card, ErrorText, Input, Select } from '../components/ui'
+import { Button, Card, ErrorText, Input, SegmentedControl, Select } from '../components/ui'
+import { RoomsBoard } from '../components/RoomsBoard'
 import {
   api, ROLE_VENDOR_TYPES, ROOM_TYPES, STAFF_ROLES,
   type Participant, type RoomingSummary, type StaffAssignment, type StaffRole, type Tour,
@@ -41,6 +42,9 @@ export function ParticipantsTab({ tour }: { tour: Tour }) {
   const base = wsPath(ws.id, `/tours/${tour.id}`)
   const refresh = useTourRefresh(tour.id)
   const [importing, setImporting] = useState(false)
+  // The people as a list (passports, details) or as rooms (who sleeps with whom); remembered per browser.
+  const [view, setViewState] = useState<'list' | 'rooms'>(() => { try { return localStorage.getItem('peopleView') === 'rooms' ? 'rooms' : 'list' } catch { return 'list' } })
+  const setView = (v: 'list' | 'rooms') => { setViewState(v); try { localStorage.setItem('peopleView', v) } catch { /* private window */ } }
   const people = useQuery({ queryKey: ['participants', ws.id, tour.id], queryFn: () => api<Participant[]>(`${base}/participants`) })
   const rooming = useQuery({ queryKey: ['rooming', ws.id, tour.id], queryFn: () => api<RoomingSummary>(`${base}/rooming`) })
 
@@ -57,6 +61,8 @@ export function ParticipantsTab({ tour }: { tour: Tour }) {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
+        {list.length > 0 && <SegmentedControl label={t('participants')} value={view} onChange={setView}
+          options={[['list', t('peopleList')], ['rooms', t('peopleRooms')]]} />}
         <Button variant="secondary" onClick={() => setImporting(true)}><Upload size={16} />{t('importList')}</Button>
         {list.length > 0 && (
           <>
@@ -93,7 +99,11 @@ export function ParticipantsTab({ tour }: { tour: Tour }) {
         </Card>
       )}
 
-      {people.isSuccess && list.length === 0 ? (
+      {view === 'rooms' && list.length > 0 && (
+        <p className="text-sm text-slate-600">{t('roomsSendHint')}{' '}
+          <Link to="?tab=bookings" className="font-medium text-brand-700 hover:underline">{t('roomsSendLink')}</Link></p>
+      )}
+      {view === 'rooms' && list.length > 0 ? <RoomsBoard people={list} base={base} onChange={refresh} /> : people.isSuccess && list.length === 0 ? (
         <EmptyState title={t('noParticipants')} hint={t('noParticipantsHint')} action={<AddParticipant tourId={tour.id} />} />
       ) : (
         <Card>

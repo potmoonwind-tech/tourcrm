@@ -91,8 +91,9 @@ def check_login(host: str, port: int, username: str, password: str) -> None:
 
 
 def send(host: str, port: int, username: str, password: str, *, sender: str, from_name: str,
-         to: list[str], cc: list[str], subject: str, body: str) -> str:
-    """Send one plain-text email; returns its Message-ID."""
+         to: list[str], cc: list[str], subject: str, body: str,
+         attachments: list[tuple[str, bytes, str]] | None = None) -> str:
+    """Send one plain-text email (with files: name, content, mime type); returns its Message-ID."""
     msg = EmailMessage()
     msg["From"] = formataddr((from_name, sender)) if from_name else sender
     msg["To"] = ", ".join(to)
@@ -102,6 +103,9 @@ def send(host: str, port: int, username: str, password: str, *, sender: str, fro
     msg["Subject"] = subject
     msg["Message-ID"] = make_msgid(domain=sender.split("@")[-1])
     msg.set_content(body)
+    for name, data, mime in attachments or []:
+        main, _, sub = mime.partition("/")
+        msg.add_attachment(data, maintype=main, subtype=sub, filename=name)
     s = _connect(host, port, username, password)
     try:
         s.send_message(msg)

@@ -648,6 +648,7 @@ class ParticipantUpdate(BaseModel):
     passport_expiry: date | None = None
     room_type: RoomType | None = None
     room_group: str | None = Field(default=None, max_length=40)
+    room_note: str | None = Field(default=None, max_length=300)
     phone: str | None = Field(default=None, max_length=50)
     notes: str | None = Field(default=None, max_length=2000)
 
@@ -666,6 +667,7 @@ class ParticipantOut(_Out):
     passport_expiry: date | None
     room_type: RoomType
     room_group: str
+    room_note: str = ""
     phone: str
     notes: str
 
