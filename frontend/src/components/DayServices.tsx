@@ -125,11 +125,15 @@ export function DayServices({ value, onChange, disabled, onAddNew }: {
           {onAddNew && <option value="__new__">{t('addNewOption')}</option>}
         </select>
       ) : (
-        <button type="button" onClick={() => (all.length ? setAdding(true) : onAddNew?.())} disabled={!all.length && !onAddNew}
-          title={all.length ? undefined : t('noServicesYet')}
-          className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:text-slate-400">
-          <Plus size={14} />{t('placeAdd')}
-        </button>
+        <span className="flex flex-wrap items-center gap-x-2">
+          <button type="button" onClick={() => (all.length ? setAdding(true) : onAddNew?.())} disabled={!all.length && !onAddNew}
+            title={all.length ? undefined : t('noServicesYet')}
+            className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:text-slate-400">
+            <Plus size={14} />{t('placeAdd')}
+          </button>
+          {/* Empty: say what goes here and where it counts. */}
+          {places.length === 0 && <span className="text-xs text-slate-500">{t('servicesEmptyHint')}</span>}
+        </span>
       ))}
     </div>
   )

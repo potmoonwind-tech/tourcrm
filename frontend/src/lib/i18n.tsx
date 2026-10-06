@@ -408,7 +408,7 @@ const en = {
   recalcTimesBusy: 'Asking the map…',
   recalcTimesDone: 'Times recalculated: check them, then Save',
   recalcTimesSame: 'All times were already up to date',
-  placeAdd: 'Place',
+  placeAdd: 'Add',
   placePick: 'Pick a place…',
   placeRemove: 'Remove the place from this day',
   placeRemoveOf: 'Remove {name} from this day',
@@ -2275,7 +2275,7 @@ const en = {
   daysShort: 'days',
   nameFromRoute: 'Empty = the route’s name',
   fromRouteHelp: 'Hotels, meals, day services and the route’s guides come from the route, priced from the catalog for this date (the route’s next departure) and every group size.',
-  dayServices: 'Services',
+  dayServices: 'Tickets & activities',
   serviceRemoved: 'Removed service',
   pickService: 'Pick a service…',
   noServicesYet: 'Add services to suppliers first (Price catalog)',
@@ -2702,6 +2702,7 @@ const en = {
   sentGuardCopy: "Make a copy",
   sentGuardChange: "Change this one",
   autosaveHeld: "Not saved yet",
+  servicesEmptyHint: "Museums, tastings, classes - their price goes into the tour's costs",
 }
 
 type Dict = typeof en
@@ -3110,7 +3111,7 @@ const ka: Dict = {
   recalcTimesBusy: 'რუკას ვეკითხები…',
   recalcTimesDone: 'დროები გადაითვალა: შეამოწმეთ და შეინახეთ',
   recalcTimesSame: 'ყველა დრო უკვე განახლებული იყო',
-  placeAdd: 'ადგილი',
+  placeAdd: 'დამატება',
   placePick: 'აირჩიეთ ადგილი…',
   placeRemove: 'ადგილის ამოღება ამ დღიდან',
   placeRemoveOf: '{name} ამ დღიდან ამოღება',
@@ -4978,7 +4979,7 @@ const ka: Dict = {
   daysShort: 'დღე',
   nameFromRoute: 'ცარიელი = მარშრუტის სახელი',
   fromRouteHelp: 'სასტუმროები, კვება, დღის სერვისები და მარშრუტის გიდები მარშრუტიდან მოდის, კატალოგის ფასებით ამ თარიღისთვის (მარშრუტის შემდეგი გასვლა) და ყველა ჯგუფის ზომისთვის.',
-  dayServices: 'სერვისები',
+  dayServices: 'ბილეთები და აქტივობები',
   serviceRemoved: 'წაშლილი სერვისი',
   pickService: 'აირჩიეთ სერვისი…',
   noServicesYet: 'ჯერ მომწოდებლებს დაუმატეთ სერვისები (ფასების კატალოგი)',
@@ -5400,6 +5401,7 @@ const ka: Dict = {
   sentGuardCopy: "ასლის შექმნა",
   sentGuardChange: "ამის შეცვლა",
   autosaveHeld: "ჯერ არ შენახულა",
+  servicesEmptyHint: "მუზეუმები, დეგუსტაციები, მასტერკლასები - მათი ფასი ტურის ხარჯებში ითვლება",
 }
 
 export type Lang = 'en' | 'ka'
