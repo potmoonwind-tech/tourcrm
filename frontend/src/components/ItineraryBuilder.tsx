@@ -621,12 +621,12 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   )
 }
 
-const SLOT_TONE: Partial<Record<Slot, { line: string; icon: string }>> = {
-  hotel: { line: 'border-t-sky-500', icon: 'text-sky-600' },
-  breakfast: { line: 'border-t-emerald-500', icon: 'text-emerald-600' },
-  lunch: { line: 'border-t-emerald-500', icon: 'text-emerald-600' },
-  dinner: { line: 'border-t-emerald-500', icon: 'text-emerald-600' },
-  extras: { line: 'border-t-pink-400', icon: 'text-pink-600' },
+const SLOT_TONE: Partial<Record<Slot, { fill: string; icon: string }>> = {
+  hotel: { fill: 'bg-sky-50/70', icon: 'text-sky-600' },
+  breakfast: { fill: 'bg-emerald-50/60', icon: 'text-emerald-600' },
+  lunch: { fill: 'bg-emerald-50/60', icon: 'text-emerald-600' },
+  dinner: { fill: 'bg-emerald-50/60', icon: 'text-emerald-600' },
+  extras: { fill: 'bg-pink-50/50', icon: 'text-pink-600' },
 }
 
 function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, children, footer, aside }: {
@@ -637,12 +637,12 @@ function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, childr
   const active = dragging ?? picked
   const ok = active ? accepts(slot, active) : false
   // The kind of box at a glance, in the calculation's colours: hotel blue, meals green, activities pink -
-  // a thin line on top and the icon, so warnings still stand out.
+  // a very light tint and the icon (the fields inside stay white), so warnings still stand out.
   const tone = SLOT_TONE[slot]
   return (
     <div ref={setNodeRef} onClick={() => picked && ok && onTap(picked)}
       className={cn('rounded-lg border p-2 transition-colors', wide && 'col-span-full',
-        active && ok ? 'border-dashed border-brand-400 bg-brand-50/60' : cn('border-slate-200 border-t-[3px]', tone?.line),
+        active && ok ? 'border-dashed border-brand-400 bg-brand-50/60' : cn('border-slate-200', tone?.fill),
         isOver && ok && 'border-solid border-brand-600 bg-brand-100', picked && ok && 'cursor-copy')}>
       <div className="mb-1 flex items-center gap-1.5 text-xs font-medium text-slate-600"><span className={tone?.icon}>{icon}</span>{label}{aside && <span className="ml-auto">{aside}</span>}</div>
       {children}
