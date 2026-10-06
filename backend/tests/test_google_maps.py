@@ -103,3 +103,23 @@ def test_the_browser_learns_which_map_to_draw(make_client, monkeypatch):
     monkeypatch.setattr(settings, "google_maps_key", "server")
     monkeypatch.setattr(settings, "google_maps_browser_key", "browser")
     assert c.get("/api/config").json() == {"maps": "google", "maps_key": "browser"}
+
+
+def test_a_town_is_the_same_in_any_alphabet():
+    k = geo.town_key
+    assert k("თბილისი") == k("Tbilisi") == k("Тбилиси") == k(" tbilisi, Georgia")
+    assert k("სიღნაღი") == k("Sighnaghi") and k("ბათუმი") == k("Batumi") and k("ქუთაისი") == k("Kutaisi")
+    assert k("ყაზბეგი") == k("Kazbegi") == k("Qazbegi") and k("მცხეთა") == k("Mtskheta")
+    assert k("Tbilisi") != k("Batumi")
+
+
+def test_google_answers_in_the_agencys_language(google, make_client):
+    from .test_tours import agency
+    c, base, _ = agency(make_client)
+    c.patch(base, json={"language": "ka"})
+    c.get(f"{base}/places?q=Greenwood&session=s2")
+    body = next(x for x in google if x[1] == geo.GOOGLE_AUTOCOMPLETE)[2]
+    assert body["languageCode"] == "ka"
+    c.get(f"{base}/places/details?id=ChIJgreenwood&session=s2")
+    params = next(x for x in google if x[1].startswith("https://places.googleapis.com/v1/places/"))[2]
+    assert params["languageCode"] == "ka"

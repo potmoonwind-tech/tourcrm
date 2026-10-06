@@ -17,7 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .. import bookings, finance
+from .. import bookings, finance, geo
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
 from ..models import FieldExpense, Incident, Invoice, Service, StaffAssignment, Tour, TourDay, Vendor
@@ -220,7 +220,8 @@ def tour_alerts(db: Session, ctx: WorkspaceCtx, tours: list[Tour]) -> list[Alert
                 if gaps:
                     add("plan_incomplete", "warning", "itinerary", what=",".join(gaps), days=days_to_start)
             for d in t.days:
-                if d.hotel and d.hotel.city and d.city and d.hotel.city.strip().lower() != d.city.strip().lower():
+                # The same town in another alphabet ("Tbilisi" / "თბილისი") is the same town.
+                if d.hotel and d.hotel.city and d.city and geo.town_key(d.hotel.city) != geo.town_key(d.city):
                     add("hotel_city", "warning", "itinerary", d.day_number, hotel=d.hotel.name, city=d.city, hotel_city=d.hotel.city)
                 removed = [x for x in d.extras or [] if x["service_id"] not in known]
                 if removed:

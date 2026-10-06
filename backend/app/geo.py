@@ -17,6 +17,7 @@ picked place's details). Google's terms allow keeping coordinates and routes for
 nothing older is used: it is asked again (a pinned place by its Google place id).
 """
 import math
+import re
 import threading
 import time
 import unicodedata
@@ -416,14 +417,35 @@ _suggest_cache: dict[tuple[str, str], list[dict]] = {}
 SUGGEST_CACHE_MAX = 3000
 
 
-def suggest(q: str, countries: list[str] | None = None, timeout: float = 4.0, session: str | None = None) -> list[dict]:
+# Georgian (Mkhedruli) and Russian letters in Latin, the way the towns are spelled in English
+# (Georgia's national romanisation): თბილისი → tbilisi, სიღნაღი → sighnaghi.
+_LATIN = str.maketrans({
+    "ა": "a", "ბ": "b", "გ": "g", "დ": "d", "ე": "e", "ვ": "v", "ზ": "z", "თ": "t", "ი": "i", "კ": "k", "ლ": "l",
+    "მ": "m", "ნ": "n", "ო": "o", "პ": "p", "ჟ": "zh", "რ": "r", "ს": "s", "ტ": "t", "უ": "u", "ფ": "p", "ქ": "k",
+    "ღ": "gh", "ყ": "q", "შ": "sh", "ჩ": "ch", "ც": "ts", "ძ": "dz", "წ": "ts", "ჭ": "ch", "ხ": "kh", "ჯ": "j", "ჰ": "h",
+    "а": "a", "б": "b", "в": "v", "г": "g", "д": "d", "е": "e", "ё": "e", "ж": "zh", "з": "z", "и": "i", "й": "y",
+    "к": "k", "л": "l", "м": "m", "н": "n", "о": "o", "п": "p", "р": "r", "с": "s", "т": "t", "у": "u", "ф": "f",
+    "х": "kh", "ц": "ts", "ч": "ch", "ш": "sh", "щ": "sh", "ъ": "", "ы": "y", "ь": "", "э": "e", "ю": "yu", "я": "ya",
+})
+
+
+def town_key(name: str) -> str:
+    """One spelling for a town in any alphabet, to tell whether two names are the same town:
+    "Tbilisi", "თბილისი" and "Тбилиси" are one; "Qazbegi" and "Kazbegi" too."""
+    s = name.split(",")[0].strip().lower().translate(_LATIN)
+    s = re.sub(r"[^a-z0-9]", "", s)
+    return s.replace("q", "k").replace("'", "")
+
+
+def suggest(q: str, countries: list[str] | None = None, timeout: float = 4.0, session: str | None = None,
+            lang: str = "en") -> list[dict]:
     """Real places whose name starts like `q`, in the agency's countries: [{name, detail, kind, lat, lon}].
     From Google the places come without lat/lon but with a place_id: the picked one is looked up then
     (place_details), which is how Google prices it (typing is free when it ends in a pick)."""
     q = " ".join(q.split())[:80]
     cc = sorted(countries or [])
     if google():
-        return _google_suggest(q, cc, timeout, session)
+        return _google_suggest(q, cc, timeout, session, lang)
     ck = (q.casefold(), ",".join(cc))
     if ck in _suggest_cache:
         return _suggest_cache[ck]
@@ -468,8 +490,9 @@ def suggest(q: str, countries: list[str] | None = None, timeout: float = 4.0, se
     return out
 
 
-def _google_suggest(q: str, cc: list[str], timeout: float, session: str | None) -> list[dict]:
-    body = {"input": q, "languageCode": "en", **({"includedRegionCodes": cc[:15]} if cc else {}),
+def _google_suggest(q: str, cc: list[str], timeout: float, session: str | None, lang: str = "en") -> list[dict]:
+    # Names in the agency's language (Settings → Language): "თბილისი" for a Georgian agency.
+    body = {"input": q, "languageCode": lang or "en", **({"includedRegionCodes": cc[:15]} if cc else {}),
             **({"sessionToken": session} if session else {})}
     try:
         with httpx.Client(timeout=timeout) as client:
@@ -494,14 +517,14 @@ def _google_suggest(q: str, cc: list[str], timeout: float, session: str | None) 
     return out
 
 
-def place_details(place_id: str, session: str | None = None, timeout: float = 6.0) -> dict | None:
+def place_details(place_id: str, session: str | None = None, timeout: float = 6.0, lang: str = "en") -> dict | None:
     """A picked Google place: where it is, its street and town (Place Details, basic fields only)."""
     if not google():
         return None
     try:
         with httpx.Client(timeout=timeout) as client:
             data = _google_get(client, GOOGLE_PLACE.format(id=place_id),
-                               {"languageCode": "en", **({"sessionToken": session} if session else {})},
+                               {"languageCode": lang or "en", **({"sessionToken": session} if session else {})},
                                {"X-Goog-Api-Key": settings.google_maps_key,
                                 "X-Goog-FieldMask": "location,formattedAddress,addressComponents,types"})
     except (httpx.HTTPError, ValueError):

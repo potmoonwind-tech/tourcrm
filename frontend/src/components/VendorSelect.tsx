@@ -3,7 +3,7 @@ import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type Keyb
 import { createPortal } from 'react-dom'
 import type { Vendor, VendorType } from '../lib/api'
 import { useI18n } from '../lib/i18n'
-import { cn } from '../lib/utils'
+import { cn, townKey } from '../lib/utils'
 
 /**
  * Pick a supplier by typing: the day's own towns first, then the rest A–Z; restaurants and hotels told
@@ -28,7 +28,7 @@ export function VendorSelect({ vendors, types, value, onChange, className, disab
   const id = useId()
   const current = vendors.find((v) => v.id === value)
 
-  const key = (c: string) => c.trim().toLowerCase()
+  const key = (c: string) => townKey(c)   // one town in any alphabet (Tbilisi = თბილისი)
   const first = [...new Set((cities ?? []).map(key).filter(Boolean))]
   const firstKey = first.join('|')
   // Groups: the day's towns first (in the day's order), then the others A–Z, no town last. In a group,
