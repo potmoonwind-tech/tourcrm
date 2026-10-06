@@ -348,9 +348,10 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
     onSuccess: (t2) => { onSaved(t2); setDraft(null); setBack(undefined); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
   })
   return (
-    <div className="space-y-3">
+    <div className={cn('space-y-3', dirty && 'pb-20')}>
       {dirty && (
-        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm shadow-md">
+        // Floating at the bottom of the screen: it never stacks with the sticky bars at the top.
+        <div role="status" className="fixed inset-x-0 bottom-4 z-40 mx-auto flex w-[min(42rem,calc(100%-2rem))] flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm shadow-lg">
           <span className="min-w-0 flex-1 font-medium text-brand-900">{t('unsavedItinerary')}</span>
           <Button size="sm" variant="secondary" onClick={() => { setDraft(null); setBack(undefined) }}>{t('discard')}</Button>
           <Button size="sm" disabled={save.isPending} onClick={() => save.mutate()}>{t('saveChanges')}</Button>
@@ -364,7 +365,7 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
         </p>
       )}
       <ItineraryBuilder days={days} dates={tour.days.map((d) => d.date)} fixedLength disabled={!canEdit}
-        stickTop={dirty ? 'top-16' : 'top-0'}
+        stickTop="top-10"
         alerts={dirty ? [] : alerts.data ?? []} onChange={setDraft}
         busReturn={busReturn} onBusReturn={(b) => setBack(b)} />
       {canEdit && !tour.closed_at && (

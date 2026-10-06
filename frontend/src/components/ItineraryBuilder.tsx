@@ -65,7 +65,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   fixedLength?: boolean       // a tour: days come from its dates (reorder only)
   disabled?: boolean
   alerts?: TourAlert[]        // shown on their day
-  stickTop?: 'top-0' | 'top-16'   // below another sticky bar
+  stickTop?: 'top-0' | 'top-10'   // below another sticky bar (a tour's tabs)
 }) {
   const { t } = useI18n()
   const ws = useWorkspace()!
@@ -164,7 +164,9 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               <button type="button" className={cn('rounded p-1 hover:bg-brand-100', picked.kind !== 'service' && 'ml-auto')} onClick={() => setPicked(null)} aria-label={t('done')} title={t('done')}><X size={14} /></button>
             </p>
           )}
-          <div className={cn('sticky z-10 -mx-1 space-y-2 bg-white/95 px-1 pb-2 backdrop-blur', stickTop)}>
+          {/* Only the day chips stay on screen while scrolling (and only where the screen is tall enough);
+              the view switch and the km summary scroll away, so short screens keep room for the days. */}
+          <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView}
                 options={[['overview', t('viewOverview')], ['days', t('viewDays')]]} />
@@ -175,9 +177,13 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
                 </Button>
               )}
             </div>
-            {view === 'days' && <DayStrip days={days} dates={dates} />}
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} />
           </div>
+          {view === 'days' && (
+            <div className={cn('z-10 -mx-1 bg-white/95 px-1 py-1 backdrop-blur [@media(min-height:700px)]:sticky', stickTop)}>
+              <DayStrip days={days} dates={dates} />
+            </div>
+          )}
           {view === 'overview' && (
             <Overview days={days} dates={dates} vendors={vs} menus={services.data ?? []} disabled={disabled} alerts={alerts}
               onSet={set} onSetMany={(patches) => onChange(days.map((d, j) => (patches[j] ? { ...d, ...patches[j] } : d)))} onOpen={openDay}
@@ -385,7 +391,7 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose }: {
     ? vendors.filter((v) => v.is_active && v.type === 'hotel' && serving.has(v.id) && match(v.name, v.city)).map((vendor) => ({ kind: 'vendor', vendor }))
     : []
   return (
-    <aside className="rounded-xl border border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:max-h-[calc(100vh-11rem)] lg:flex-col lg:self-start">
+    <aside className="rounded-xl border border-slate-200 bg-white lg:sticky lg:top-12 lg:flex lg:max-h-[calc(100vh-11rem)] lg:flex-col lg:self-start">
       <div className="space-y-2 border-b border-slate-200 p-3">
         <div className="flex items-center justify-between gap-2">
           <p className="text-sm font-semibold">{t('builderPalette')}</p>
