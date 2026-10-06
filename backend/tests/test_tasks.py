@@ -114,3 +114,62 @@ def test_own_task_types(make_client):
     # Removing a type leaves its tasks without one.
     c.put(f"{base}/tasks/types", json=types[:1])
     assert next(i for i in nino.get(f"{base}/tasks").json() if i["task_id"] == x["task_id"])["type_id"] is None
+
+
+def test_board_moves_do_the_work_and_tasks_are_passed_with_a_note(make_client):
+    c, base, ws = agency(make_client)
+    t, hotel, resto, guide = setup_tour(c, base, start=iso(5))
+    nino = make_client()
+    signup(nino, "nino@a.com")
+    invite_and_join(c, ws, nino, "nino@a.com", "staff")
+    giorgi = make_client()
+    signup(giorgi, "giorgi@a.com")
+    invite_and_join(c, ws, giorgi, "giorgi@a.com", "staff")
+    members = {m["email"]: m["user_id"] for m in c.get(f"{base}/members").json()}
+    c.patch(base, json={"task_owners": {"hotel": members["nino@a.com"]}})
+    all_ = lambda: c.get(f"{base}/tasks", params={"who": "all"}).json()
+    hotel_task = next(x for x in all_() if x["kind"] == "book" and x["title"] == "Hotel")
+    key, bid = hotel_task["key"], hotel_task["booking_id"]
+    assert hotel_task["stage"] == "todo"
+
+    # In progress: only the board remembers; the booking is untouched.
+    assert nino.post(f"{base}/tasks/move", json={"key": key, "stage": "doing"}).status_code == 204
+    assert next(x for x in all_() if x["key"] == key)["stage"] == "doing"
+    # Waiting = asked the supplier: the booking is requested (a "chase" task now).
+    nino.post(f"{base}/tasks/move", json={"key": key, "stage": "waiting"})
+    x = next(x for x in all_() if x["key"] == key)
+    assert x["kind"] == "chase" and x["stage"] == "waiting"
+    booking = next(b for b in c.get(f"{base}/tours/{t['id']}/bookings").json()["bookings"] if b["id"] == bid)
+    assert booking["status"] == "requested"
+
+    # Nino passes it to Giorgi with a note; Giorgi sees who and why.
+    assert nino.post(f"{base}/tasks/pass", json={"key": key, "assignee_id": members["giorgi@a.com"],
+                                                 "note": "Asked them - please chase tomorrow"}).status_code == 204
+    g = next(x for x in giorgi.get(f"{base}/tasks").json() if x["key"] == key)
+    assert g["assignee_id"] == members["giorgi@a.com"] and g["passed_note"] == "Asked them - please chase tomorrow" and g["passed_by"]
+    # Nino can't hand on Giorgi's task any more (it isn't hers); a manager can.
+    assert nino.post(f"{base}/tasks/pass", json={"key": key, "assignee_id": members["nino@a.com"]}).status_code == 403
+
+    # Done = confirmed: the task is gone, the booking is confirmed.
+    giorgi.post(f"{base}/tasks/move", json={"key": key, "stage": "done"})
+    assert not any(x["key"] == key for x in all_())
+    booking = next(b for b in c.get(f"{base}/tours/{t['id']}/bookings").json()["bookings"] if b["id"] == bid)
+    assert booking["status"] == "confirmed"
+    hist = c.get(f"{base}/tasks/history", params={"key": key}).json()
+    assert [h["kind"] for h in hist] == ["moved", "moved", "passed", "done"]
+    assert hist[2]["note"] == "Asked them - please chase tomorrow" and hist[2]["to"]
+
+    # Own tasks: stages, done, and history from the start.
+    own = c.post(f"{base}/tasks", json={"title": "Send invoice", "assignee_id": members["nino@a.com"]}).json()
+    okey = own["key"]
+    nino.post(f"{base}/tasks/move", json={"key": okey, "stage": "waiting"})
+    assert next(x for x in nino.get(f"{base}/tasks").json() if x["key"] == okey)["stage"] == "waiting"
+    nino.post(f"{base}/tasks/move", json={"key": okey, "stage": "done"})
+    assert not any(x["key"] == okey for x in nino.get(f"{base}/tasks").json())
+    assert [h["kind"] for h in c.get(f"{base}/tasks/history", params={"key": okey}).json()] == ["created", "moved", "done"]
+
+    # A payment is done only by recording it.
+    c.post(f"{base}/tours/{t['id']}/costs/generate")
+    pay = next(x for x in c.get(f"{base}/tasks").json() if x["kind"] == "pay")
+    assert c.post(f"{base}/tasks/move", json={"key": pay["key"], "stage": "done"}).status_code == 422
+    assert c.post(f"{base}/tasks/move", json={"key": pay["key"], "stage": "doing"}).status_code == 204

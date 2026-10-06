@@ -3,7 +3,7 @@ from datetime import date, datetime, timezone
 
 from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import JSON, Date, DateTime, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import JSON, Date, DateTime, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .db import Base
@@ -901,6 +901,35 @@ class TaskAssignment(Base):
     key: Mapped[str] = mapped_column(String(160))
     assignee_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TaskStage(Base):
+    """Where a task is on the board when that isn't worked out from the work itself: "in progress", or
+    "waiting" for an own task or a payment. Keyed like TaskAssignment ("task:<id>", "booking:<id>"…)."""
+    __tablename__ = "task_stages"
+    __table_args__ = (UniqueConstraint("workspace_id", "key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    key: Mapped[str] = mapped_column(String(160))
+    stage: Mapped[str] = mapped_column(String(10))          # doing | waiting
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class TaskEvent(Base):
+    """A task's history: created, passed to someone (with a note), moved, done, reopened."""
+    __tablename__ = "task_events"
+    __table_args__ = (Index("ix_task_events_key", "workspace_id", "key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"))
+    key: Mapped[str] = mapped_column(String(160))
+    kind: Mapped[str] = mapped_column(String(12))            # created | passed | moved | done | reopened
+    by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    to_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    stage: Mapped[str | None] = mapped_column(String(10), nullable=True)
+    note: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
 class GeoPlace(Base):

@@ -539,5 +539,9 @@ export interface TaskItem {
   type_id?: string | null
   count?: number | null      // a series task: how many departures it covers
   vendor_id?: string | null
+  stage: TaskStage           // on the board: to do, in progress, waiting, done
+  passed_by?: string | null  // who handed it over, and their note
+  passed_note?: string
 }
+export type TaskStage = 'todo' | 'doing' | 'waiting' | 'done'
 export interface TaskSummary { mine: number; late: number; nobody: number }

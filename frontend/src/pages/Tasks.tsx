@@ -17,6 +17,13 @@ import { useI18n, type TKey } from '../lib/i18n'
 import { useMe, useWorkspace } from '../lib/session'
 import { cn, money } from '../lib/utils'
 import { PageHeader } from './Dashboard'
+import { TaskBoard, TaskPanel } from './TaskBoard'
+import { SegmentedControl } from '../components/ui'
+
+const VIEW_KEY = 'tasksView'
+const readView = (): { view: 'list' | 'board'; by: 'stage' | 'person' } => {
+  try { return { view: 'list', by: 'stage', ...JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') } } catch { return { view: 'list', by: 'stage' } }
+}
 
 const KIND_TONE: Record<TaskKind, Tone> = {
   book: 'grey', chase: 'blue', reconfirm: 'orange', cancel: 'red', problem: 'red', pay: 'purple', own: 'light',
@@ -47,7 +54,17 @@ export function TasksPage() {
   const { t } = useI18n()
   const manager = can(ws, 'operations', 'finance')   // sees and gives everyone's tasks
   const [who, setWho] = useState('me')
-  const tasks = useTasks(who)
+  // List or board (by stage, or by person for managers); remembered on this device.
+  const [look, setLook] = useState(readView)
+  const setView = (patch: Partial<typeof look>) => {
+    const next = { ...look, ...patch }
+    setLook(next)
+    try { localStorage.setItem(VIEW_KEY, JSON.stringify(next)) } catch { /* private mode */ }
+  }
+  const byPerson = look.view === 'board' && look.by === 'person' && manager
+  const listWho = byPerson ? 'all' : who
+  const tasks = useTasks(listWho)
+  const [open, setOpen] = useState<string | null>(null)
   const members = useMembers()
   const [adding, setAdding] = useState(false)
   const [editTypes, setEditTypes] = useState(false)
@@ -69,13 +86,20 @@ export function TasksPage() {
         action={<Button onClick={() => setAdding(true)}><Plus size={16} />{t('newTask')}</Button>} />
       <div className="space-y-4 p-4 md:p-8">
         <div className="flex flex-wrap items-center gap-2">
-          {[['me', t('tasksMine')], ...(manager ? [['all', t('tasksEveryone')], ['nobody', t('tasksNobody')]] : [])].map(([k, label]) => (
+          <SegmentedControl size="sm" label={t('tasksView')} value={look.view} onChange={(v) => setView({ view: v })}
+            options={[['list', t('tasksList')], ['board', t('tasksBoard')]]} />
+          {look.view === 'board' && manager && (
+            <SegmentedControl size="sm" label={t('tasksBoardBy')} value={look.by} onChange={(v) => setView({ by: v })}
+              options={[['stage', t('boardByStage')], ['person', t('boardByPerson')]]} />
+          )}
+          <span className="mx-1 hidden h-6 w-px bg-slate-200 sm:block" aria-hidden />
+          {!byPerson && [['me', t('tasksMine')], ...(manager ? [['all', t('tasksEveryone')], ['nobody', t('tasksNobody')]] : [])].map(([k, label]) => (
             <button key={k} type="button" onClick={() => setWho(k)}
               className={cn('rounded-full border px-3 py-1 text-sm font-medium', who === k ? 'border-brand-600 bg-brand-600 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50')}>
               {label}
             </button>
           ))}
-          {manager && (
+          {manager && !byPerson && (
             <Select value={members.data?.some((m) => m.user_id === who) ? who : ''} onChange={(e) => e.target.value && setWho(e.target.value)} className="h-8 w-48 text-sm">
               <option value="">{t('tasksOfPerson')}</option>
               {members.data?.map((m) => <option key={m.user_id} value={m.user_id}>{m.full_name || m.email}</option>)}
@@ -98,6 +122,7 @@ export function TasksPage() {
           </div>
         )}
         {tasks.isLoading ? <div className="flex justify-center py-10"><Spinner /></div>
+          : look.view === 'board' ? <TaskBoard tasks={rows} by={byPerson ? 'person' : 'stage'} queryKey={['tasks', ws.id, listWho]} onOpen={(x) => setOpen(x.key)} />
           : rows.length === 0 ? <EmptyState title={t('noTasks')} hint={t('noTasksHint')} /> : (
             BUCKETS.map((bk) => {
               const list = rows.filter((x) => bucket(x.due_date) === bk)
@@ -106,7 +131,7 @@ export function TasksPage() {
                 <section key={bk}>
                   <h2 className={cn('mb-2 text-sm font-semibold', bk === 'late' ? 'text-red-700' : 'text-slate-600')}>{t(`due_${bk}` as TKey)} · {list.length}</h2>
                   <Card className="divide-y divide-slate-100">
-                    {list.map((x) => <TaskRow key={x.key} x={x} showWho={who !== 'me'} />)}
+                    {list.map((x) => <TaskRow key={x.key} x={x} showWho={who !== 'me'} onOpen={() => setOpen(x.key)} />)}
                   </Card>
                 </section>
               )
@@ -114,12 +139,15 @@ export function TasksPage() {
           )}
       </div>
       {adding && <NewTaskDialog onClose={() => setAdding(false)} />}
+      {open && all.find((x) => x.key === open) && (
+        <TaskPanel x={all.find((x) => x.key === open)!} queryKey={['tasks', ws.id, listWho]} onClose={() => setOpen(null)} />
+      )}
       {editTypes && <TaskTypesDialog onClose={() => setEditTypes(false)} />}
     </>
   )
 }
 
-export function TaskRow({ x, showWho, compact }: { x: TaskItem; showWho?: boolean; compact?: boolean }) {
+export function TaskRow({ x, showWho, compact, onOpen }: { x: TaskItem; showWho?: boolean; compact?: boolean; onOpen?: () => void }) {
   const ws = useWorkspace()!
   const { t, lang } = useI18n()
   const qc = useQueryClient()
@@ -153,11 +181,13 @@ export function TaskRow({ x, showWho, compact }: { x: TaskItem; showWho?: boolea
           {showWho && <span> · {x.assignee_name ?? t('nobodyYet')}</span>}
           {x.note && <span> · {x.note}</span>}
         </span>
+        {x.passed_note && <span className="mt-0.5 block truncate text-xs text-amber-800">↪ {x.passed_by}: {x.passed_note}</span>}
       </Link>
       {!compact && x.kind !== 'own' && <Label tone={KIND_TONE[x.kind]} wide={false}>{t(`taskKind_${x.kind}` as TKey)}</Label>}
       {x.kind === 'own' && ownType && <Label tone={ownType.color} wide={false}>{ownType.name}</Label>}
       {x.due_date && <span className={cn('shrink-0 text-xs tabular-nums', late ? 'font-semibold text-red-600' : 'text-slate-500')}>{fmt(x.due_date, lang)}</span>}
       {!compact && !x.done && <AssignPick x={x} />}
+      {onOpen && <Button size="sm" variant="tertiary" onClick={onOpen}>{t('openTask')}</Button>}
     </div>
   )
 }

@@ -7,7 +7,13 @@
   payments person (managers only — it's money). Done = the payment is recorded. A booking paid
   by the guide in cash is the guide's, not the office's.
 - Own tasks are written by anyone and ticked off.
+
+On the board every task has a stage - to do, in progress, waiting, done. Moving a booking task does the
+booking's work (waiting = asked the supplier, done = confirmed / cancelled), as the Bookings tab does.
+A task can be passed to someone with a note ("booked - please send the invoice"); its history keeps
+who created, passed, moved and finished it.
 """
+from datetime import datetime
 from collections import defaultdict
 from datetime import date, timedelta
 from typing import Literal
@@ -20,12 +26,16 @@ from sqlalchemy.orm import Session, selectinload
 from .. import bookings as bk, finance
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_jobs, require_role
-from ..models import Membership, StaffAssignment, Task, TaskAssignment, Tour, TourBooking, TourDay, User, Vendor, utcnow
+from ..models import (Membership, StaffAssignment, Task, TaskAssignment, TaskEvent, TaskStage, Tour, TourBooking, TourDay, User,
+                      Vendor, utcnow)
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["tasks"])
 office = require_role("staff")
 can_ope_fin = require_jobs('operations', 'finance')
 PAY_AHEAD = 14
+
+
+Stage = Literal["todo", "doing", "waiting", "done"]
 
 
 class TaskItem(BaseModel):
@@ -49,6 +59,9 @@ class TaskItem(BaseModel):
     vendor_id: str | None = None
     done: bool = False
     link: str = ""
+    stage: Stage = "todo"
+    passed_by: str | None = None        # who handed it to its person, and what they wrote
+    passed_note: str = ""
 
 
 class TaskIn(BaseModel):
@@ -173,6 +186,17 @@ def all_tasks(db: Session, ctx: WorkspaceCtx, include_done: bool = False) -> lis
             tour_code=x.tour.code if x.tour else None, tour_start=x.tour.start_date if x.tour else None,
             due_date=x.due_date, assignee_id=x.assignee_id, assignee_name=names.get(x.assignee_id),
             type_id=x.type_id if x.type_id in types else None, done=x.done_at is not None, link=f"tours/{x.tour_id}" if x.tour_id else ""))
+    # --- board stages and handovers ---------------------------------------------------------------
+    stages = dict(db.execute(select(TaskStage.key, TaskStage.stage).where(TaskStage.workspace_id == ws.id)).all())
+    passes: dict[str, TaskEvent] = {}
+    for e in db.scalars(select(TaskEvent).where(TaskEvent.workspace_id == ws.id, TaskEvent.kind == "passed")
+                        .order_by(TaskEvent.created_at)):
+        passes[e.key] = e
+    for i in items:
+        i.stage = "done" if i.done else stages.get(i.key) or ("waiting" if i.kind == "chase" else "todo")
+        e = passes.get(i.key)
+        if e and e.to_id and e.to_id == i.assignee_id:
+            i.passed_by, i.passed_note = names.get(e.by_id), e.note
     items.sort(key=lambda i: (i.done, i.due_date or date.max, i.tour_start or date.max, i.title.lower()))
     return items
 
@@ -235,19 +259,52 @@ def assign(body: AssignIn, ctx: WorkspaceCtx = Depends(office), db: Session = De
     if not ctx.can("operations", "finance") and body.assignee_id != ctx.user.id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only managers give tasks to other people")
     _check(db, ctx, body.assignee_id, None)
+    _set_assignee(db, ctx, body.key, body.assignee_id)
+    db.commit()
+
+
+def _series_rows(db: Session, ctx: WorkspaceCtx, rest: str) -> list[TourBooking]:
+    """Every upcoming departure of a route, for one supplier ("series:<series>:<vendor>")."""
+    series_id, _, vendor_id = rest.partition(":")
+    return list(db.scalars(select(TourBooking).join(Tour).where(
+        Tour.workspace_id == ctx.workspace.id, Tour.series_id == series_id, TourBooking.vendor_id == vendor_id,
+        Tour.end_date >= date.today(), Tour.closed_at.is_(None))).all())
+
+
+def _booking(db: Session, ctx: WorkspaceCtx, booking_id: str) -> TourBooking:
+    b = db.scalar(select(TourBooking).join(Tour).where(TourBooking.id == booking_id, Tour.workspace_id == ctx.workspace.id))
+    if not b:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
+    return b
+
+
+def _holder(db: Session, ctx: WorkspaceCtx, key: str) -> str | None:
+    """Who has a task now (its own person, else the usual owner of that kind of work)."""
+    owners = ctx.workspace.task_owners or {}
+    kind, _, rest = key.partition(":")
+    if kind == "task":
+        return _own(db, ctx, rest).assignee_id
+    if kind in ("booking", "series"):
+        rows = [_booking(db, ctx, rest)] if kind == "booking" else _series_rows(db, ctx, rest)
+        if not rows:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+        return rows[0].assignee_id or bk.owner_of(owners, bk.kind_of(rows[0].vendor))
+    if kind == "pay":
+        row = db.scalar(select(TaskAssignment.assignee_id).where(TaskAssignment.workspace_id == ctx.workspace.id,
+                                                                 TaskAssignment.key == key))
+        return row or bk.owner_of(owners, "payments")
+    raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown task")
+
+
+def _set_assignee(db: Session, ctx: WorkspaceCtx, key: str, assignee_id: str | None) -> None:
+    body = AssignIn(key=key, assignee_id=assignee_id)
     kind, _, rest = body.key.partition(":")
     if kind == "booking":
-        b = db.scalar(select(TourBooking).join(Tour).where(TourBooking.id == rest, Tour.workspace_id == ctx.workspace.id))
-        if not b:
-            raise HTTPException(status.HTTP_404_NOT_FOUND, "Booking not found")
-        b.assignee_id = body.assignee_id
+        _booking(db, ctx, rest).assignee_id = body.assignee_id
     elif kind == "task":
         _own(db, ctx, rest).assignee_id = body.assignee_id
     elif kind == "series":          # every upcoming departure of the route, for that supplier
-        series_id, _, vendor_id = rest.partition(":")
-        rows = db.scalars(select(TourBooking).join(Tour).where(
-            Tour.workspace_id == ctx.workspace.id, Tour.series_id == series_id, TourBooking.vendor_id == vendor_id,
-            Tour.end_date >= date.today(), Tour.closed_at.is_(None))).all()
+        rows = _series_rows(db, ctx, rest)
         if not rows:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Nothing to assign")
         for b in rows:
@@ -269,7 +326,98 @@ def assign(body: AssignIn, ctx: WorkspaceCtx = Depends(office), db: Session = De
             db.add(TaskAssignment(workspace_id=ctx.workspace.id, key=body.key, assignee_id=body.assignee_id))
     else:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "Unknown task")
+
+
+class PassIn(BaseModel):
+    key: str = Field(min_length=3, max_length=160)
+    assignee_id: str
+    note: str = Field(default="", max_length=1000)
+
+
+@router.post("/tasks/pass", status_code=status.HTTP_204_NO_CONTENT)
+def pass_task(body: PassIn, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
+    """Hand a task to someone with a note ("booked - please send the invoice"). Anyone can pass on a task
+    that is theirs (or nobody's); managers can pass on any."""
+    holder = _holder(db, ctx, body.key)
+    if not ctx.can("operations", "finance") and holder not in (ctx.user.id, None):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "You can pass on your own tasks")
+    _check(db, ctx, body.assignee_id, None)
+    _set_assignee(db, ctx, body.key, body.assignee_id)
+    db.add(TaskEvent(workspace_id=ctx.workspace.id, key=body.key, kind="passed", by_id=ctx.user.id,
+                     to_id=body.assignee_id, note=body.note.strip()))
     db.commit()
+
+
+class MoveIn(BaseModel):
+    key: str = Field(min_length=3, max_length=160)
+    stage: Stage
+
+
+def _mark(db: Session, ws_id: str, key: str, stage: str | None) -> None:
+    row = db.scalar(select(TaskStage).where(TaskStage.workspace_id == ws_id, TaskStage.key == key))
+    if stage is None:
+        if row:
+            db.delete(row)
+    elif row:
+        row.stage, row.updated_at = stage, utcnow()
+    else:
+        db.add(TaskStage(workspace_id=ws_id, key=key, stage=stage))
+
+
+@router.post("/tasks/move", status_code=status.HTTP_204_NO_CONTENT)
+def move_task(body: MoveIn, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
+    """Put a task in another column. A booking moves with it: waiting = asked the supplier, done =
+    confirmed (or cancelled, for a cancel task), back to "to do" = not asked yet. A payment is done only
+    by recording it."""
+    from .bookings import _apply
+    ws_id, stage = ctx.workspace.id, body.stage
+    kind, _, rest = body.key.partition(":")
+    if kind == "task":
+        x = _own(db, ctx, rest)
+        x.done_at = (x.done_at or utcnow()) if stage == "done" else None
+        _mark(db, ws_id, body.key, stage if stage in ("doing", "waiting") else None)
+    elif kind in ("booking", "series"):
+        rows = [_booking(db, ctx, rest)] if kind == "booking" else _series_rows(db, ctx, rest)
+        if not rows:
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Task not found")
+        keep = None
+        for b in rows:
+            t = b.tour
+            st = bk.state(b, t, bk.usage(db, t).get(b.vendor_id))
+            if stage == "done":
+                _apply(db, t, b, {"status": "cancelled" if st == "cancel" else "confirmed"})
+            elif stage == "waiting" and st in ("to_book", "problem"):
+                _apply(db, t, b, {"status": "requested"})
+            elif stage == "todo" and b.status == "requested":
+                _apply(db, t, b, {"status": "to_book"})
+            elif stage in ("doing", "waiting"):
+                keep = stage                  # nothing to change on the booking: the board remembers
+        _mark(db, ws_id, body.key, keep)
+    elif kind == "pay":
+        if stage == "done":
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Record the payment in the tour's costs")
+        _mark(db, ws_id, body.key, stage if stage in ("doing", "waiting") else None)
+    else:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "Unknown task")
+    db.add(TaskEvent(workspace_id=ws_id, key=body.key, kind="done" if stage == "done" else "moved", by_id=ctx.user.id, stage=stage))
+    db.commit()
+
+
+class EventOut(BaseModel):
+    kind: str
+    by: str | None
+    to: str | None
+    stage: str | None
+    note: str
+    at: datetime
+
+
+@router.get("/tasks/history", response_model=list[EventOut])
+def task_history(key: str = Query(min_length=3, max_length=160), ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
+    names = _members(db, ctx.workspace.id)
+    rows = db.scalars(select(TaskEvent).where(TaskEvent.workspace_id == ctx.workspace.id, TaskEvent.key == key)
+                      .order_by(TaskEvent.created_at))
+    return [EventOut(kind=e.kind, by=names.get(e.by_id), to=names.get(e.to_id), stage=e.stage, note=e.note, at=e.created_at) for e in rows]
 
 
 def _own(db: Session, ctx: WorkspaceCtx, task_id: str) -> Task:
@@ -294,6 +442,8 @@ def create_task(body: TaskIn, ctx: WorkspaceCtx = Depends(office), db: Session =
     x = Task(workspace_id=ctx.workspace.id, title=body.title.strip(), note=body.note, tour_id=body.tour_id,
              assignee_id=body.assignee_id, type_id=body.type_id, due_date=body.due_date, created_by_id=ctx.user.id)
     db.add(x)
+    db.flush()
+    db.add(TaskEvent(workspace_id=ctx.workspace.id, key=f"task:{x.id}", kind="created", by_id=ctx.user.id, to_id=body.assignee_id))
     db.commit()
     return next(i for i in all_tasks(db, ctx, True) if i.task_id == x.id)
 
@@ -310,8 +460,9 @@ def update_task(task_id: str, body: TaskPatch, ctx: WorkspaceCtx = Depends(offic
     for k in ("assignee_id", "due_date", "type_id"):
         if k in values:
             setattr(x, k, values[k])
-    if "done" in values and values["done"] is not None:
+    if "done" in values and values["done"] is not None and bool(x.done_at) != values["done"]:
         x.done_at = utcnow() if values["done"] else None
+        db.add(TaskEvent(workspace_id=ctx.workspace.id, key=f"task:{x.id}", kind="done" if values["done"] else "reopened", by_id=ctx.user.id))
     db.commit()
     return next(i for i in all_tasks(db, ctx, True) if i.task_id == x.id)
 
