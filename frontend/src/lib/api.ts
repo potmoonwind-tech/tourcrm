@@ -100,7 +100,7 @@ export interface Client {
   payment_terms: PaymentTerms | null
 }
 /** A catalog service used on a day; quantity null = worked out from the service's unit. */
-export interface DayExtra { id?: string; service_id: string; quantity: string | number | null; notes: string }
+export interface DayExtra { id?: string; service_id: string; quantity: string | number | null; notes: string; optional?: boolean }
 export interface DayFields {
   city: string; hotel_id: string | null; lunch_id: string | null; dinner_id: string | null
   breakfast_id?: string | null; breakfast_menu_id?: string | null

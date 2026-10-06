@@ -58,7 +58,8 @@ _DAY = {
         "extras": {"type": "array", "description": "Other services that day (tickets, transport, guide...)", "items": {
             "type": "object",
             "properties": {"vendor": _REF, "service": {"type": "string", "description": "The service's name at that vendor"},
-                           "quantity": {"type": "number", "description": "Leave out to count it from the group (per person, per room...)"}},
+                           "quantity": {"type": "number", "description": "Leave out to count it from the group (per person, per room...)"},
+                           "optional": {"type": "boolean", "description": "Offered only (the group may add it), not included"}},
             "required": ["vendor", "service"]}},
     },
 }
@@ -228,6 +229,7 @@ class ExtraDraft(BaseModel):
     vendor: str
     service: str = Field(min_length=1, max_length=200)
     quantity: float | None = Field(default=None, gt=0)
+    optional: bool = False
 
 
 class DayDraft(BaseModel):

@@ -1,79 +1,141 @@
-import { Plus, Ticket, X } from 'lucide-react'
+import { MapPin, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { DayExtra, ServiceBrief } from '../lib/api'
 import { useServiceList } from '../lib/data'
 import { useI18n } from '../lib/i18n'
-import { cn } from '../lib/utils'
+import { cn, slotId } from '../lib/utils'
+import { Tooltip } from './Tooltip'
 
 /** Units whose quantity the system can work out by itself (group size, rooms, 1 per day/group). */
 const AUTO_UNITS = new Set(['person', 'room_night', 'group', 'vehicle_day', 'day', 'km', 'litre'])   // km/litre: from the day's km
 
 /**
- * The extra services of one day: chips with a quantity box, plus a picker over the
- * price catalog grouped by vendor. Quantity left empty = counted from the unit.
+ * The day's places and what the group does there: "KTW Patardzeuli" with wine tasting and bread baking
+ * ticked, a churchkhela class offered as optional. A place is one card with its activities as a checklist
+ * (everything the supplier offers), so a stop with several activities reads — and is set up — as one stop.
+ * Quantity left empty = counted from the unit.
  */
-export function DayServices({ value, onChange, disabled, compact, onAddNew }: {
-  value: DayExtra[]; onChange: (v: DayExtra[]) => void; disabled?: boolean; compact?: boolean
-  onAddNew?: () => void
+export function DayServices({ value, onChange, disabled, onAddNew }: {
+  value: DayExtra[]; onChange: (v: DayExtra[]) => void; disabled?: boolean
+  onAddNew?: (vendorId?: string) => void   // a new service: for this place, or any supplier
 }) {
   const { t } = useI18n()
   const services = useServiceList()
-  const byId = new Map((services.data ?? []).map((s) => [s.id, s]))
+  const all = services.data ?? []
+  const byId = new Map(all.map((s) => [s.id, s]))
+  // What a place offers. Rooms and menus have the day's own hotel, lunch and dinner slots: left out here,
+  // unless one is on the day already.
+  const offers = new Map<string, ServiceBrief[]>()
+  for (const s of all) {
+    if ((s.category === 'hotel' || s.category === 'meal') && !value.some((x) => x.service_id === s.id)) continue
+    offers.set(s.vendor.id, [...(offers.get(s.vendor.id) ?? []), s])
+  }
+  // Places in the order they were added; one just picked shows (empty) until something is ticked.
+  const [picked, setPicked] = useState<string[]>([])
+  const used = [...new Set(value.map((x) => byId.get(x.service_id)?.vendor.id).filter((v): v is string => !!v))]
+  const places = [...used, ...picked.filter((v) => !used.includes(v) && offers.has(v))]
+  const gone = value.filter((x) => services.data && !byId.has(x.service_id))
   const [adding, setAdding] = useState(false)
 
-  const groups = new Map<string, ServiceBrief[]>()
-  for (const s of services.data ?? []) groups.set(s.vendor.name, [...(groups.get(s.vendor.name) ?? []), s])
+  const tick = (s: ServiceBrief, on: boolean) => onChange(on
+    ? [...value, { id: slotId(), service_id: s.id, quantity: null, notes: '' }]
+    : value.filter((x) => x.service_id !== s.id))
+  const patch = (serviceId: string, p: Partial<DayExtra>) => onChange(value.map((x) => (x.service_id === serviceId ? { ...x, ...p } : x)))
+  const drop = (vendorId: string) => {
+    setPicked((l) => l.filter((v) => v !== vendorId))
+    onChange(value.filter((x) => byId.get(x.service_id)?.vendor.id !== vendorId))
+  }
 
   return (
-    <div className={cn('flex flex-wrap items-center gap-1.5', compact ? 'min-w-56' : '')}>
-      {value.map((x, i) => {
-        const s = byId.get(x.service_id)
+    <div className="space-y-2">
+      {places.map((vid) => {
+        const list = offers.get(vid) ?? []
+        const vendor = list[0]?.vendor
+        const on = list.filter((s) => value.some((x) => x.service_id === s.id))
+        // A place with one service needs no checklist: it's simply there (remove the place to drop it).
+        const single = list.length === 1
         return (
-          <span key={x.id ?? i} title={s ? `${s.vendor.name} · ${t(`unit_${s.unit}`)}` : undefined}
-            className={cn('inline-flex items-center gap-1 rounded-full border py-0.5 pr-1 pl-2 text-xs',
-              s ? 'border-sky-200 bg-sky-50 text-sky-900' : 'border-red-200 bg-red-50 text-red-700')}>
-            <Ticket size={12} className="shrink-0" />
-            <span className="max-w-40 truncate">{s ? s.name : t('serviceRemoved')}</span>
-            {s && !compact && <span className="text-sky-600/70">· {s.vendor.name}</span>}
-            {s && (
-              <Qty value={x.quantity} auto={AUTO_UNITS.has(s.unit)} unit={t(`unit_${s.unit}`)} disabled={disabled}
-                onChange={(q) => onChange(value.map((y, j) => (j === i ? { ...y, quantity: q } : y)))} />
-            )}
-            {!disabled && (
-              <button type="button" onClick={() => onChange(value.filter((_, j) => j !== i))} aria-label={t('delete')}
-                className="rounded-full p-0.5 text-sky-700/60 hover:bg-white hover:text-red-600"><X size={12} /></button>
-            )}
-          </span>
+          <div key={vid} className="rounded-lg border border-slate-200 bg-white">
+            <div className="flex items-center gap-2 px-2.5 py-1.5">
+              <MapPin size={14} className="shrink-0 text-brand-700" aria-hidden />
+              <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{vendor?.name}</span>
+              {!single && <span className="shrink-0 text-xs text-slate-500">{t('placeActivitiesOn', { n: on.length, of: list.length })}</span>}
+              {!disabled && (
+                <Tooltip label={t('placeRemove')}>
+                  <button type="button" onClick={() => drop(vid)} aria-label={t('placeRemoveOf', { name: vendor?.name ?? '' })}
+                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={14} /></button>
+                </Tooltip>
+              )}
+            </div>
+            <ul className="border-t border-slate-100 px-2.5 py-1">
+              {list.map((s) => {
+                const slot = value.find((x) => x.service_id === s.id)
+                return (
+                  <li key={s.id} className="flex min-h-8 items-center gap-2 py-0.5">
+                    <label className={cn('flex min-w-0 flex-1 items-center gap-2 text-sm', slot ? 'text-slate-800' : 'text-slate-500')}>
+                      {!single && <input type="checkbox" checked={!!slot} disabled={disabled} onChange={(e) => tick(s, e.target.checked)}
+                        className="h-4 w-4 shrink-0 accent-brand-600" />}
+                      <span className="truncate">{s.name}</span>
+                      <span className="shrink-0 text-xs text-slate-400">· {t(`unit_${s.unit}`)}</span>
+                    </label>
+                    {slot && <>
+                      <Qty value={slot.quantity} auto={AUTO_UNITS.has(s.unit)} unit={t(`unit_${s.unit}`)} disabled={disabled}
+                        onChange={(q) => patch(s.id, { quantity: q })} />
+                      <Tooltip label={t('activityOptionalTip')}>
+                        <button type="button" disabled={disabled} aria-pressed={!!slot.optional} onClick={() => patch(s.id, { optional: !slot.optional })}
+                          className={cn('h-6 shrink-0 rounded-full border px-2 text-xs font-medium',
+                            slot.optional ? 'border-amber-300 bg-amber-50 text-amber-800' : 'border-slate-200 text-slate-500 hover:bg-slate-50')}>
+                          {t('activityOptional')}
+                        </button>
+                      </Tooltip>
+                    </>}
+                  </li>
+                )
+              })}
+              {!disabled && onAddNew && (
+                <li><button type="button" onClick={() => onAddNew(vid)}
+                  className="inline-flex h-7 items-center gap-1 rounded px-1 text-xs font-medium text-brand-700 hover:bg-brand-50">
+                  <Plus size={12} />{t('placeAddActivity')}</button></li>
+              )}
+            </ul>
+          </div>
         )
       })}
+      {gone.map((x, i) => (
+        <span key={x.id ?? i} className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 py-0.5 pl-2 pr-1 text-xs text-red-700">
+          {t('serviceRemoved')}
+          {!disabled && <button type="button" onClick={() => onChange(value.filter((y) => y !== x))} aria-label={t('delete')}
+            className="rounded-full p-0.5 hover:bg-white"><X size={12} /></button>}
+        </span>
+      ))}
       {!disabled && (adding ? (
-        <select autoFocus className="h-7 max-w-64 rounded-md border border-slate-300 bg-white px-1 text-xs" value=""
+        <select autoFocus className="h-8 w-full max-w-72 rounded-md border border-slate-300 bg-white px-2 text-sm" value=""
           onBlur={() => setAdding(false)}
           onChange={(e) => {
-            if (e.target.value === '__new__') onAddNew?.()
-            else if (e.target.value) onChange([...value, { service_id: e.target.value, quantity: null, notes: '' }])
+            const v = e.target.value
+            if (v === '__new__') onAddNew?.()
+            else if (v && offers.get(v)?.length === 1) onChange([...value, { id: slotId(), service_id: offers.get(v)![0].id, quantity: null, notes: '' }])
+            else if (v) setPicked((l) => [...l, v])
             setAdding(false)
           }}>
-          <option value="">{t('pickService')}</option>
-          {[...groups].map(([vendor, list]) => (
-            <optgroup key={vendor} label={vendor}>
-              {list.map((s) => <option key={s.id} value={s.id}>{s.name} ({t(`unit_${s.unit}`)})</option>)}
-            </optgroup>
+          <option value="">{t('placePick')}</option>
+          {[...offers].filter(([vid]) => !places.includes(vid)).map(([vid, list]) => (
+            <option key={vid} value={vid}>{list[0].vendor.name} ({list.length === 1 ? list[0].name : t('placeActivitiesCount', { n: list.length })})</option>
           ))}
           {onAddNew && <option value="__new__">{t('addNewOption')}</option>}
         </select>
       ) : (
-        <button type="button" onClick={() => (services.data?.length ? setAdding(true) : onAddNew?.())} disabled={!services.data?.length && !onAddNew}
-          title={services.data?.length ? undefined : t('noServicesYet')}
-          className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-xs font-medium text-brand-700 hover:bg-brand-50 disabled:text-slate-400">
-          <Plus size={12} />{t('service')}
+        <button type="button" onClick={() => (all.length ? setAdding(true) : onAddNew?.())} disabled={!all.length && !onAddNew}
+          title={all.length ? undefined : t('noServicesYet')}
+          className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:text-slate-400">
+          <Plus size={14} />{t('placeAdd')}
         </button>
       ))}
     </div>
   )
 }
 
-/** Quantity box inside a chip: empty means "auto". Commits on blur. */
+/** Quantity box: empty means "auto". Commits on blur. */
 function Qty({ value, auto, unit, disabled, onChange }: {
   value: DayExtra['quantity']; auto: boolean; unit: string; disabled?: boolean; onChange: (q: string | null) => void
 }) {
@@ -86,7 +148,7 @@ function Qty({ value, auto, unit, disabled, onChange }: {
       title={auto ? t('autoQtyHelp', { unit }) : t('setQtyHelp', { unit })} aria-label={t('quantity')}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => { if (text !== shown) onChange(text && Number(text) > 0 ? text : null) }}
-      className={cn('h-5 w-12 rounded border bg-white px-1 text-right text-xs tabular-nums',
-        !auto && !text ? 'border-amber-400' : 'border-sky-200')} />
+      className={cn('h-6 w-14 shrink-0 rounded border bg-white px-1 text-right text-xs tabular-nums',
+        !auto && !text ? 'border-amber-400' : 'border-slate-200')} />
   )
 }

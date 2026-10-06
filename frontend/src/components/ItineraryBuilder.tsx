@@ -17,7 +17,7 @@ import { api, type BreakfastMode, type DayFields, type Flight, type MealMode, ty
 import { useServiceList, useVendors, wsPath } from '../lib/data'
 import { fmt, weekday } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
-import { cn } from '../lib/utils'
+import { cn, slotId } from '../lib/utils'
 import { DayServices } from './DayServices'
 import { DayProgramme } from './DayProgramme'
 import { Tooltip } from './Tooltip'
@@ -87,7 +87,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   const set = (i: number, patch: Partial<DayFields>) => onChange(days.map((d, j) => (j === i ? { ...d, ...patch } : d)))
   const place = (i: number, slot: Slot, item: Item) => {
     if (!accepts(slot, item)) return
-    if (slot === 'extras' && item.kind === 'service') set(i, { extras: [...days[i].extras, { service_id: item.service.id, quantity: null, notes: '' }] })
+    if (slot === 'extras' && item.kind === 'service') set(i, { extras: [...days[i].extras, { id: slotId(), service_id: item.service.id, quantity: null, notes: '' }] })
     else if (item.kind === 'vendor' && slot !== 'extras') {
       const patch: Partial<DayFields> = { [SLOT_FIELD[slot]]: item.vendor.id }
       if (slot === 'hotel' && !days[i].city && item.vendor.city) patch.city = item.vendor.city
@@ -101,7 +101,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   const placeEveryDay = (item: Item) => {
     if (item.kind !== 'service') return
     onChange(days.map((d) => (d.extras.some((x) => x.service_id === item.service.id) ? d
-      : { ...d, extras: [...d.extras, { service_id: item.service.id, quantity: null, notes: '' }] })))
+      : { ...d, extras: [...d.extras, { id: slotId(), service_id: item.service.id, quantity: null, notes: '' }] })))
     setPicked(null)
   }
   const insert = (i: number, day: DayFields) => {
@@ -439,7 +439,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
         <SlotBox day={index} slot="extras" label={t('dayServices')} icon={<Ticket size={14} />} wide dragging={dragging} picked={picked}
           onTap={(item) => onPlace('extras', item)}>
           <DayServices value={day.extras} disabled={disabled} onChange={(extras) => onSet({ extras })}
-            onAddNew={canCreate ? () => onNewService(undefined, false, (s) => s.id && onSet({ extras: [...day.extras, { service_id: s.id, quantity: null, notes: '' }] })) : undefined} />
+            onAddNew={canCreate ? (vendorId) => onNewService(vendorId, false, (s) => s.id && onSet({ extras: [...day.extras, { id: slotId(), service_id: s.id, quantity: null, notes: '' }] })) : undefined} />
         </SlotBox>
         <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity}
           onChange={(schedule) => onSet({ schedule })} />

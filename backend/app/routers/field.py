@@ -160,9 +160,20 @@ def _place(v: Vendor | None, menu: Service | None = None) -> Place | None:
                  menu=menu.name if menu else None, dishes=[d for d in dishes if d])
 
 
-def _extra(sv: Service) -> str:
-    """"Kakheti Wine Tours · Tasting", not just "Tasting" (or a bare "Per day")."""
-    return sv.name if sv.vendor.name.lower() in sv.name.lower() else f"{sv.vendor.name} · {sv.name}"
+def _extras(slots, services: dict) -> list[str]:
+    """One line per place, its activities after it: "KTW · Wine tasting, Bread baking, Churchkhela (optional)"."""
+    places: dict[str, tuple[str, list[str]]] = {}
+    for e in slots or []:
+        sv = services.get(e.get("service_id")) if isinstance(e, dict) else None
+        if sv is None:
+            continue
+        name = sv.name + (" (optional)" if e.get("optional") else "")
+        places.setdefault(sv.vendor_id, (sv.vendor.name, []))[1].append(name)
+    out = []
+    for vendor, names in places.values():
+        own = [n for n in names if vendor.lower() not in n.lower()]
+        out.append(f"{vendor} · {', '.join(own)}" if len(own) == len(names) else ", ".join(names))
+    return out
 
 
 DEAD = "This link doesn't work any more — ask the office for a new one"
@@ -207,8 +218,7 @@ def field_page(token: str, request: Request, db: Session = Depends(get_db)):
         breakfast=_place(d.breakfast, services.get(d.breakfast_menu_id)) if (d.breakfast_mode or "hotel") not in ("hotel", "own") else None,
         hotel=_place(d.hotel), lunch=_place(d.lunch, services.get(d.lunch_menu_id)),
         dinner=_place(d.dinner, services.get(d.dinner_menu_id)),
-        extras=[_extra(services[e["service_id"]]) for e in (d.extras or [])
-                if isinstance(e, dict) and e.get("service_id") in services]) for d in days]
+        extras=_extras(d.extras, services)) for d in days]
     guide = s.role in SEES_GROUP
     mine = {d.day_number for d in days}
     team = []

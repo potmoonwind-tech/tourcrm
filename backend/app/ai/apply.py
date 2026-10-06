@@ -99,7 +99,7 @@ def _days(db, ctx, days: list[dict], resolve) -> list[DayFields]:
                         if s.name.strip().lower() == x["service"].strip().lower()), None)
             if svc is None:
                 raise Skip(f"no service {x['service']!r} at {db.get(Vendor, vid).name} — save its prices first")
-            extras.append({"service_id": svc.id, "quantity": x.get("quantity"), "notes": ""})
+            extras.append({"service_id": svc.id, "quantity": x.get("quantity"), "notes": "", "optional": bool(x.get("optional"))})
         out.append(DayFields(city=d.get("city") or "", stops=d.get("stops") or [],
                              lunch_mode=d.get("lunch_mode") or "included", dinner_mode=d.get("dinner_mode") or "included",
                              flights=d.get("flights") or [], hotel_id=resolve(d.get("hotel")), lunch_id=resolve(d.get("lunch")),

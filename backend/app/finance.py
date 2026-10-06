@@ -277,6 +277,8 @@ def _plan(t: Tour, services: dict[str, Service], ctx: _Ctx) -> list[_Plan]:
     plans: list[_Plan] = []
     for d in t.days:
         for x in d.extras or []:
+            if x.get("optional"):       # offered only: a cost once the group takes it (untick "optional")
+                continue
             s = services.get(x["service_id"])
             if s is None:
                 ctx.warnings.append(f"Day {d.day_number}: a service was removed from the price catalog")

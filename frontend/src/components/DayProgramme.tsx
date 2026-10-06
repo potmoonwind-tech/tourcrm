@@ -12,7 +12,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, ArrowDownUp, BedDouble, Car, ChevronDown, Coffee, Map as MapIcon, Pin, GripVertical, Landmark, MapPin, Plane, Plus, Smile, Truck, Utensils, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Fragment, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
-import { api, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
+import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn } from '../lib/utils'
@@ -93,7 +93,10 @@ export function suggest(day: DayFields, index: number, last: boolean, services: 
     const s = services.find((v) => v.id === x.service_id)
     return s && !['transport', 'guide', 'meal'].includes(s.category)
   })
-  for (const x of sights) add({ kind: 'visit', time: '', end: '', title: '', ref: `extra:${x.id}`, place: '', notes: '' })
+  // One visit per place: KTW's wine tasting and bread baking are one stop.
+  const placeOf = (x: DayExtra) => services.find((v) => v.id === x.service_id)?.vendor.id
+  const firsts = sights.filter((x, i) => sights.findIndex((y) => placeOf(y) === placeOf(x)) === i)
+  for (const x of firsts) add({ kind: 'visit', time: '', end: '', title: '', ref: `extra:${x.id}`, place: '', notes: '' })
   if (timed) {
     if (at >= 12 * 60) lunch()           // on the way, before the last drive
     at += driveTo(places.length - 1)
@@ -172,7 +175,18 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
     if (r.startsWith('extra:')) {
       const slot = day.extras.find((e) => e.id === r.slice(6))
       const s = services.find((v) => v.id === slot?.service_id)
-      return { text: s ? s.name : x.title || '—', missing: !s }
+      if (!s || !slot) return { text: x.title || '—', missing: !s }
+      // The place and what's done there: this activity and the place's others that have no step of their own.
+      const own = new Set(raw.map((y) => y.ref).filter((y): y is string => !!y?.startsWith('extra:') && y !== r))
+      const here = day.extras.filter((e) => e === slot || (!own.has(`extra:${e.id}`)
+        && services.find((v) => v.id === e.service_id)?.vendor.id === s.vendor.id))
+      const names = here.map((e) => {
+        const n = services.find((v) => v.id === e.service_id)?.name ?? ''
+        return e.optional ? `${n} (${t('activityOptional').toLowerCase()})` : n
+      }).filter(Boolean)
+      const vendor = s.vendor.name
+      const text = names.every((n) => n.toLowerCase().includes(vendor.toLowerCase())) ? names.join(', ') : `${vendor}: ${names.join(', ')}`
+      return { text, missing: false }
     }
     if (r.startsWith('flight:')) {
       const f = (day.flights ?? [])[Number(r.slice(7))]
@@ -211,11 +225,22 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
   const drift = !disabled && saved.length > 0 && settled && sig(items) !== sig(saved) ? items : null
   useEffect(() => { if (drift) onChange(drift) }, [drift ? sig(drift) : ''])   // eslint-disable-line react-hooks/exhaustive-deps
   const set = (id: string, patch: Partial<ScheduleItem>) => save(laid(items.map((x) => (x.id === id ? { ...x, ...patch } : x))))
-  // A drag only changes the order: the road for the new order is asked, and the times follow.
+  // A drag puts the step where it was dropped: it takes that spot's time (when the step before it ends)
+  // and follows the day from there — a pinned time or a meal's usual hour doesn't pull it back. The road
+  // for the new order is asked, and the times refine when it answers.
   const onDragEnd = (e: DragEndEvent) => {
     const a = items.findIndex((x) => x.id === e.active.id)
     const b = items.findIndex((x) => x.id === e.over?.id)
-    if (a >= 0 && b >= 0 && a !== b) save(arrayMove(items, a, b))
+    if (a < 0 || b < 0 || a === b) return
+    const next = arrayMove(items, a, b)
+    const moved = next[b]
+    if (moved.kind !== 'flight') {
+      const prev = next.slice(0, b).reverse().find((x) => x.time)
+      const spot = prev ? hm(Math.min(toMin(prev.time) + lengthOf(prev, usual), LATEST))
+        : next.slice(1).find((x) => x.time)?.time ?? moved.time      // to the top: the day's first time
+      next[b] = { ...moved, time: spot, fixed: false, end: moved.end && moved.time ? shift(spot, minutesBetween(moved.time, moved.end)) : moved.end }
+    }
+    save(laid(next))
   }
   const byTime = () => save([...items].sort((a, b) => (a.time || '99').localeCompare(b.time || '99')))
   const timed = items.filter((x) => x.time)

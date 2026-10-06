@@ -100,3 +100,41 @@ def test_save_whole_itinerary_reorders_content_not_dates(make_client):
     assert c.put(f"{base}/tours/{t['id']}/itinerary", json={"days": days[:2]}).status_code == 422
     b, base_b, _ = agency(make_client, "b@b.com", "B")
     assert b.put(f"{base_b}/tours/{t['id']}/itinerary", json={"days": days}).status_code == 404
+
+
+def test_a_place_with_activities_some_optional(make_client):
+    """KTW Patardzeuli: wine tasting and bread baking booked, a churchkhela class only offered."""
+    c, base, _ = agency(make_client)
+    ktw = mk(c, f"{base}/vendors", {"name": "KTW Patardzeuli", "type": "activity"})
+    sid = {s["name"]: s["id"] for s in c.put(f"{base}/vendors/{ktw['id']}/services", json=[
+        {"name": n, "category": "activity", "unit": "person", "rates": [{"price": p, "currency": "GEL"}]}
+        for n, p in (("Wine tasting", "25"), ("Bread baking", "15"), ("Churchkhela class", "20"))]).json()}
+    day = [{"service_id": sid["Wine tasting"]}, {"service_id": sid["Bread baking"]},
+           {"service_id": sid["Churchkhela class"], "optional": True}]
+    route = mk(c, f"{base}/series", {"code": "K", "days": [{"city": "Sighnaghi", "extras": day}, {"city": "Tbilisi"}]})
+    assert [x["optional"] for x in route["days"][0]["extras"]] == [False, False, True]
+
+    # Calculation: the class is an optional extra, not in the price.
+    q = c.post(f"{base}/quotes", json={"series_id": route["id"], "on_date": "2026-05-01"}).json()
+    lines = {i["name"]: i for i in q["items"] if i["service_id"]}
+    assert lines["KTW Patardzeuli: Churchkhela class"]["optional"] and not lines["KTW Patardzeuli: Wine tasting"]["optional"]
+
+    # Tour costs: only what's booked; taking the class (unticking "optional") adds it.
+    t = mk(c, f"{base}/tours", {"series_id": route["id"], "start_date": "2026-05-01", "pax": 10})
+    c.post(f"{base}/tours/{t['id']}/costs/generate")
+    descs = {x["description"] for x in c.get(f"{base}/tours/{t['id']}/costs").json()["lines"]}
+    assert {"Wine tasting × 10", "Bread baking × 10"} <= descs and not any(d.startswith("Churchkhela") for d in descs)
+    d1 = c.get(f"{base}/tours/{t['id']}").json()["days"][0]
+    c.patch(f"{base}/tours/{t['id']}/days/{d1['id']}", json={"extras": [{**x, "optional": False} for x in d1["extras"]]})
+    c.post(f"{base}/tours/{t['id']}/costs/generate")
+    assert "Churchkhela class × 10" in {x["description"] for x in c.get(f"{base}/tours/{t['id']}/costs").json()["lines"]}
+
+
+def test_the_guide_sees_one_line_per_place():
+    from types import SimpleNamespace as NS
+    from app.routers.field import _extras
+    ktw, garni = NS(name="KTW Patardzeuli"), NS(name="Garni Temple")
+    services = {"a": NS(name="Wine tasting", vendor_id="k", vendor=ktw), "b": NS(name="Bread baking", vendor_id="k", vendor=ktw),
+                "c": NS(name="Garni Temple entrance", vendor_id="g", vendor=garni)}
+    slots = [{"service_id": "a"}, {"service_id": "c"}, {"service_id": "b", "optional": True}, {"service_id": "gone"}]
+    assert _extras(slots, services) == ["KTW Patardzeuli · Wine tasting, Bread baking (optional)", "Garni Temple entrance"]

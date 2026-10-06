@@ -98,7 +98,8 @@ def _item_for_service(s: Service, slot: dict, day_number: int, on: date, q: Quot
             warnings.append(f"Day {day_number} · {s.name}: counted as 1 — set how many")
     return QuoteItemIn(category=s.category, name=name[:200], vendor_id=s.vendor_id, service_id=s.id,
                        currency=p.currency or q.currency, unit_price=p.unit_price, quantity=qty, basis=basis,
-                       who=who, tiers=p.tiers, day=day_number, notes=slot.get("notes") or "")
+                       who=who, tiers=p.tiers, day=day_number, notes=slot.get("notes") or "",
+                       optional=bool(slot.get("optional")))
 
 
 @dataclass
@@ -246,7 +247,8 @@ def _merge_days(items: list[QuoteItemIn]) -> list[QuoteItemIn]:
     out: list[QuoteItemIn] = []
     seen: dict[tuple, int] = {}
     for i in items:
-        key = (i.service_id, i.unit_price, i.currency, i.basis, i.who, tuple((t.max_pax, t.unit_price) for t in i.tiers), i.notes)
+        key = (i.service_id, i.unit_price, i.currency, i.basis, i.who, tuple((t.max_pax, t.unit_price) for t in i.tiers), i.notes,
+               i.optional)
         if i.service_id is None or i.quantity != "1" or key not in seen:
             if i.service_id is not None and i.quantity == "1":
                 seen[key] = len(out)

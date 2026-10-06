@@ -337,6 +337,9 @@ class DayExtra(BaseModel):
     service_id: str = Field(min_length=1, max_length=36)
     quantity: Annotated[Decimal, Field(gt=0, max_digits=10, decimal_places=2)] | None = None
     notes: str = Field(default="", max_length=300)
+    # Offered, not booked: "churchkhela class, if the group wants". Shown as optional on the programme,
+    # priced as an optional extra in calculations, and not in the tour's costs until it's taken.
+    optional: bool = False
 
 
 MealMode = Literal["included", "tourists", "own"]

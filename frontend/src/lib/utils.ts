@@ -17,3 +17,6 @@ export const moneyList = (byCurrency: Record<string, number>) =>
 export const paxText = (t: { pax: number; pax_estimated?: boolean }) => (t.pax ? `${t.pax_estimated ? '~' : ''}${t.pax}` : '?')
 
 export const countWord = (n: number, one: string, many: string) => (n === 1 ? one : many)
+
+/** An id for a new slot on a day (a service, a programme step) before it's saved: the server keeps it. */
+export const slotId = () => crypto.randomUUID().replace(/-/g, '').slice(0, 12)

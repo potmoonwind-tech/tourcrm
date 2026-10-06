@@ -132,7 +132,8 @@ def usage(db: Session, t: Tour, vendors: dict[str, Vendor] | None = None) -> dic
         for x in d.extras or []:
             s = services.get(x["service_id"])
             if s and (u := of(s.vendor_id)):
-                u.services[s.name] = u.services.get(s.name, 0) + 1
+                name = f"{s.name} (optional)" if x.get("optional") else s.name
+                u.services[name] = u.services.get(name, 0) + 1
                 u.dates.add(d.date)
     for a in t.staff:
         if not (u := of(a.vendor_id)):
