@@ -2670,6 +2670,9 @@ const en = {
   howPriceBuilt: 'How the price is built',
   moreTools: 'More tools',
   moreToolsHint: 'Who uses what, inputs ({n}) and formulas - for special cases',
+  tripViewLabel: 'Show the trip as',
+  tripViewDays: 'Days',
+  atCalcRates: "Converted at this calculation's exchange rates (Details)",
 }
 
 type Dict = typeof en
@@ -5336,6 +5339,9 @@ const ka: Dict = {
   howPriceBuilt: 'როგორ შედგება ფასი',
   moreTools: 'სხვა ხელსაწყოები',
   moreToolsHint: 'ვინ რას იყენებს, მონაცემები ({n}) და ფორმულები - განსაკუთრებული შემთხვევებისთვის',
+  tripViewLabel: 'მოგზაურობის ჩვენება',
+  tripViewDays: 'დღეები',
+  atCalcRates: 'გადაყვანილია ამ კალკულაციის კურსით (დეტალები)',
 }
 
 export type Lang = 'en' | 'ka'

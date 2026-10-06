@@ -28,7 +28,7 @@ import { useWorkspace } from '../../lib/session'
 import { Sparkles } from 'lucide-react'
 import { cn, money } from '../../lib/utils'
 import { CURRENCIES } from '../Onboarding'
-import { LineEditor, newId, newItem, useBreakdown } from './ItemsTab'
+import { ItemsTab, LineEditor, newId, newItem, useBreakdown } from './ItemsTab'
 
 type Edit = EditFn<QuoteDoc>
 
@@ -129,7 +129,15 @@ const ROLE_DOT: Record<PersonRole, string> = { pay: 'bg-sky-600', free: 'bg-oran
 
 // --- the screen --------------------------------------------------------------------------------
 
-export function BuildTab({ doc, debounced, result, edit }: { doc: QuoteDoc; debounced: QuoteDoc; result?: QuoteResult; edit: Edit }) {
+export type TripView = 'days' | 'lines' | 'hotels'
+
+export function BuildTab({ doc, debounced, result, edit, hotels }: {
+  doc: QuoteDoc; debounced: QuoteDoc; result?: QuoteResult; edit: Edit; hotels: ReactNode
+}) {
+  // The trip as day cards, or the same lines / hotels as a table: chosen in the trip's own header.
+  const [params, setParams] = useSearchParams()
+  const view = (['days', 'lines', 'hotels'].includes(params.get('view') ?? '') ? params.get('view') : 'days') as TripView
+  const setView = (v: TripView) => setParams((p) => { p.set('view', v); return p }, { replace: true })
   const [sample, setSample] = useSample(doc)
   const n = Math.min(Math.max(sample, doc.pax_min), doc.pax_max)
   const [season, setSeason] = useState('')   // '' = the base prices
@@ -157,7 +165,8 @@ export function BuildTab({ doc, debounced, result, edit }: { doc: QuoteDoc; debo
         <ToFill doc={doc} onItem={setEditing} onNight={setNight} />
         <PeopleCard doc={doc} n={n} edit={edit} />
         <TripBoard doc={doc} n={n} amounts={bd.data?.items.map((x) => x.amount)} beds={bd.data?.hotel_nights} edit={edit} value={parts.trip}
-          onItem={setEditing} onNight={setNight} vehicle={row?.vehicle} />
+          onItem={setEditing} onNight={setNight} vehicle={row?.vehicle} view={view} setView={setView}
+          table={view === 'lines' ? <ItemsTab doc={doc} debounced={debounced} edit={edit} /> : view === 'hotels' ? hotels : null} />
         <TransportCard doc={doc} n={n} result={result} breakdown={bd.data} edit={edit} value={parts.transport} />
         <RecipeCard doc={doc} edit={edit} value={parts.pricing} />
         <SellingCard doc={doc} edit={edit} />
@@ -353,8 +362,9 @@ const ADD_KINDS: { cat: QuoteCategory; perPerson: boolean; icon: ReactNode }[] =
   { cat: 'other', perPerson: false, icon: <Plus size={16} /> },
 ]
 
-function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, value }: {
+function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, value, view, setView, table }: {
   doc: QuoteDoc; n: number; amounts?: number[]; beds?: { night: number; dbl_pp: number }[]; edit: Edit; onItem: (i: number) => void; onNight: (i: number) => void; vehicle?: string; value?: string
+  view: TripView; setView: (v: TripView) => void; table: ReactNode
 }) {
   // The transport plan's lines come after the calculation's own (the engine adds them).
   const transportPp = doc.transport && amounts ? amounts.slice(doc.items.length).reduce((s, x) => s + x, 0) / n : 0
@@ -402,7 +412,12 @@ function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, valu
   return (
     <Section id="trip" step={2} icon={<BedDouble size={20} />} title={t('theTrip')} hint={t('perTouristAt', { n })} value={value}
       summary={t('tripSummary', { days: doc.days, nights: doc.nights.length, lines: doc.items.length })}
-      actions={<Button variant="tertiary" size="sm" onClick={addDay}><Plus size={16} />{t('addDay')}</Button>}>
+      actions={<>
+        <SegmentedControl size="sm" label={t('tripViewLabel')} value={view} onChange={setView}
+          options={[['days', t('tripViewDays')], ['lines', `${t('calcItems')} · ${doc.items.length}`], ['hotels', `${t('calcHotels')} · ${doc.nights.length}`]]} />
+        {view === 'days' && <Button variant="tertiary" size="sm" onClick={addDay}><Plus size={16} />{t('addDay')}</Button>}
+      </>}>
+      {view !== 'days' ? table : <>
       <MealsLine doc={doc} edit={edit} />
       {tickets.map(({ i, left }) => (
         <button key={i.id} type="button" onClick={() => onItem(doc.items.indexOf(i))}
@@ -470,6 +485,7 @@ function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, valu
           <Plus size={16} />{t('addDay')}
         </button>
       </div>
+      </>}
     </Section>
   )
 }
@@ -880,8 +896,8 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
   }, [breakdown, n])
   const total = byCat.reduce((s, [, v]) => s + v, 0)
   const missing = missingPrices(doc).count
-  // Every group size with its price, as buttons: pick one to see it (a slider when there are very many).
-  const many = tiers.length > 30
+  const sold = new Set(row?.other?.map((o) => o.currency) ?? [])
+  const rates = Object.entries(doc.fx).map(([c, v]) => [c, Number(v)] as const).filter(([c, r]) => r > 0 && c !== cur && !sold.has(c))
   const profit = row ? row.group_revenue - row.group_cost : 0
   const pct = row && row.group_revenue > 0 ? (profit / row.group_revenue) * 100 : 0
   const health = profit < 0 ? 'loss' : pct < 1 ? 'thin' : 'ok'
@@ -892,27 +908,17 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
           <SegmentedControl size="sm" label={t('seasons')} value={season} onChange={setSeason}
             options={[['', t('basePrices')] as [string, string], ...result!.seasons!.map((sn) => [sn.id, sn.name] as [string, string])]} />
         )}
+        {/* Slide through the group sizes and watch the price change (all sizes side by side: Compare). */}
         <div>
-          <div className="mb-1.5 text-sm text-slate-500">{t('groupOf')}</div>
-          {many ? (
-            <input type="range" min={doc.pax_min} max={doc.pax_max} step={1} value={n} onChange={(e) => setN(Number(e.target.value))}
-              className="w-full accent-brand-600" aria-label={t('groupOf')} />
-          ) : (
-            <div role="radiogroup" aria-label={t('groupOf')} className="grid grid-cols-3 gap-1">
-              {tiers.map((x) => (
-                <button key={x.tourists} type="button" role="radio" aria-checked={x.tourists === n} onClick={() => setN(x.tourists)}
-                  className={cn('rounded px-1.5 py-1 text-left leading-tight focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-brand-600',
-                    x.tourists === n ? 'bg-brand-600 text-white' : 'bg-slate-50 text-slate-700 hover:bg-slate-100')}>
-                  <span className={cn('block text-xs', x.tourists === n ? 'text-white/80' : 'text-slate-500')}>{x.label}</span>
-                  <span className="block text-sm font-semibold tabular-nums">{money(x.price_dbl)}</span>
-                </button>
-              ))}
-            </div>
-          )}
+          <div className="flex items-center justify-between text-sm text-slate-500">
+            <span>{t('groupOf')}</span><span className="font-semibold text-slate-900">{row?.label ?? n}</span>
+          </div>
+          <input type="range" min={doc.pax_min} max={doc.pax_max} step={1} value={n} onChange={(e) => setN(Number(e.target.value))}
+            className="mt-1 w-full accent-brand-600" aria-label={t('groupOf')} aria-valuetext={row?.label} />
         </div>
         {row ? <>
-          <div className="border-t border-slate-200 pt-3">
-            <div className="text-sm text-slate-500">{row.label} · {row.types?.[0] ? nameOf(row.types[0].id, row.types[0].name) : t('perPersonShort')} · {t('roomDouble')}</div>
+          <div>
+            <div className="text-sm text-slate-500">{row.types?.[0] ? nameOf(row.types[0].id, row.types[0].name) : t('perPersonShort')} · {t('roomDouble')}</div>
             {missing > 0 && <div className="mb-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900">{t('priceIncomplete', { n: missing })}</div>}
             <div className="text-[32px] font-semibold leading-10 tabular-nums">{money(row.price_dbl)} <span className="text-base font-semibold text-slate-500">{cur}</span></div>
             <div className="text-sm text-slate-600">
@@ -923,6 +929,12 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
             {(row.other?.length ?? 0) > 0 && (
               <div className="mt-1 flex flex-wrap gap-x-3 text-sm font-semibold tabular-nums text-slate-700">
                 {row.other!.map((o) => <span key={o.currency}>{money(o.price_dbl)} {o.currency}</span>)}
+              </div>
+            )}
+            {/* The same price in the calculation's other currencies, at its own rates (1 USD = 2.65 GEL): to see it in GEL or USD at a glance. */}
+            {rates.length > 0 && (
+              <div className="mt-1 flex flex-wrap gap-x-3 text-sm tabular-nums text-slate-500" title={t('atCalcRates')}>
+                {rates.map(([c, r]) => <span key={c}>≈ {money(row.price_dbl * r)} {c}</span>)}
               </div>
             )}
           </div>

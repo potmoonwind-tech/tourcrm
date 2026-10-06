@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { Modal, VendorSelect } from '../components/tour'
 import { NbgButton } from '../components/money'
-import { Button, Card, ErrorText, Field, FullPageSpinner, Input, Select, Spinner, IconButton, Chip, SegmentedControl, Textarea } from '../components/ui'
+import { Button, Card, ErrorText, Field, FullPageSpinner, Input, Select, Spinner, IconButton, Chip, Textarea } from '../components/ui'
 import {
   api, type PriceListData, type QuoteDoc, type QuoteNight, type QuoteOut, type QuoteResult, type QuoteStatus, type Tour, type StaffStay,
 } from '../lib/api'
@@ -16,7 +16,7 @@ import { useWorkspace } from '../lib/session'
 import { cn, money } from '../lib/utils'
 import { ExplainPrice } from './calc/ExplainPrice'
 import { HistoryModal } from './calc/HistoryModal'
-import { ItemsTab, newId } from './calc/ItemsTab'
+import { newId } from './calc/ItemsTab'
 import { BuildTab, PriceStrip, switchCurrency } from './calc/BuildTab'
 import { ScenariosTab } from './calc/ScenariosTab'
 import { FillFromRoute, UpdatePrices } from './calc/RouteTools'
@@ -35,7 +35,7 @@ import { CURRENCIES } from './Onboarding'
  * dates, currency, rates) open from the header; "Use this price" turns it into tours and departures.
  */
 type Tab = 'build' | 'compare' | 'send'
-type BuildView = 'steps' | 'lines' | 'hotels'
+type BuildView = 'lines' | 'hotels'
 const TABS: [Tab, TKey][] = [['build', 'calcBuild'], ['compare', 'calcCompare'], ['send', 'calcSend']]
 // Links saved before (bookmarks, other pages) still land in the right place.
 const OLD_TABS: Record<string, [Tab, BuildView?]> = {
@@ -56,14 +56,12 @@ export function CalcEditorPage() {
   const [params, setParams] = useSearchParams()
   const rawTab = params.get('tab') ?? 'build'
   const tab: Tab = OLD_TABS[rawTab]?.[0] ?? (TABS.some(([id]) => id === rawTab) ? rawTab as Tab : 'build')
-  const view = (OLD_TABS[rawTab]?.[1] ?? params.get('view') ?? 'steps') as BuildView
   const [details, setDetails] = useState(rawTab === 'settings')
   useEffect(() => {
     const old = OLD_TABS[rawTab]
     if (old) setParams((p) => { p.set('tab', old[0]); if (old[1]) p.set('view', old[1]); return p }, { replace: true })
   }, [rawTab, setParams])
-  const go = (next: { tab?: Tab; view?: BuildView }) =>
-    setParams((p) => { if (next.tab) p.set('tab', next.tab); if (next.view) p.set('view', next.view); return p }, { replace: true })
+  const go = (next: { tab: Tab }) => setParams((p) => { p.set('tab', next.tab); return p }, { replace: true })
   const forTour = params.get('for_tour')   // opened from a tour ("Calculate the price")
   const url = wsPath(ws.id, `/quotes/${quoteId}`)
   const saved = useQuery({ queryKey: ['quote', ws.id, quoteId], queryFn: () => api<QuoteOut>(url) })
@@ -185,7 +183,7 @@ export function CalcEditorPage() {
         )}
         <ErrorText error={preview.error} />
         {forTour && <ForTourBar tourId={forTour} quoteId={quoteId!} ready={!dirty && !!result && result.errors.length === 0} />}
-        <div className="flex flex-wrap items-end justify-between gap-x-4 gap-y-2 border-b border-slate-200">
+        <div className="border-b border-slate-200">
           <nav role="tablist" aria-label={doc.name} className="no-scrollbar -mb-px flex gap-1 overflow-x-auto">
             {TABS.map(([id, label]) => (
               <button type="button" role="tab" aria-selected={tab === id} key={id} onClick={() => go({ tab: id })}
@@ -195,16 +193,10 @@ export function CalcEditorPage() {
               </button>
             ))}
           </nav>
-          {tab === 'build' && (
-            <SegmentedControl size="sm" className="mb-1.5" label={t('buildViewLabel')} value={view} onChange={(v) => go({ view: v })}
-              options={[['steps', t('buildViewSteps')], ['lines', `${t('calcItems')} · ${doc.items.length}`], ['hotels', `${t('calcHotels')} · ${doc.nights.length}`]]} />
-          )}
         </div>
-        <PriceStrip doc={doc} result={result} saved={saved.data?.result} dirty={dirty} wideHidden={tab === 'build' && view === 'steps'} />
+        <PriceStrip doc={doc} result={result} saved={saved.data?.result} dirty={dirty} wideHidden={tab === 'build'} />
         <UndoContext.Provider value={undo}>
-        {tab === 'build' && view === 'steps' && <BuildTab doc={doc} debounced={debounced ?? doc} result={result} edit={edit} />}
-        {tab === 'build' && view === 'lines' && <ItemsTab doc={doc} debounced={debounced ?? doc} edit={edit} />}
-        {tab === 'build' && view === 'hotels' && <HotelsTab doc={doc} edit={edit} />}
+        {tab === 'build' && <BuildTab doc={doc} debounced={debounced ?? doc} result={result} edit={edit} hotels={<HotelsTab doc={doc} edit={edit} />} />}
         {tab === 'compare' && (
           <div className="space-y-8">
             <PricesTab doc={doc} result={result} />
