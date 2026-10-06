@@ -58,14 +58,13 @@ export const blankDay = (city = ''): DayFields =>
   ({ city, hotel_id: null, lunch_id: null, dinner_id: null, border_crossing: '', notes: '', extras: [], km: null, stops: [],
      lunch_mode: 'included', dinner_mode: 'included', flights: [], schedule: [] })
 
-export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], stickTop = 'top-0', busReturn, onBusReturn }: {
+export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn }: {
   days: DayFields[]; onChange: (days: DayFields[]) => void
   busReturn?: BusReturn | null; onBusReturn?: (b: BusReturn | null) => void   // the bus back to its garage
   dates?: string[]            // a tour's dates; a route has none
   fixedLength?: boolean       // a tour: days come from its dates (reorder only)
   disabled?: boolean
   alerts?: TourAlert[]        // shown on their day
-  stickTop?: 'top-0' | 'top-10'   // below another sticky bar (a tour's tabs)
 }) {
   const { t } = useI18n()
   const ws = useWorkspace()!
@@ -164,8 +163,6 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               <button type="button" className={cn('rounded p-1 hover:bg-brand-100', picked.kind !== 'service' && 'ml-auto')} onClick={() => setPicked(null)} aria-label={t('done')} title={t('done')}><X size={14} /></button>
             </p>
           )}
-          {/* Only the day chips stay on screen while scrolling (and only where the screen is tall enough);
-              the view switch and the km summary scroll away, so short screens keep room for the days. */}
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView}
@@ -179,11 +176,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             </div>
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} />
           </div>
-          {view === 'days' && (
-            <div className={cn('z-10 -mx-1 bg-white/95 px-1 py-1 backdrop-blur [@media(min-height:700px)]:sticky', stickTop)}>
-              <DayStrip days={days} dates={dates} />
-            </div>
-          )}
+          {view === 'days' && <DayStrip days={days} dates={dates} />}
           {view === 'overview' && (
             <Overview days={days} dates={dates} vendors={vs} menus={services.data ?? []} disabled={disabled} alerts={alerts}
               onSet={set} onSetMany={(patches) => onChange(days.map((d, j) => (patches[j] ? { ...d, ...patches[j] } : d)))} onOpen={openDay}
