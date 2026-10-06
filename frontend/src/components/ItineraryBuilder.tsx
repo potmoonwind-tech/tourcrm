@@ -10,7 +10,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, BedDouble, Car, Clock, Coffee, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X } from 'lucide-react'
+import { AlertTriangle, BedDouble, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, type BreakfastMode, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
@@ -21,10 +21,10 @@ import { cn, slotId } from '../lib/utils'
 import { DayServices } from './DayServices'
 import { DayProgramme, relayDay } from './DayProgramme'
 import { Dialog, toast } from './overlay'
-import { Tooltip } from './Tooltip'
+import { InfoTip, Tooltip } from './Tooltip'
 import { VendorSelect } from './tour'
 import { QuickServiceDialog, QuickVendorDialog } from './QuickAdd'
-import { Button, field, Input, Select } from './ui'
+import { Button, field, IconButton, Input, SegmentedControl, Select } from './ui'
 import { PlaceInput, type PlaceSuggestion } from './PlaceInput'
 import { TripMap, type MapStop } from './TripMap'
 import { useWorkspace } from '../lib/session'
@@ -79,6 +79,16 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   if (keys.current.length !== days.length) keys.current = days.map(newKey)
   const [dragging, setDragging] = useState<Item | null>(null)
   const [picked, setPicked] = useState<Item | null>(null)   // tap-to-place
+  // The whole trip as rows (the quick way), or each day in full; remembered per browser.
+  const [view, setViewState] = useState<'overview' | 'days'>(() => {
+    try { return localStorage.getItem('itineraryView') === 'days' ? 'days' : 'overview' } catch { return 'overview' }
+  })
+  const setView = (v: 'overview' | 'days') => { setViewState(v); try { localStorage.setItem('itineraryView', v) } catch { /* private window */ } }
+  const [listOpen, setListOpen] = useState(false)   // the drag-and-drop list: on demand, so the days get the width
+  const openDay = (i: number) => {
+    setView('days')
+    setTimeout(() => document.getElementById(`day-card-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
     useSensor(TouchSensor, { activationConstraint: { delay: 180, tolerance: 6 } }),
@@ -138,10 +148,11 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   return (
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd}
       onDragCancel={() => setDragging(null)}>
-      <div className="grid gap-4 lg:grid-cols-[18rem_1fr]">
-        {!disabled && <Palette vendors={vs} services={services.data ?? []} picked={picked} onPick={setPicked}
+      <div className={cn('grid gap-4', view === 'days' && listOpen && !disabled && 'lg:grid-cols-[18rem_1fr]')}>
+        {view === 'days' && listOpen && !disabled && <Palette vendors={vs} services={services.data ?? []} picked={picked} onPick={setPicked}
+          onClose={() => { setListOpen(false); setPicked(null) }}
           onAdd={canCreate ? (tab) => (tab === 'services' ? setNewService({}) : setNewVendor({ type: tab === 'hotels' ? 'hotel' : 'restaurant' })) : undefined} />}
-        <div className={cn('min-w-0 space-y-3', disabled && 'lg:col-span-2')}>
+        <div className="min-w-0 space-y-3">
           {picked && (
             <p className="flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800">
               <Hand size={16} className="shrink-0" />
@@ -153,10 +164,25 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             </p>
           )}
           <div className={cn('sticky z-10 -mx-1 space-y-2 bg-white/95 px-1 pb-2 backdrop-blur', stickTop)}>
-            <DayStrip days={days} dates={dates} />
+            <div className="flex flex-wrap items-center gap-2">
+              <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView}
+                options={[['overview', t('viewOverview')], ['days', t('viewDays')]]} />
+              {view === 'days' && !disabled && (
+                <Button type="button" size="sm" variant={listOpen ? 'secondary' : 'tertiary'} aria-pressed={listOpen}
+                  onClick={() => { setListOpen(!listOpen); setPicked(null) }}>
+                  <PanelLeft size={14} aria-hidden />{listOpen ? t('hideList') : t('addFromList')}
+                </Button>
+              )}
+            </div>
+            {view === 'days' && <DayStrip days={days} dates={dates} />}
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} />
           </div>
-          <SortableContext items={keys.current} strategy={verticalListSortingStrategy}>
+          {view === 'overview' && (
+            <Overview days={days} dates={dates} vendors={vs} menus={services.data ?? []} disabled={disabled} alerts={alerts}
+              onSet={set} onSetMany={(patches) => onChange(days.map((d, j) => (patches[j] ? { ...d, ...patches[j] } : d)))} onOpen={openDay}
+              onNewVendor={canCreate ? (type, then) => setNewVendor({ type, then }) : undefined} />
+          )}
+          {view === 'days' && <SortableContext items={keys.current} strategy={verticalListSortingStrategy}>
             {days.map((d, i) => (
               <DayCard key={keys.current[i]} id={keys.current[i]} index={i} day={d} date={dates?.[i]} last={i === days.length - 1}
                 prevCity={i > 0 ? days[i - 1].city : undefined} prevHotel={i > 0 ? days[i - 1].hotel_id : null}
@@ -170,7 +196,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
                 onRemove={() => remove(i)}
                 onHotelNext={() => i + 1 < days.length && set(i + 1, { hotel_id: d.hotel_id, city: days[i + 1].city || d.city })} />
             ))}
-          </SortableContext>
+          </SortableContext>}
           {!disabled && !fixedLength && (
             <button type="button" onClick={() => insert(days.length, blankDay(days.at(-1)?.city))}
               className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 py-3 text-sm font-medium text-slate-600 hover:border-brand-400 hover:text-brand-700">
@@ -185,6 +211,117 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
       {newService && <QuickServiceDialog vendorId={newService.vendorId} menu={newService.menu} onClose={() => setNewService(null)}
         onCreated={(sv) => newService.then?.(sv)} />}
     </DndContext>
+  )
+}
+
+/**
+ * The whole trip as rows — date, town, hotel, lunch, dinner, places, km — each picked right here. A stay
+ * of several nights in one hotel is one cell across those nights; changing it changes the whole stay.
+ * A day's details (menus, programme, driver and guide) open with its number.
+ */
+function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetMany, onOpen, onNewVendor }: {
+  days: DayFields[]; dates?: string[]; vendors: Vendor[]; menus: ServiceBrief[]; disabled?: boolean; alerts: TourAlert[]
+  onSet: (i: number, p: Partial<DayFields>) => void; onSetMany: (patches: Record<number, Partial<DayFields>>) => void
+  onOpen: (i: number) => void
+  onNewVendor?: (type: VendorType, then: (v: Vendor) => void) => void
+}) {
+  const { t, lang } = useI18n()
+  const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
+  const eats = (v: Vendor) => v.type !== 'hotel' || serving.has(v.id)
+  const extrasOf = (d: DayFields) => [...new Set(d.extras.map((x) => menus.find((s) => s.id === x.service_id)?.vendor.name).filter(Boolean))].join(', ')
+  // Stays: runs of nights in the same hotel (the last day has no night).
+  const stays: { from: number; to: number }[] = []
+  days.forEach((d, i) => {
+    if (i === days.length - 1) return
+    const prev = stays[stays.length - 1]
+    if (prev && prev.to === i - 1 && d.hotel_id && days[i - 1].hotel_id === d.hotel_id) prev.to = i
+    else stays.push({ from: i, to: i })
+  })
+  const stayAt = new Map(stays.map((s) => [s.from, s]))
+  const covered = new Set(stays.flatMap((s) => Array.from({ length: s.to - s.from }, (_, k) => s.from + k + 1)))
+  const meal = (i: number, which: 'lunch' | 'dinner') => {
+    const d = days[i]
+    const mode = which === 'lunch' ? d.lunch_mode : d.dinner_mode
+    if (mode === 'own') return <span className="text-xs text-slate-500">{t('mealOwn')}</span>
+    const id = which === 'lunch' ? d.lunch_id : d.dinner_id
+    return (
+      <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={id}
+        cities={which === 'lunch' ? [...(d.stops ?? []), d.city] : [d.city, ...(d.stops ?? [])]}
+        onChange={(v) => onSet(i, which === 'lunch' ? { lunch_id: v, lunch_menu_id: null } : { dinner_id: v, dinner_menu_id: null })}
+        onAddNew={onNewVendor && (() => onNewVendor('restaurant', (v) => onSet(i, which === 'lunch' ? { lunch_id: v.id, lunch_menu_id: null } : { dinner_id: v.id, dinner_menu_id: null })))} />
+    )
+  }
+  return (
+    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+      <table className="w-full min-w-[920px] text-sm">
+        <caption className="sr-only">{t('viewOverview')}</caption>
+        <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium text-slate-500">
+          <tr>
+            <th scope="col" className="w-16 px-3 py-2">{t('day')}</th>
+            <th scope="col" className="w-40 px-2 py-2">{t('city')}</th>
+            <th scope="col" className="px-2 py-2">{t('hotel')}</th>
+            <th scope="col" className="px-2 py-2">{t('lunch')}</th>
+            <th scope="col" className="px-2 py-2">{t('dinner')}</th>
+            <th scope="col" className="px-2 py-2">{t('dayServices')}</th>
+            <th scope="col" className="w-16 px-3 py-2 text-right">km</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-slate-100">
+          {days.map((d, i) => {
+            const stay = stayAt.get(i)
+            const last = i === days.length - 1
+            const warn = alerts.filter((a) => a.day === i + 1)
+            return (
+              <tr key={i} className="align-top">
+                <th scope="row" className="px-3 py-2 text-left font-normal">
+                  <button type="button" onClick={() => onOpen(i)} title={t('openDay', { n: i + 1 })}
+                    className="flex items-center gap-1.5 rounded text-left hover:text-brand-700">
+                    <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white', warn.length ? 'bg-amber-500' : 'bg-slate-800')}>{i + 1}</span>
+                  </button>
+                  {dates?.[i] && <span className="mt-0.5 block whitespace-nowrap text-xs text-slate-500">{fmt(dates[i], lang)}</span>}
+                </th>
+                <td className="px-2 py-2">
+                  <PlaceInput disabled={disabled} value={d.city} onChange={(city) => onSet(i, { city })} placeholder={t('cityNight')}
+                    className={cn(field, 'h-9 font-medium')} aria-label={`${t('day')} ${i + 1} · ${t('city')}`} />
+                  {warn.map((a, k) => <p key={k} className="mt-1 flex items-start gap-1 text-xs text-amber-800"><AlertTriangle size={12} className="mt-0.5 shrink-0" />{t(`alert_${a.code}` as TKey, a.params)}</p>)}
+                </td>
+                {last ? (
+                  <td className="px-2 py-2 text-xs text-slate-500">{t('departureDay')}</td>
+                ) : covered.has(i) ? null : (
+                  <td className="px-2 py-2" rowSpan={stay ? stay.to - stay.from + 1 : 1}>
+                    <div className={cn(stay && stay.to > stay.from && 'rounded-lg border border-brand-200 bg-brand-50/40 p-1.5')}>
+                      <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['hotel']} value={d.hotel_id} cities={[d.city]}
+                        onChange={(v) => {
+                          // The whole stay moves to the new hotel.
+                          const patches: Record<number, Partial<DayFields>> = {}
+                          for (let j = stay!.from; j <= stay!.to; j++) patches[j] = { hotel_id: v }
+                          onSetMany(patches)
+                        }}
+                        onAddNew={onNewVendor && (() => onNewVendor('hotel', (v) => onSet(i, { hotel_id: v.id })))} />
+                      {stay && stay.to > stay.from && (
+                        <p className="mt-1 text-xs font-medium text-brand-800">{t('stayNights', { n: stay.to - stay.from + 1, from: stay.from + 1, to: stay.to + 1 })}</p>
+                      )}
+                      {!disabled && d.hotel_id && stay && stay.to + 1 < days.length - 1 && !days[stay.to + 1].hotel_id && (
+                        <button type="button" onClick={() => onSet(stay.to + 1, { hotel_id: d.hotel_id, city: days[stay.to + 1].city || d.city })}
+                          className="mt-1 text-xs font-medium text-brand-700 hover:underline">{t('stayOneMoreNight')}</button>
+                      )}
+                    </div>
+                  </td>
+                )}
+                <td className="px-2 py-2">{meal(i, 'lunch')}</td>
+                <td className="px-2 py-2">{meal(i, 'dinner')}</td>
+                <td className="px-2 py-2">
+                  <button type="button" onClick={() => onOpen(i)} className="max-w-56 text-left text-xs text-slate-600 hover:text-brand-700">
+                    {extrasOf(d) || [...(d.stops ?? [])].join(', ') || <span className="text-slate-400">+ {t('placeAdd')}</span>}
+                  </button>
+                </td>
+                <td className="px-3 py-2 text-right tabular-nums text-slate-600">{i > 0 ? d.km ?? '—' : ''}</td>
+              </tr>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
   )
 }
 
@@ -225,9 +362,9 @@ type Tab = 'hotels' | 'food' | 'services'
 /** Prices the day slots already cover (hotel nights, lunch, dinner): not offered again as extras. */
 const SLOT_CODES = new Set(['room_SGL', 'room_DBL', 'room_TWN', 'room_TRP', 'room_QUAD', 'lunch', 'dinner'])
 
-function Palette({ vendors, services, picked, onPick, onAdd }: {
+function Palette({ vendors, services, picked, onPick, onAdd, onClose }: {
   vendors: Vendor[]; services: ServiceBrief[]; picked: Item | null; onPick: (i: Item | null) => void
-  onAdd?: (tab: Tab) => void
+  onAdd?: (tab: Tab) => void; onClose: () => void
 }) {
   const { t } = useI18n()
   const [tab, setTab] = useState<Tab>('hotels')
@@ -248,7 +385,10 @@ function Palette({ vendors, services, picked, onPick, onAdd }: {
   return (
     <aside className="rounded-xl border border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:max-h-[calc(100vh-11rem)] lg:flex-col lg:self-start">
       <div className="space-y-2 border-b border-slate-200 p-3">
-        <p className="text-sm font-semibold">{t('builderPalette')}</p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-sm font-semibold">{t('builderPalette')}</p>
+          <IconButton size="sm" label={t('hideList')} onClick={onClose}><X size={16} /></IconButton>
+        </div>
         <div className="flex flex-wrap gap-1 text-xs" role="tablist" aria-label={t('builderPalette')}>
           {(['hotels', 'food', 'services'] as Tab[]).map((x) => (
             <button type="button" key={x} onClick={() => setTab(x)} role="tab" aria-selected={tab === x}
@@ -341,6 +481,9 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   const lunchDishes = dishesOf(day.lunch_menu_id)
   const twiceToday = new Set(dishesOf(day.dinner_menu_id).filter((x) => lunchDishes.includes(x)))
   const [more, setMore] = useState(false)
+  // Meals: restaurants, and the hotels that serve them (a meal on their price list) — not every hotel.
+  const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
+  const eats = (v: Vendor) => v.type !== 'hotel' || serving.has(v.id)
   return (
     <article ref={setNodeRef} id={`day-card-${index}`} style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn('scroll-mt-28 rounded-xl border bg-white', isDragging ? 'z-10 border-brand-400 shadow-lg' : 'border-slate-200',
@@ -408,9 +551,12 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           aside={<BreakfastModePick value={day.breakfast_mode ?? 'hotel'} disabled={disabled}
             onChange={(m) => onSet(m === 'hotel' || m === 'own' ? { breakfast_mode: m, breakfast_id: null, breakfast_menu_id: null } : { breakfast_mode: m })} />}>
           {(day.breakfast_mode ?? 'hotel') === 'hotel' ? (
-            <p className="py-1.5 text-xs text-slate-600">{index === 0 ? t('breakfastHotelFirstDay') : t('breakfastHotelHelp')}</p>
+            <p className="flex items-center gap-1 py-1.5 text-xs text-slate-600">
+              {index === 0 ? t('breakfastNoneFirstDay') : t('breakfastAtLastHotel')}
+              <InfoTip label={index === 0 ? t('breakfastHotelFirstDay') : t('breakfastHotelHelp')} />
+            </p>
           ) : day.breakfast_mode === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
-            <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} value={day.breakfast_id ?? null}
+            <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.breakfast_id ?? null}
               cities={[prevCity ?? '', ...(day.stops ?? []), day.city].filter(Boolean)}
               onChange={(v) => onSet({ breakfast_id: v, breakfast_menu_id: null })}
               onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ breakfast_id: v.id, breakfast_menu_id: null })) : undefined} />
@@ -424,7 +570,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           aside={<MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { lunch_mode: m, lunch_id: null, lunch_menu_id: null } : { lunch_mode: m })} />}>
           {(day.lunch_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
-          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} value={day.lunch_id}
+          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.lunch_id}
             cities={[...(day.stops ?? []), day.city]}
             onChange={(v) => onSet({ lunch_id: v, lunch_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ lunch_id: v.id, lunch_menu_id: null })) : undefined} />
@@ -438,7 +584,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           aside={<MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { dinner_mode: m, dinner_id: null, dinner_menu_id: null } : { dinner_mode: m })} />}>
           {(day.dinner_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
-          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} value={day.dinner_id}
+          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.dinner_id}
             cities={[day.city, ...(day.stops ?? [])]}
             onChange={(v) => onSet({ dinner_id: v, dinner_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ dinner_id: v.id, dinner_menu_id: null })) : undefined} />

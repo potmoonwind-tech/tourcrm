@@ -1,10 +1,9 @@
 import type { ReactNode } from 'react'
-import type { SeriesColor, TourPhase, TourStatus, Vendor, VendorType } from '../lib/api'
+import type { SeriesColor, TourPhase, TourStatus } from '../lib/api'
 import { phase, type Phase } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { Dialog, Label, type Tone } from './overlay'
-import { Select } from './ui'
 
 // Static class lists so Tailwind keeps them in the build.
 export const COLOR: Record<SeriesColor, { bar: string; soft: string; dot: string }> = {
@@ -65,41 +64,8 @@ export function Modal(props: { title: string; onClose: () => void; children: Rea
 }
 
 /** Vendor dropdown limited to one or more types; keeps showing a selected vendor even if it no longer matches. */
-export function VendorSelect({ vendors, types, value, onChange, className, disabled, onAddNew, note, cities }: {
-  vendors: Vendor[]; types: VendorType[]; value: string | null; onChange: (id: string | null) => void
-  className?: string; disabled?: boolean
-  onAddNew?: () => void   // shows "+ Add new…" (a quick-create dialog)
-  note?: (v: Vendor) => string   // extra text after the name (languages, "not available")
-  cities?: string[]       // the day's places: their suppliers are listed first
-}) {
-  const { t } = useI18n()
-  const options = vendors.filter((v) => types.includes(v.type) || v.id === value)
-  // Grouped by city — the day's own cities first, then the rest A–Z, suppliers without a city last.
-  const key = (c: string) => c.trim().toLowerCase()
-  const first = [...new Set((cities ?? []).map(key).filter(Boolean))]
-  const groups = new Map<string, Vendor[]>()
-  for (const v of [...options].sort((a, b) => a.name.localeCompare(b.name))) {
-    const k = key(v.city ?? '')
-    groups.set(k, [...(groups.get(k) ?? []), v])
-  }
-  const order = [...groups.keys()].sort((a, b) => {
-    const ra = first.indexOf(a), rb = first.indexOf(b)
-    if (ra !== rb) return (ra < 0 ? 99 : ra) - (rb < 0 ? 99 : rb)
-    if (!a || !b) return a ? -1 : 1
-    return a.localeCompare(b)
-  })
-  const grouped = order.length > 1 || (order.length === 1 && order[0] !== '')
-  const label = (k: string) => (k ? groups.get(k)![0].city.trim() : t('noCity')) + (first.includes(k) ? ` · ${t('thisDay')}` : '')
-  const row = (v: Vendor) => <option key={v.id} value={v.id}>{v.name}{!grouped && v.city ? ` · ${v.city}` : ''}{note?.(v) ?? ''}</option>
-  return (
-    <Select className={className} disabled={disabled} value={value ?? ''}
-      onChange={(e) => (e.target.value === '__new__' ? onAddNew?.() : onChange(e.target.value || null))}>
-      <option value="">—</option>
-      {grouped ? order.map((k) => <optgroup key={k || '-'} label={label(k)}>{groups.get(k)!.map(row)}</optgroup>) : options.map(row)}
-      {onAddNew && <option value="__new__">{t('addNewOption')}</option>}
-    </Select>
-  )
-}
+// The supplier picker lives in its own file; kept importable from here.
+export { VendorSelect } from './VendorSelect'
 
 export function EmptyState({ title, hint, action }: { title: string; hint?: string; action?: ReactNode }) {
   return (
