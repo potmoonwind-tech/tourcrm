@@ -203,8 +203,16 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
   // the hotel, asked from the map (kept on the server, so asking again is quick).
   const ws = useWorkspace()!
   // The catalogue's sights and activities (free ones too), suggested first when a visit is typed.
-  const sights = useMemo(() => [...byId.values()].filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
-    .map((v): PlaceSuggestion => ({ name: v.name, detail: [v.city, v.visit_minutes ? dur(v.visit_minutes) : ''].filter(Boolean).join(' · '), kind: '', lat: 0, lon: 0, own: true })), [byId])
+  const sights = useMemo(() => {
+    const places = [...byId.values()].filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
+    const ids = new Set(places.map((v) => v.id))
+    return [
+      ...places.map((v): PlaceSuggestion => ({ name: v.name, detail: [v.city, v.visit_minutes ? dur(v.visit_minutes) : ''].filter(Boolean).join(' · '), kind: '', lat: 0, lon: 0, own: true })),
+      // An activity happens at its place: picked, the step is there (no map search, no drive between them).
+      ...services.filter((s) => ids.has(s.vendor.id) && s.category !== 'meal' && s.category !== 'hotel')
+        .map((s): PlaceSuggestion => ({ name: s.name, detail: t('progAt', { place: s.vendor.name }), kind: '', at: s.vendor.name, lat: 0, lon: 0, own: true })),
+    ]
+  }, [byId, services, t])
   const start = index > 0 ? byId.get(fromHotel ?? '')?.address || from : from
   const path = pathOf(raw, day, byId, start, last)
   const road = useQuery({
@@ -246,6 +254,18 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
       next[b] = { ...moved, time: spot, fixed: false, end: moved.end && moved.time ? shift(spot, minutesBetween(moved.time, moved.end)) : moved.end }
     }
     save(laid(next))
+  }
+  // The step before's place, by name ("KTW", not its address): an activity typed after it happens there.
+  const prevPlaceName = (x: ScheduleItem) => {
+    const i = items.findIndex((y) => y.id === x.id)
+    for (let j = i - 1; j >= 0; j--) {
+      const p = items[j]
+      if (p.kind === 'visit' && !p.ref) return (p.place && byId.size && [...byId.values()].some((v) => v.name.toLowerCase() === p.place.toLowerCase()) ? p.place : '') || p.title || undefined
+      if (p.ref === 'lunch' || p.ref === 'dinner') return byId.get((p.ref === 'lunch' ? day.lunch_id : day.dinner_id) ?? '')?.name
+      if (p.ref === 'hotel') return byId.get(day.hotel_id ?? '')?.name
+      if (p.ref?.startsWith('extra:')) return services.find((s) => s.id === day.extras.find((e) => e.id === p.ref!.slice(6))?.service_id)?.vendor.name
+    }
+    return undefined
   }
   const byTime = () => save([...items].sort((a, b) => (a.time || '99').localeCompare(b.time || '99')))
   const timed = items.filter((x) => x.time)
@@ -340,7 +360,9 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
               <ol className="divide-y divide-slate-100 sm:space-y-1 sm:divide-y-0" aria-label={t('dayProgramme')}>
                 {items.map((x) => (
                   <Fragment key={x.id}>
-                    {before.has(x.id) && <DriveRow leg={before.get(x.id)!} depart={departs.get(x.id) ?? null} />}
+                    {before.has(x.id) && <DriveRow leg={before.get(x.id)!} depart={departs.get(x.id) ?? null}
+                      samePlace={!disabled && x.kind === 'visit' && !x.ref ? prevPlaceName(x) : undefined}
+                      onSamePlace={(place) => set(x.id, { place })} />}
                     <Step x={x} label={label(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
                       length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)}
                       onSet={(patch) => set(x.id, patch)} onRemove={() => save(items.filter((y) => y.id !== x.id))} />
@@ -413,6 +435,8 @@ function Step({ x, label, disabled, issue, onFix, length, sights, sight, onSet, 
   const { t } = useI18n()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: x.id, disabled })
   const typed = !x.ref
+  // An activity at a place ("Shoti bread masterclass" at KTW): its place shown under the name.
+  const atPlace = x.kind === 'visit' && !!x.place && x.place.trim().toLowerCase() !== x.title.trim().toLowerCase()
   const kind = t(`prog_${x.kind}` as TKey)
   const name = (typed ? x.title : label.text) || kind
   return (
@@ -460,10 +484,19 @@ function Step({ x, label, disabled, issue, onFix, length, sights, sight, onSet, 
           {typed && x.kind === 'visit' && !disabled ? (
             // A visit is a real place: suggested from the map, and picking one keeps where it is.
             <span className="min-w-0 flex-1 [&>span]:w-full">
-              <PlaceInput value={x.title} own={sights} onChange={(title) => onSet({ title, place: '' })} maxLength={200}
-                onPicked={(p) => onSet({ title: p.name, place: p.own ? '' : p.name })}
+              <PlaceInput value={x.title} own={sights} onChange={(title) => onSet({ title, place: atPlace ? x.place : '' })} maxLength={200}
+                onPicked={(p) => onSet({ title: p.name, place: p.at ? p.at : p.own ? '' : p.name })}
                 aria-label={t('progStepName', { kind })} placeholder={t('progNamePh', { kind })}
                 className="h-9 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 placeholder:text-slate-400 hover:border-slate-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+              {atPlace && (
+                <span className="mt-1 flex"><span className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 py-0.5 pl-2 pr-1 text-xs text-blue-800">
+                  <MapPin size={12} className="shrink-0" aria-hidden /><span className="truncate">{t('progAt', { place: x.place })}</span>
+                  <Tooltip label={t('progAtClear')}>
+                    <button type="button" onClick={() => onSet({ place: '' })} aria-label={t('progAtClear')}
+                      className="rounded-full p-0.5 hover:bg-white"><X size={12} /></button>
+                  </Tooltip>
+                </span></span>
+              )}
             </span>
           ) : typed ? (
             <input value={x.title} disabled={disabled} onChange={(e) => onSet({ title: e.target.value })} maxLength={200}
@@ -512,6 +545,31 @@ const hm = (n: number) => {
   const m = Math.max(0, Math.min(Math.round(n), 23 * 60 + 55))   // a day that runs past midnight is flagged, not wrapped
   return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 }
+/**
+ * A saved day programme laid out again, as opening it would: the road for its order asked from the map
+ * (starting at last night's hotel), each step after the one before plus the drive. Pinned times stay —
+ * unless `release`, then they follow the day too (flights always keep theirs). null: nothing to change.
+ */
+export async function relayDay(wsId: string, day: DayFields, index: number, last: boolean, byId: Map<string, Vendor>,
+  from: string | undefined, fromHotel: string | null | undefined, factor: number, release: boolean): Promise<ScheduleItem[] | null> {
+  const saved = day.schedule ?? []
+  if (!saved.length) return null                     // never arranged: always worked out fresh
+  const items = release ? saved.map((x) => (x.kind === 'flight' || !x.fixed ? x : { ...x, fixed: false })) : saved
+  const start = index > 0 ? byId.get(fromHotel ?? '')?.address || from : from
+  const path = pathOf(items, day, byId, start, last)
+  let answer: MapLeg[] | undefined
+  if (path.length > 1) {
+    try {
+      answer = (await api<{ legs: MapLeg[] }>(wsPath(wsId, '/distances'), { method: 'POST', body: { cities: path.map((p) => p.place) } })).legs
+    } catch { /* the map can't answer: drives already known are used */ }
+  }
+  const { legs } = legsFor(path, answer, false)
+  const { before } = drivesFrom(path, legs, factor)
+  const out = flow(items, 0, before, 'full', items.find((x) => x.time)?.time, (x) => sightOf(x, byId)?.visit_minutes)
+  const sig = (xs: ScheduleItem[]) => xs.map((x) => `${x.time}-${x.end}-${x.fixed ? 1 : 0}`).join(',')
+  return sig(out) === sig(saved) ? null : out
+}
+
 /** How long a step takes: its own end, else the usual for its kind (dinner 1 h 30). */
 export const lengthOf = (x: ScheduleItem, usual?: (x: ScheduleItem) => number | null | undefined) => {
   const own = x.time && x.end ? minutesBetween(x.time, x.end) : 0
@@ -549,7 +607,11 @@ const placeOf = (x: ScheduleItem, day: DayFields, byId?: Map<string, Vendor>) =>
     return v?.address || v?.city || ''
   }
   if (x.ref || x.kind !== 'visit') return ''
-  // A sight from the catalogue goes to its exact spot (its address, fixed from the map).
+  // A sight from the catalogue goes to its exact spot (its address, fixed from the map); an activity
+  // "at KTW" goes where KTW is.
+  const at = x.place && x.place.trim().toLowerCase() !== x.title.trim().toLowerCase()
+    ? [...(byId?.values() ?? [])].find((v) => v.name.trim().toLowerCase() === x.place.trim().toLowerCase()) : undefined
+  if (at) return at.address || at.name
   return sightOf(x, byId)?.address || x.place || x.title
 }
 
@@ -685,7 +747,10 @@ function DurationPick({ start, end, name, usual, usualFrom, onChange }: {
 }
 
 /** A drive between two steps, in the timeline: when it leaves and arrives, where to, km and time. */
-function DriveRow({ leg, depart }: { leg: DriveLeg; depart: number | null }) {
+function DriveRow({ leg, depart, samePlace, onSamePlace }: {
+  leg: DriveLeg; depart: number | null
+  samePlace?: string; onSamePlace?: (place: string) => void   // not on the map: "it's at the place before"
+}) {
   const { t } = useI18n()
   const what = [leg.km != null ? `${leg.km} km` : '', leg.minutes != null ? `≈ ${dur(leg.minutes)}` : ''].filter(Boolean).join(' · ')
   return (
@@ -702,6 +767,13 @@ function DriveRow({ leg, depart }: { leg: DriveLeg; depart: number | null }) {
         : what && <span className="tabular-nums">{what}</span>}
       {depart !== null && leg.minutes != null && (
         <span className="tabular-nums text-slate-500">{t('progDriveTimes', { from: hm(depart), to: hm(depart + Math.round(leg.minutes / 5) * 5) })}</span>
+      )}
+      {samePlace && onSamePlace && (leg.skipped === 'not_found' || leg.skipped === 'far' || (!leg.skipped && leg.km == null)) && (
+        <Tooltip label={t('progSamePlaceTip')}>
+          <Button type="button" size="sm" variant="secondary" onClick={() => onSamePlace(samePlace)}>
+            <MapPin size={14} aria-hidden />{t('progSamePlace', { place: samePlace })}
+          </Button>
+        </Tooltip>
       )}
     </li>
   )

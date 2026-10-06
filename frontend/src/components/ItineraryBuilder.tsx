@@ -10,16 +10,17 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, BedDouble, Car, Coffee, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X } from 'lucide-react'
+import { AlertTriangle, BedDouble, Car, Clock, Coffee, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
-import { useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, type BreakfastMode, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
 import { fmt, weekday } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
 import { DayServices } from './DayServices'
-import { DayProgramme } from './DayProgramme'
+import { DayProgramme, relayDay } from './DayProgramme'
+import { Dialog, toast } from './overlay'
 import { Tooltip } from './Tooltip'
 import { VendorSelect } from './tour'
 import { QuickServiceDialog, QuickVendorDialog } from './QuickAdd'
@@ -153,7 +154,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           )}
           <div className={cn('sticky z-10 -mx-1 space-y-2 bg-white/95 px-1 pb-2 backdrop-blur', stickTop)}>
             <DayStrip days={days} dates={dates} />
-            <DistanceBar days={days} disabled={disabled} onChange={onChange} />
+            <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} />
           </div>
           <SortableContext items={keys.current} strategy={verticalListSortingStrategy}>
             {days.map((d, i) => (
@@ -237,15 +238,20 @@ function Palette({ vendors, services, picked, onPick, onAdd }: {
     // Meals (lunch, dinner, set menus) are chosen in the day's lunch/dinner slots, never as an extra.
     ? services.filter((s) => !SLOT_CODES.has(s.code ?? '') && s.category !== 'meal' && !people.has(s.vendor.id) && match(s.name, s.vendor.name))
       .map((service) => ({ kind: 'service', service }))
-    : vendors.filter((v) => v.is_active && (tab === 'hotels' ? v.type === 'hotel' : ['restaurant', 'hotel'].includes(v.type)) && match(v.name, v.city))
+    : vendors.filter((v) => v.is_active && v.type === (tab === 'hotels' ? 'hotel' : 'restaurant') && match(v.name, v.city))
       .map((vendor) => ({ kind: 'vendor', vendor }))
+  // Meals: restaurants; then, apart, the hotels that serve lunch or dinner (a meal on their price list).
+  const serving = new Set(services.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id))
+  const hotelMeals: Item[] = tab === 'food'
+    ? vendors.filter((v) => v.is_active && v.type === 'hotel' && serving.has(v.id) && match(v.name, v.city)).map((vendor) => ({ kind: 'vendor', vendor }))
+    : []
   return (
     <aside className="rounded-xl border border-slate-200 bg-white lg:sticky lg:top-0 lg:flex lg:max-h-[calc(100vh-11rem)] lg:flex-col lg:self-start">
       <div className="space-y-2 border-b border-slate-200 p-3">
         <p className="text-sm font-semibold">{t('builderPalette')}</p>
-        <div className="flex flex-wrap gap-1 text-xs">
+        <div className="flex flex-wrap gap-1 text-xs" role="tablist" aria-label={t('builderPalette')}>
           {(['hotels', 'food', 'services'] as Tab[]).map((x) => (
-            <button type="button" key={x} onClick={() => setTab(x)}
+            <button type="button" key={x} onClick={() => setTab(x)} role="tab" aria-selected={tab === x}
               className={cn('min-w-fit flex-1 whitespace-nowrap rounded-lg px-2 py-1.5 font-medium', tab === x ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>
               {t(`palette_${x}`)}
             </button>
@@ -259,11 +265,16 @@ function Palette({ vendors, services, picked, onPick, onAdd }: {
         {tab === 'services' && <p className="rounded-md bg-slate-50 px-2 py-1.5 text-xs text-slate-600">{t('paletteStaffHint')}</p>}
       </div>
       <ul className="max-h-72 space-y-1 overflow-y-auto p-2 lg:max-h-none lg:min-h-0 lg:flex-1">
-        {items.length === 0 && <li className="px-2 py-4 text-center text-xs text-slate-500">{tab === 'services' ? t('noServicesYet') : tab === 'hotels' ? t('noHotelsYet') : t('noRestaurantsYet')}</li>}
-        {items.map((item) => {
+        {items.length === 0 && hotelMeals.length === 0 && <li className="px-2 py-4 text-center text-xs text-slate-500">{tab === 'services' ? t('noServicesYet') : tab === 'hotels' ? t('noHotelsYet') : t('noRestaurantsYet')}</li>}
+        {[...items, ...hotelMeals].map((item, i) => {
           const id = item.kind === 'vendor' ? item.vendor.id : item.service.id
           const isPicked = picked && (picked.kind === 'vendor' ? picked.vendor.id : picked.service.id) === id
-          return <PaletteItem key={id} id={id} item={item} picked={!!isPicked} onPick={() => onPick(isPicked ? null : item)} />
+          return (
+            <Fragment key={id}>
+              {i === items.length && <li role="presentation" className="px-1 pb-0.5 pt-2 text-xs font-semibold text-slate-500">{t('paletteHotelMeals')}</li>}
+              <PaletteItem id={id} item={item} picked={!!isPicked} onPick={() => onPick(isPicked ? null : item)} />
+            </Fragment>
+          )
         })}
       </ul>
       {onAdd && (
@@ -490,7 +501,62 @@ export function hours(min: number): string {
 }
 
 /** Total road km of the itinerary, and a button that fills each day's km from OpenStreetMap. */
-function DistanceBar({ days, disabled, onChange }: { days: DayFields[]; disabled?: boolean; onChange: (d: DayFields[]) => void }) {
+/**
+ * Every arranged day programme laid out again in one go (the drives from the map, each step after the one
+ * before) — what opening each day would do. Pinned times stay unless released. Days still "suggested"
+ * are always up to date and are left alone.
+ */
+function RecalcTimes({ days, byId, onChange }: { days: DayFields[]; byId: Map<string, Vendor>; onChange: (d: DayFields[]) => void }) {
+  const ws = useWorkspace()!
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const [release, setRelease] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const arranged = days.filter((d) => d.schedule?.length).length
+  const pinned = days.reduce((n, d) => n + (d.schedule ?? []).filter((x) => x.fixed && x.kind !== 'flight').length, 0)
+  if (!arranged) return null
+  const run = async () => {
+    setBusy(true)
+    const factor = ws.drive_factor ?? 1.25
+    const next = await Promise.all(days.map(async (d, i) => {
+      const s = await relayDay(ws.id, d, i, i === days.length - 1, byId, i > 0 ? days[i - 1].city : undefined,
+        i > 0 ? days[i - 1].hotel_id : null, factor, release)
+      return s ? { ...d, schedule: s } : d
+    }))
+    const changed = next.filter((d, i) => d !== days[i]).length
+    if (changed) onChange(next)
+    setBusy(false)
+    setOpen(false)
+    toast(changed ? 'recalcTimesDone' : 'recalcTimesSame')
+  }
+  return <>
+    <Tooltip label={t('recalcTimesTip')}>
+      <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(true)}><Clock size={14} aria-hidden />{t('recalcTimes')}</Button>
+    </Tooltip>
+    {open && (
+      <Dialog title={t('recalcTimes')} onClose={() => !busy && setOpen(false)} footer={<>
+        <Button variant="secondary" disabled={busy} onClick={() => setOpen(false)}>{t('cancel')}</Button>
+        <Button disabled={busy} onClick={run}>{busy ? t('recalcTimesBusy') : t('recalcTimesGo')}</Button>
+      </>}>
+        <div className="space-y-3 text-sm text-slate-700">
+          <p>{t('recalcTimesBody', { n: arranged, of: days.length })}</p>
+          {pinned > 0 && (
+            <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-3">
+              <input type="checkbox" checked={release} onChange={(e) => setRelease(e.target.checked)} className="mt-0.5 h-4 w-4 accent-brand-600" />
+              <span><span className="font-medium text-slate-800">{t('recalcTimesRelease', { n: pinned })}</span>
+                <span className="block text-xs text-slate-500">{t('recalcTimesReleaseHelp')}</span></span>
+            </label>
+          )}
+          <p className="text-xs text-slate-500">{t('recalcTimesSaveNote')}</p>
+        </div>
+      </Dialog>
+    )}
+  </>
+}
+
+function DistanceBar({ days, disabled, onChange, byId }: {
+  days: DayFields[]; disabled?: boolean; onChange: (d: DayFields[]) => void; byId: Map<string, Vendor>
+}) {
   const ws = useWorkspace()!
   const { t } = useI18n()
   // Every place in order: each day's stops, then where it sleeps. A day's km = the legs that end in it.
@@ -550,6 +616,7 @@ function DistanceBar({ days, disabled, onChange }: { days: DayFields[]; disabled
       )}
       {mapOpen && <TripMap stops={mapStops} title={t('mapTrip')} subtitle={t('mapTripSub', { days: days.length, km: total.toLocaleString('en-US') })}
         onClose={() => setMapOpen(false)} />}
+      {!disabled && <RecalcTimes days={days} byId={byId} onChange={onChange} />}
       {!disabled && (
         <Button type="button" size="sm" variant="secondary" disabled={suggest.isPending || days.every((d) => !d.city)} onClick={() => suggest.mutate()}
           title={t('suggestKmHelp')}>
