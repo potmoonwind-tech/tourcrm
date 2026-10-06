@@ -59,6 +59,33 @@
   --shadow-xl: 0 15px 50px rgb(0 0 0 / 0.24);
 }
 
+/* The app's colour, per person (Settings → Appearance). Blue above is the default. Each 600 shade keeps
+   white text readable on buttons (at least 4.5:1). */
+:root[data-theme="green"] {
+  --color-brand-50: #effbf5;
+  --color-brand-100: #d3f3e3;
+  --color-brand-200: #a8e4c7;
+  --color-brand-300: #74d1a6;
+  --color-brand-400: #34b37c;
+  --color-brand-500: #0c9a5c;
+  --color-brand-600: #00804a;
+  --color-brand-700: #006b3e;
+  --color-brand-800: #005632;
+  --color-brand-900: #004127;
+}
+:root[data-theme="violet"] {
+  --color-brand-50: #f5f3ff;
+  --color-brand-100: #ede9fe;
+  --color-brand-200: #ddd6fe;
+  --color-brand-300: #c4b5fd;
+  --color-brand-400: #a78bfa;
+  --color-brand-500: #8b5cf6;
+  --color-brand-600: #7c3aed;
+  --color-brand-700: #6d28d9;
+  --color-brand-800: #5b21b6;
+  --color-brand-900: #4c1d95;
+}
+
 body {
   @apply bg-slate-50 text-slate-800 antialiased;
 }

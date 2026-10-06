@@ -35,7 +35,7 @@ export const JOBS: Job[] = ['operations', 'finance', 'sales']
 export const can = (ws: { role: Role; jobs?: Job[] } | null | undefined, ...jobs: Job[]) =>
   !!ws && atLeast(ws.role, 'staff') && jobs.some((j) => (ws.jobs ?? []).includes(j))
 
-export interface User { id: string; email: string; full_name: string }
+export interface User { id: string; email: string; full_name: string; theme?: string }
 export interface Workspace {
   id: string; name: string; slug: string; base_currency: string; language: 'en' | 'ka'; role: Role
   jobs?: Job[]                 // what this person does here (owners and admins: all)

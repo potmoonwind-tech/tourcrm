@@ -15,6 +15,7 @@ import { useTaskSummary } from '../lib/data'
 import { SearchButton } from './Search'
 import { sectionOf, type Section } from './SectionNav'
 import { Tooltip } from './Tooltip'
+import { ThemePicker } from './ThemePicker'
 
 interface NavItem { to: string; label: TKey; icon: ReactNode; soon?: boolean; badge?: number; tone?: 'orange' | 'red'; section?: Section }
 
@@ -266,6 +267,7 @@ function UserMenu() {
             <p className="truncate text-xs text-slate-500">{me?.user.email} · {t(`role_${ws.role}`)}</p>
           </div>
           <div className="flex items-center justify-between px-2 py-2 text-sm text-slate-600">{t('language')}<LangToggle /></div>
+          <div className="flex items-center justify-between px-2 py-2 text-sm text-slate-600">{t('theme')}<ThemePicker size="sm" /></div>
           <div className="my-1 border-t border-slate-100" />
           <Link to={`/w/${ws.id}/settings/general`} onClick={() => setOpen(false)}
             className="flex items-center gap-3 rounded-lg px-2 py-2 text-sm text-slate-700 hover:bg-slate-100"><Settings size={16} />{t('settings')}</Link>

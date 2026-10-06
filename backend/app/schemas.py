@@ -44,6 +44,15 @@ class UserOut(_Out):
     id: str
     email: str
     full_name: str
+    theme: str = "blue"
+
+
+Theme = Literal["blue", "green", "violet"]
+
+
+class MeUpdate(BaseModel):
+    """Your own preferences."""
+    theme: Theme | None = None
 
 
 # --- workspaces --------------------------------------------------------------

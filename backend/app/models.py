@@ -27,6 +27,7 @@ class User(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
     full_name: Mapped[str] = mapped_column(String(200), default="")
+    theme: Mapped[str] = mapped_column(String(20), default="blue", server_default="blue")   # the app's colour, per person
     password_hash: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(default=True)
     # Part of every session token; raising it (log out, password change) ends all old sessions.

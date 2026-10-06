@@ -3,6 +3,7 @@ import { AppShell } from './components/AppShell'
 import { FullPageSpinner, Spinner } from './components/ui'
 import { useEffect } from 'react'
 import { useI18n } from './lib/i18n'
+import { applyTheme } from './lib/theme'
 import { LoginPage, SignupPage } from './pages/Auth'
 import { ClientsPage, VendorsPage } from './pages/Catalog'
 import { FieldPage } from './pages/Field'
@@ -46,6 +47,9 @@ function Unreachable({ retry }: { retry: () => void }) {
 function RequireAuth() {
   const { data: me, isLoading, isError, refetch } = useMe()
   const loc = useLocation()
+  // The colour saved on the account (chosen on another device too).
+  const theme = me?.user.theme
+  useEffect(() => { if (theme) applyTheme(theme) }, [theme])
   if (isLoading) return <FullPageSpinner />
   // Only a 401 means "logged out" (useMe returns null); other failures are the network.
   if (me === undefined && isError) return <Unreachable retry={refetch} />

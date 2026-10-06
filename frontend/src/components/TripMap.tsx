@@ -17,6 +17,7 @@ import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
 import { Drawer } from './overlay'
 import { Spinner } from './ui'
+import { brandColor } from '../lib/theme'
 
 /** One place on the map. `night`: where a day ends (a big pin with the day number); `stop`: a place on
  * the way (a small pin); `step`: a day programme's step (numbered in order); `start`: where the day starts. */
@@ -24,7 +25,7 @@ export interface MapStop { place: string; label: string; kind: 'night' | 'stop' 
 interface MapPoint { name: string; lat: number | null; lon: number | null; where: string; missing: 'not_found' | 'far' | 'pending' | null }
 interface MapData { points: MapPoint[]; roads: { from: number; to: number; polyline: string | null }[] }
 
-const BRAND = '#0073ea'
+
 // OpenStreetMap's own tiles, made grey and quiet in CSS (.tm-tiles) so the route stands out. Fine for
 // an office tool's light use; before launch, switch to a tile provider with an account (their policy).
 const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
@@ -95,7 +96,7 @@ export function TripMap({ stops, title, subtitle, onClose }: { stops: MapStop[];
       const a = d.points[r.from], b = d.points[r.to]
       const line = r.polyline ? decode(r.polyline) : [[a.lat!, a.lon!], [b.lat!, b.lon!]] as [number, number][]
       const active = on(r.to)
-      L.polyline(line, { color: active ? BRAND : '#94a3b8', weight: active ? 4 : 3, opacity: active ? 0.9 : 0.5,
+      L.polyline(line, { color: active ? brandColor() : '#94a3b8', weight: active ? 4 : 3, opacity: active ? 0.9 : 0.5,
         dashArray: r.polyline ? undefined : '6 6', lineCap: 'round' }).addTo(g)
     }
     let n = 0
@@ -200,7 +201,7 @@ function useGoogleTrip(el: React.RefObject<HTMLDivElement | null>, key: string |
       const a = d.points[r.from], b = d.points[r.to]
       const path = (r.polyline ? decode(r.polyline) : [[a.lat!, a.lon!], [b.lat!, b.lon!]] as [number, number][]).map(([lat, lng]) => ({ lat, lng }))
       const active = on(r.to)
-      const color = active ? BRAND : '#94a3b8'
+      const color = active ? brandColor() : '#94a3b8'
       drawn.current.push(new maps.Polyline({ map: m, path, strokeColor: color, strokeOpacity: r.polyline ? (active ? 0.9 : 0.5) : 0,
         strokeWeight: active ? 4 : 3, icons: r.polyline ? [] : [{ icon: { path: 'M 0,-1 0,1', strokeOpacity: 0.8, strokeColor: color, scale: 3 }, offset: '0', repeat: '12px' }] }))
     }

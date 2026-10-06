@@ -6,7 +6,7 @@ from ..config import settings
 from ..db import get_db
 from ..deps import get_current_user
 from ..models import User
-from ..schemas import LoginIn, MeOut, MyWorkspaceOut, SignupIn, UserOut, WorkspaceOut
+from ..schemas import LoginIn, MeOut, MeUpdate, MyWorkspaceOut, SignupIn, UserOut, WorkspaceOut
 from .. import ratelimit
 from ..security import COOKIE_NAME, burn_time, create_session_token, hash_password, verify_password
 from ..services import create_workspace
@@ -97,4 +97,13 @@ def logout(request: Request, response: Response, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=MeOut)
 def me(user: User = Depends(get_current_user)):
+    return me_payload(user)
+
+
+@router.patch("/me", response_model=MeOut)
+def update_me(body: MeUpdate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Your own preferences (the app's colour); they follow you on every device."""
+    if body.theme is not None:
+        user.theme = body.theme
+    db.commit()
     return me_payload(user)

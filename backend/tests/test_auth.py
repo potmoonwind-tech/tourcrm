@@ -43,3 +43,12 @@ def test_duplicate_workspace_names_get_unique_slugs(make_client):
     a = signup(make_client(), "a@x.com", "Tours")["workspaces"][0]
     b = signup(make_client(), "b@x.com", "Tours")["workspaces"][0]
     assert a["slug"] != b["slug"]
+
+
+def test_each_person_picks_the_apps_colour(make_client):
+    c = make_client()
+    signup(c, "nino@a.com")
+    assert c.get("/api/auth/me").json()["user"]["theme"] == "blue"
+    assert c.patch("/api/auth/me", json={"theme": "green"}).json()["user"]["theme"] == "green"
+    assert c.get("/api/auth/me").json()["user"]["theme"] == "green"
+    assert c.patch("/api/auth/me", json={"theme": "pink"}).status_code == 422
