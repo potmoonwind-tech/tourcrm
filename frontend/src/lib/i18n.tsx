@@ -2741,6 +2741,10 @@ const en = {
   taskMoveFailed: "Couldn't move the task",
   taskPassFailed: "Couldn't pass the task on",
   payDoneHint: "A payment is done when it's recorded in the tour's costs",
+  freeLine: "Free",
+  freeLineHelp: "Costs nothing on purpose (a free museum, a free tasting): not shown as a missing price",
+  freeService: "Free",
+  freeServiceHelp: "No charge (a free museum, a free tasting): calculations and tour costs count it as 0, without a \"no price\" warning",
 }
 
 type Dict = typeof en
@@ -5478,6 +5482,10 @@ const ka: Dict = {
   taskMoveFailed: "დავალება ვერ გადავიტანე",
   taskPassFailed: "დავალება ვერ გადავეცი",
   payDoneHint: "გადახდა სრულდება, როცა ტურის ხარჯებში ჩაიწერება",
+  freeLine: "უფასო",
+  freeLineHelp: "განზრახ უფასოა (უფასო მუზეუმი, დეგუსტაცია): დაკარგულ ფასად არ ჩაითვლება",
+  freeService: "უფასო",
+  freeServiceHelp: "უფასოა (მუზეუმი, დეგუსტაცია): კალკულაციები და ხარჯები 0-ად ითვლის, „ფასი არ არის“ გაფრთხილების გარეშე",
 }
 
 export type Lang = 'en' | 'ka'

@@ -205,11 +205,18 @@ export function ServicesEditor({ vendor, standalone, onDirtyChange, autoStart, s
                     <label className="space-y-1">
                       <span className="block text-xs font-medium text-slate-500">{t('unitPrice')} · {t(`unit_${s.unit}`)}</span>
                       <Input type="number" step="0.01" min="0" required value={r.price} placeholder="0.00" onChange={(e) => setRate(i, 0, { price: e.target.value })}
-                        className="h-9 w-32 text-right" />
+                        disabled={r.price === '0.00'} className="h-9 w-32 text-right" />
                     </label>
-                    <Select value={r.currency} onChange={(e) => setRate(i, 0, { currency: e.target.value })} className="h-9 w-24" aria-label={t('currency')}>
-                      {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
-                    </Select>
+                    {!(r.price === '0.00') && (
+                      <Select value={r.currency} onChange={(e) => setRate(i, 0, { currency: e.target.value })} className="h-9 w-24" aria-label={t('currency')}>
+                        {CURRENCIES.map((c) => <option key={c}>{c}</option>)}
+                      </Select>
+                    )}
+                    <label className="flex h-9 items-center gap-2 text-sm text-slate-700" title={t('freeServiceHelp')}>
+                      <input type="checkbox" className="h-4 w-4" checked={r.price === '0.00'}
+                        onChange={(e) => setRate(i, 0, { price: e.target.checked ? '0.00' : '' })} />
+                      {t('freeService')}
+                    </label>
                   </div>
                 ))}
                 {s.rates.length === 0 && (

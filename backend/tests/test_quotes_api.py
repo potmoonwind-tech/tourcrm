@@ -289,3 +289,22 @@ def test_autosave_keeps_one_version_per_sitting_and_versions_can_be_named(make_c
     # Changed and changed back in one sitting: the version goes away again.
     bus["unit_price"] = "620"
     assert c.put(url, params={"autosave": True}, json=d).json()["version"] == 3
+
+
+def test_a_free_service_is_free_not_missing(make_client):
+    c, base, _ = agency(make_client)
+    museum = mk(c, f"{base}/vendors", {"name": "Stalin Museum", "type": "activity"})
+    paid = mk(c, f"{base}/vendors", {"name": "Wine Cellar", "type": "activity"})
+    free_s = c.put(f"{base}/vendors/{museum['id']}/services", json=[
+        {"name": "Entrance", "category": "ticket", "unit": "person", "rates": [{"price": "0", "currency": "GEL"}]}]).json()[0]
+    paid_s = c.put(f"{base}/vendors/{paid['id']}/services", json=[
+        {"name": "Tasting", "category": "activity", "unit": "person", "rates": [{"price": "45", "currency": "GEL"}]}]).json()[0]
+    s = mk(c, f"{base}/series", {"code": "FR", "days": [
+        {"city": "Gori", "extras": [{"service_id": free_s["id"], "quantity": None, "notes": ""},
+                                    {"service_id": paid_s["id"], "quantity": None, "notes": ""}]}, {"city": "Tbilisi"}]})
+    r = c.post(f"{base}/quotes/route-fill", json={"series_id": s["id"]}).json()
+    entrance = next(i for i in r["items"] if "Entrance" in i["name"])
+    tasting = next(i for i in r["items"] if "Tasting" in i["name"])
+    assert entrance["free"] is True and float(entrance["unit_price"]) == 0
+    assert tasting["free"] is False and float(tasting["unit_price"]) == 45
+    assert not any("Entrance" in w for w in r["warnings"])

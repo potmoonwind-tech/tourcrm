@@ -392,6 +392,9 @@ export function LineEditor({ doc, index, calc, sample, edit, onClose, onDuplicat
 
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={it.included} onChange={(e) => set({ included: e.target.checked, ...(e.target.checked ? { optional: false } : {}) })} className="h-4 w-4" />{t('includedInPrice')}</label>
+          <label className="flex items-center gap-2 text-sm" title={t('freeLineHelp')}>
+            <input type="checkbox" checked={!!it.free} onChange={(e) => set({ free: e.target.checked, ...(e.target.checked ? { unit_price: '0', price_formula: '' } : {}) })} className="h-4 w-4" />{t('freeLine')}
+          </label>
           <label className="flex items-center gap-2 text-sm" title={t('standardLineHelp')}>
             <input type="checkbox" checked={!!it.standard} onChange={(e) => set({ standard: e.target.checked })} className="h-4 w-4" />{t('standardLine')}
           </label>

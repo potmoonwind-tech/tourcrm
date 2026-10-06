@@ -183,6 +183,8 @@ class QuoteItemIn(BaseModel):
     uses: dict[str, Usage] = Field(default_factory=dict)
     # Not in the tour price, but offered on top ("wine tasting +45 per person"): priced on its own.
     optional: bool = False
+    # Priced at 0 on purpose (a free museum, a free tasting): not a "no price yet" line.
+    free: bool = False
     # The price itself as a formula ("558 if crossings == 2 else 316"); empty = unit_price.
     price_formula: str = Field(default="", max_length=300)
     # One of the agency's standard lines (tips, water, border…): "our way" puts it in every new calculation.

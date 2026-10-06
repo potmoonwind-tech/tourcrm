@@ -355,6 +355,7 @@ export interface QuoteItem {
   tiers: QuoteTier[]; included: boolean; vehicle: boolean; day: number | null; notes: string
   uses?: Record<string, Usage>
   optional?: boolean   // not in the tour price: offered on top, priced on its own
+  free?: boolean       // priced at 0 on purpose (a free museum): not "no price yet"
   price_formula?: string   // the price as a formula of the inputs ("558 if crossings == 2 else 316")
   standard?: boolean       // one of the agency's standard lines: in every new calculation
   season_prices?: Record<string, Num>

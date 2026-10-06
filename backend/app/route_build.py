@@ -98,6 +98,8 @@ def _item_for_service(s: Service, slot: dict, day_number: int, on: date, q: Quot
             warnings.append(f"Day {day_number} · {s.name}: counted as 1 — set how many")
     return QuoteItemIn(category=s.category, name=name[:200], vendor_id=s.vendor_id, service_id=s.id,
                        currency=p.currency or q.currency, unit_price=p.unit_price, quantity=qty, basis=basis,
+                       # The catalog says 0 for every group size: free on purpose, not a missing price.
+                       free=p.currency is not None and not p.missing and not p.unit_price and not p.tiers,
                        who=who, tiers=p.tiers, day=day_number, notes=slot.get("notes") or "",
                        optional=bool(slot.get("optional")))
 

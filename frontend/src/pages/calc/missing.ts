@@ -6,7 +6,7 @@
 import type { QuoteDoc, QuoteItem } from '../../lib/api'
 
 export const lineMissing = (it: QuoteItem) =>
-  it.included && !it.optional && !Number(it.unit_price) && !it.price_formula && !it.tiers.some((x) => Number(x.unit_price))
+  it.included && !it.optional && !it.free && !Number(it.unit_price) && !it.price_formula && !it.tiers.some((x) => Number(x.unit_price))
 
 export function missingPrices(doc: QuoteDoc) {
   const nights = doc.nights.map((n, i) => ({ n, i })).filter(({ n }) => n.price_dbl === null || n.price_dbl === '')
