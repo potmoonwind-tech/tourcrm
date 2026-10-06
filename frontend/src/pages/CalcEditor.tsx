@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ask, askText, Drawer, Menu, toast } from '../components/overlay'
+import { ask, askText, Dialog, Drawer, Menu, toast } from '../components/overlay'
 import { AlertTriangle, Calculator, Check as CheckIcon, ChevronDown, CloudOff, Copy, Download, Eye, FileSpreadsheet, History, Layers, Loader2, Plus, Printer, Redo2, RefreshCw, Settings2, Sparkles, Trash2, Undo2, X } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -24,7 +24,7 @@ import { FillFromRoute, UpdatePrices } from './calc/RouteTools'
 import { ApplyToDepartures, type SeriesResult } from './calc/ApplyToDepartures'
 import { DeparturesForm } from './NewDepartures'
 import { useDebounced, useLeaveGuard } from '../lib/hooks'
-import { UndoContext, useUndoDoc } from './calc/undo'
+import { UndoContext, useUndoDoc, type EditFn } from './calc/undo'
 import { QuoteStatusPill } from './Calculations'
 import { PageHeader } from './Dashboard'
 import { CURRENCIES } from './Onboarding'
@@ -65,7 +65,18 @@ export function CalcEditorPage() {
   const forTour = params.get('for_tour')   // opened from a tour ("Calculate the price")
   const url = wsPath(ws.id, `/quotes/${quoteId}`)
   const saved = useQuery({ queryKey: ['quote', ws.id, quoteId], queryFn: () => api<QuoteOut>(url) })
-  const { doc, load: setDoc, edit, undo, redo, canUndo, canRedo } = useUndoDoc<QuoteDoc>()
+  const { doc, load: setDoc, edit: rawEdit, undo, redo, canUndo, canRedo } = useUndoDoc<QuoteDoc>()
+  // A price the client already has (sent / accepted): changes save by themselves, so the first change asks
+  // whether to change it or work on a copy. The change shows at once; only saving waits for the answer.
+  // Once answered, this visit edits freely.
+  const sentToClient = saved.data?.status === 'sent' || saved.data?.status === 'accepted'
+  const [unlocked, setUnlocked] = useState(false)
+  const [asking, setAsking] = useState(false)
+  const before = useRef<QuoteDoc | null>(null)
+  const edit: EditFn<QuoteDoc> = (fn, checkpoint) => {
+    if (sentToClient && !unlocked && !asking) { before.current = doc; setAsking(true) }
+    rawEdit(fn, checkpoint)
+  }
   // What was last stored, as the editor holds it: changed since = not saved yet (saved by itself a moment later).
   const [savedJson, setSavedJson] = useState<string | null>(null)
   useEffect(() => {
@@ -120,13 +131,20 @@ export function CalcEditorPage() {
   })
   const failed = save.isError && !!save.variables && JSON.stringify(save.variables.body) === docJson
   useEffect(() => {
-    if (!dirty || !canSave || save.isPending || failed || !doc) return
+    if (!dirty || !canSave || save.isPending || failed || !doc || asking || (sentToClient && !unlocked)) return
     const h = setTimeout(() => save.mutate({ body: doc, auto: true }), 1200)
     return () => clearTimeout(h)
-  }, [docJson, dirty, canSave, save.isPending, failed])   // eslint-disable-line react-hooks/exhaustive-deps
+  }, [docJson, dirty, canSave, save.isPending, failed, asking, unlocked, sentToClient])   // eslint-disable-line react-hooks/exhaustive-deps
   const del = useMutation({
     mutationFn: () => api(url, { method: 'DELETE' }),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ['quotes', ws.id] }); navigate(`/w/${ws.id}/calculations`) },
+  })
+  const copyWithChange = useMutation({
+    mutationFn: async () => {
+      const c = await api<QuoteOut>(wsPath(ws.id, '/quotes'), { method: 'POST', body: { copy_of: quoteId } })
+      return api<QuoteOut>(wsPath(ws.id, `/quotes/${c.id}`), { method: 'PUT', body: { ...doc, name: c.name, status: 'draft' } })
+    },
+    onSuccess: (q) => { setAsking(false); qc.invalidateQueries({ queryKey: ['quotes', ws.id] }); setDoc(null); navigate(`/w/${ws.id}/calculations/${q.id}`) },
   })
   const copy = useMutation({
     // The copy starts from what's on screen: the last few changes are saved first.
@@ -177,7 +195,7 @@ export function CalcEditorPage() {
             { label: t('delete'), icon: <Trash2 size={16} />, danger: true,
               onClick: () => void ask({ title: t('confirmDelete'), danger: true, confirmLabel: t('delete') }).then((ok) => ok && del.mutate()) },
           ]} />
-          <SaveState state={!canSave ? 'readonly' : failed ? 'failed' : dirty || save.isPending ? 'saving' : 'saved'}
+          <SaveState state={!canSave ? 'readonly' : failed ? 'failed' : save.isPending ? 'saving' : dirty && (asking || (sentToClient && !unlocked)) ? 'held' : dirty ? 'saving' : 'saved'}
             onRetry={() => doc && save.mutate({ body: doc, auto: false })} onHistory={() => setHistory(true)} />
         </div>} />
       <div className="space-y-4 p-4 md:p-8">
@@ -242,6 +260,18 @@ export function CalcEditorPage() {
         )}
         </UndoContext.Provider>
       </div>
+      {asking && (
+        <Dialog top title={t('sentGuardTitle', { status: t(`status_q_${saved.data?.status ?? 'sent'}` as TKey) })}
+          onClose={() => { if (before.current) setDoc(before.current); setAsking(false) }}
+          footer={<div className="flex flex-wrap justify-end gap-2">
+            <Button variant="secondary" onClick={() => { if (before.current) setDoc(before.current); setAsking(false) }}>{t('cancel')}</Button>
+            <Button variant="secondary" disabled={copyWithChange.isPending} onClick={() => copyWithChange.mutate()}><Copy size={16} />{t('sentGuardCopy')}</Button>
+            <Button onClick={() => { setUnlocked(true); setAsking(false) }}>{t('sentGuardChange')}</Button>
+          </div>}>
+          <p className="text-sm text-slate-600">{t('sentGuardText')}</p>
+          <ErrorText error={copyWithChange.error} />
+        </Dialog>
+      )}
       {details && <DetailsDrawer doc={doc} edit={edit} onClose={() => setDetails(false)} />}
       {repricing && <UpdatePrices doc={doc} edit={edit} onClose={() => setRepricing(false)} />}
       {history && <HistoryModal quoteId={quoteId!} dirty={dirty} onRestored={replaced} onClose={() => setHistory(false)} />}
@@ -252,12 +282,13 @@ export function CalcEditorPage() {
 type EditProps = { doc: QuoteDoc; edit: (fn: (d: QuoteDoc) => void) => void }
 
 /** Where the saving is, in the header's corner: saving…, saved, not saved (try again), or view only. */
-function SaveState({ state, onRetry, onHistory }: { state: 'saving' | 'saved' | 'failed' | 'readonly'; onRetry: () => void; onHistory: () => void }) {
+function SaveState({ state, onRetry, onHistory }: { state: 'saving' | 'saved' | 'held' | 'failed' | 'readonly'; onRetry: () => void; onHistory: () => void }) {
   const { t } = useI18n()
   return (
     <span aria-live="polite" title={state === 'readonly' ? undefined : t('autosaveTipHistory')}
       className={cn('inline-flex h-10 items-center gap-1.5 px-2 text-sm', state === 'failed' ? 'text-red-700' : 'text-slate-500')}>
       {state === 'saving' && <><Loader2 size={16} className="animate-spin" aria-hidden />{t('autosaveSaving')}</>}
+      {state === 'held' && <><CloudOff size={16} aria-hidden />{t('autosaveHeld')}</>}
       {state === 'saved' && (
         <button type="button" onClick={onHistory} className="inline-flex h-8 items-center gap-1.5 rounded px-2 hover:bg-slate-100 hover:text-slate-800">
           <CheckIcon size={16} className="text-emerald-600" aria-hidden />{t('autosaveSaved')}<History size={14} aria-hidden /><span className="sr-only">· {t('history')}</span>

@@ -2697,6 +2697,11 @@ const en = {
   pickFromCatalogue: "Pick a hotel from the catalogue",
   dragStep: "Move step: {name}",
   autosaveTipHistory: "Changes save by themselves. Click to see every saved version (History). Ctrl+S keeps a version of its own.",
+  sentGuardTitle: "This price is \"{status}\"",
+  sentGuardText: "The client already has this price. Changes save by themselves, so this would change the price they were given. Make a copy to keep it as it is - your change goes into the copy.",
+  sentGuardCopy: "Make a copy",
+  sentGuardChange: "Change this one",
+  autosaveHeld: "Not saved yet",
 }
 
 type Dict = typeof en
@@ -5390,6 +5395,11 @@ const ka: Dict = {
   pickFromCatalogue: "სასტუმროს არჩევა კატალოგიდან",
   dragStep: "ნაბიჯის გადატანა: {name}",
   autosaveTipHistory: "ცვლილებები თავისით ინახება. დააჭირეთ ყველა შენახული ვერსიის სანახავად (ისტორია). Ctrl+S ცალკე ვერსიას ინახავს.",
+  sentGuardTitle: "ეს ფასი არის „{status}“",
+  sentGuardText: "კლიენტს ეს ფასი უკვე აქვს. ცვლილებები თავისით ინახება, ასე რომ, მისთვის მიცემული ფასი შეიცვლება. რომ უცვლელი დარჩეს, შექმენით ასლი - თქვენი ცვლილება ასლში გადავა.",
+  sentGuardCopy: "ასლის შექმნა",
+  sentGuardChange: "ამის შეცვლა",
+  autosaveHeld: "ჯერ არ შენახულა",
 }
 
 export type Lang = 'en' | 'ka'
