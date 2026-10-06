@@ -943,21 +943,36 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
               ))}
             </ul>
           )}
-          {/* Is it worth it: one line, green / amber / red. */}
-          <div className={cn('flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium',
-            health === 'draft' ? 'bg-slate-50 text-slate-600' : health === 'ok' ? 'bg-emerald-50 text-emerald-800' : health === 'thin' ? 'bg-amber-50 text-amber-900' : 'bg-red-50 text-red-800')}>
-            <span className="min-w-0 flex-1 tabular-nums">{t('profitLine', { amount: money(profit), cur, pct: pct.toFixed(1) })}</span>
-            {(health === 'thin' || health === 'loss') && <span className="shrink-0 text-xs font-semibold uppercase">{t(health === 'thin' ? 'profitThin' : 'profitLoss')}</span>}
+          {/* Cost and profit side by side; the profit coloured by how good it is (grey while prices are missing). */}
+          <div className="grid grid-cols-2 gap-3 border-t border-slate-200 pt-3">
+            <div>
+              <div className="text-sm text-slate-500">{t('costPerPerson')}</div>
+              <div className="text-lg font-semibold tabular-nums text-slate-900">{money(row.cost_dbl)}</div>
+            </div>
+            <div>
+              <div className="text-sm text-slate-500">{t('profitGroup')}</div>
+              <div className={cn('text-lg font-semibold tabular-nums',
+                health === 'draft' ? 'text-slate-500' : health === 'ok' ? 'text-emerald-700' : health === 'thin' ? 'text-amber-700' : 'text-red-700')}>
+                {money(profit)}
+              </div>
+              <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                <span className="tabular-nums">{pct.toFixed(1)}%</span>
+                {(health === 'thin' || health === 'loss') && (
+                  <span className={cn('rounded px-1 font-semibold uppercase', health === 'thin' ? 'bg-amber-100 text-amber-900' : 'bg-red-100 text-red-800')}>
+                    {t(health === 'thin' ? 'profitThin' : 'profitLoss')}
+                  </span>
+                )}
+              </div>
+            </div>
           </div>
           {total > 0 && (
             <div>
-              <div className="flex h-2 overflow-hidden rounded-full" aria-hidden>
+              <div className="flex h-2.5 overflow-hidden rounded-full" aria-hidden>
                 {byCat.map(([c, v]) => <span key={c} className={K.colorOf(c)} style={{ width: `${(v / total) * 100}%` }} />)}
               </div>
-              <div className="mt-2 flex justify-between text-sm"><span className="text-slate-500">{t('costPerPerson')}</span><span className="font-semibold tabular-nums">{money(row.cost_dbl)}</span></div>
-              <ul className="mt-1 grid grid-cols-2 gap-x-3 gap-y-0.5 text-xs text-slate-600">
+              <ul className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-slate-700">
                 {byCat.map(([c, v]) => (
-                  <li key={c} className="flex items-center gap-1.5"><span className={cn('h-2 w-2 shrink-0 rounded-sm', K.colorOf(c))} />
+                  <li key={c} className="flex items-center gap-1.5"><span className={cn('h-2.5 w-2.5 shrink-0 rounded-full', K.colorOf(c))} />
                     <span className="min-w-0 flex-1 truncate">{K.nameOf(c)}</span><span className="tabular-nums">{money(v / n)}</span></li>
                 ))}
               </ul>
