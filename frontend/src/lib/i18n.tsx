@@ -2765,6 +2765,7 @@ const en = {
   programmeExpired: "This programme link has expired - download it again from the tour or route.",
   programmeDays: "Days in the file",
   programmeDaysHelp: "Tap a day to leave it out (its number and date stay the same on the others).",
+  menuNoDishes: "No dishes listed for this menu - add them in the Catalogue to see them here",
 }
 
 type Dict = typeof en
@@ -5526,6 +5527,7 @@ const ka: Dict = {
   programmeExpired: "პროგრამის ბმულს ვადა გაუვიდა - ჩამოტვირთეთ ხელახლა ტურიდან ან მარშრუტიდან.",
   programmeDays: "დღეები ფაილში",
   programmeDaysHelp: "დააჭირეთ დღეს, რომ ამოიღოთ (დანარჩენებს ნომერი და თარიღი არ ეცვლებათ).",
+  menuNoDishes: "ამ მენიუს კერძები არ აქვს - დაამატეთ კატალოგში, რომ აქ გამოჩნდეს",
 }
 
 export type Lang = 'en' | 'ka'

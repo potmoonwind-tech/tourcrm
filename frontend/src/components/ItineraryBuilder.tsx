@@ -477,10 +477,11 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   const factor = useWorkspace()?.drive_factor ?? 1.25
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
   const hotel = day.hotel_id ? byId.get(day.hotel_id) : undefined
-  // Dishes served twice today (lunch and dinner menus) are shown in red.
-  const dishesOf = (menuId?: string | null) => (menus.find((m) => m.id === menuId)?.dishes ?? []).map((x) => x.name.toLowerCase())
-  const lunchDishes = dishesOf(day.lunch_menu_id)
-  const twiceToday = new Set(dishesOf(day.dinner_menu_id).filter((x) => lunchDishes.includes(x)))
+  // Dishes served twice today (lunch and dinner) are shown in red - the chosen menu's, or the usual one's.
+  const dishesOf = (menuId: string | null | undefined, vendorId: string | null | undefined, meal: 'lunch' | 'dinner') =>
+    (menus.find((m) => m.id === menuId) ?? usualMenu(menus, vendorId, meal))?.dishes.map((x) => x.name.toLowerCase()) ?? []
+  const lunchDishes = dishesOf(day.lunch_menu_id, day.lunch_id, 'lunch')
+  const twiceToday = new Set(dishesOf(day.dinner_menu_id, day.dinner_id, 'dinner').filter((x) => lunchDishes.includes(x)))
   const [more, setMore] = useState(false)
   // Meals: restaurants, and the hotels that serve them (a meal on their price list) — not every hotel.
   const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
@@ -565,7 +566,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
               cities={[prevCity ?? '', ...(day.stops ?? []), day.city].filter(Boolean)}
               onChange={(v) => onSet({ breakfast_id: v, breakfast_menu_id: null })}
               onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ breakfast_id: v.id, breakfast_menu_id: null })) : undefined} />
-            <MenuPick vendorId={day.breakfast_id ?? null} value={day.breakfast_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
+            <MenuPick meal="breakfast" vendorId={day.breakfast_id ?? null} value={day.breakfast_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
               onChange={(m) => onSet({ breakfast_menu_id: m })}
               onAddNew={canCreate && day.breakfast_id ? () => onNewService(day.breakfast_id!, true, (s) => onSet({ breakfast_menu_id: s.id ?? null })) : undefined} />
             {day.breakfast_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
@@ -579,7 +580,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             cities={[...(day.stops ?? []), day.city]}
             onChange={(v) => onSet({ lunch_id: v, lunch_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ lunch_id: v.id, lunch_menu_id: null })) : undefined} />
-          <MenuPick vendorId={day.lunch_id} value={day.lunch_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
+          <MenuPick meal="lunch" vendorId={day.lunch_id} value={day.lunch_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
             onChange={(m) => onSet({ lunch_menu_id: m })}
             onAddNew={canCreate && day.lunch_id ? () => onNewService(day.lunch_id!, true, (s) => onSet({ lunch_menu_id: s.id ?? null })) : undefined} />
           {day.lunch_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
@@ -593,7 +594,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             cities={[day.city, ...(day.stops ?? [])]}
             onChange={(v) => onSet({ dinner_id: v, dinner_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ dinner_id: v.id, dinner_menu_id: null })) : undefined} />
-          <MenuPick vendorId={day.dinner_id} value={day.dinner_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
+          <MenuPick meal="dinner" vendorId={day.dinner_id} value={day.dinner_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
             onChange={(m) => onSet({ dinner_menu_id: m })}
             onAddNew={canCreate && day.dinner_id ? () => onNewService(day.dinner_id!, true, (s) => onSet({ dinner_menu_id: s.id ?? null })) : undefined} />
           {day.dinner_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
@@ -878,26 +879,40 @@ function DistanceBar({ days, disabled, onChange, byId, back = 0 }: {
 /** The set menu at a restaurant: its dishes shown under it (served twice today = red). */
 const SYSTEM_PRICES = new Set(['breakfast', 'lunch', 'dinner', 'staff_meal', 'staff_room', 'room_DBL', 'room_TWN', 'room_SGL', 'room_TRP', 'room_QUAD', 'day'])
 
-function MenuPick({ vendorId, value, menus, disabled, twice, onChange, onAddNew }: {
+/** The place's usual menu for a meal: its lunch / dinner / breakfast price, with the dishes it lists. */
+const usualMenu = (menus: ServiceBrief[], vendorId: string | null | undefined, meal: string) =>
+  vendorId ? menus.find((m) => m.vendor.id === vendorId && m.code === meal) : undefined
+
+/** "Khinkali, Mtsvadi, Salad…" - enough to tell menus apart in a list. */
+const dishPreview = (m?: ServiceBrief) => {
+  const d = m?.dishes ?? []
+  return d.length ? ` — ${d.slice(0, 3).map((x) => x.name).join(', ')}${d.length > 3 ? '…' : ''}` : ''
+}
+
+function MenuPick({ meal, vendorId, value, menus, disabled, twice, onChange, onAddNew }: {
+  meal: 'breakfast' | 'lunch' | 'dinner'
   vendorId: string | null; value: string | null; menus: ServiceBrief[]; disabled?: boolean; twice: Set<string>
   onChange: (id: string | null) => void; onAddNew?: () => void
 }) {
   const { t } = useI18n()
   if (!vendorId) return null
+  const usual = usualMenu(menus, vendorId, meal)
   // The place's menus: its set menus and its own priced meals ("per person", "per group", named ones) -
   // not its system prices (breakfast / lunch / dinner / rooms), which are the "usual menu".
   const options = menus.filter((m) => m.vendor.id === vendorId && !SYSTEM_PRICES.has(m.code ?? '')
     && (m.category === 'meal' || (m.category === 'other' && (m.code === 'person' || m.code === 'group' || !m.code))))
-  const chosen = options.find((m) => m.id === value)
-  if (!options.length && !onAddNew) return null
+  // What is served: the chosen menu, else the usual one - its dishes always in view.
+  const chosen = options.find((m) => m.id === value) ?? (value ? undefined : usual)
+  if (!options.length && !onAddNew && !usual) return null
   return (
     <div className="mt-1.5 space-y-1">
       <Select className="h-8 text-xs" disabled={disabled} value={value ?? ''} aria-label={t('menu')}
         onChange={(e) => (e.target.value === '__new__' ? onAddNew?.() : onChange(e.target.value || null))}>
-        <option value="">{t('menuUsual')}</option>
-        {options.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        <option value="">{t('menuUsual')}{dishPreview(usual)}</option>
+        {options.map((m) => <option key={m.id} value={m.id}>{m.name}{dishPreview(m)}</option>)}
         {onAddNew && <option value="__new__">{t('addNewMenuOption')}</option>}
       </Select>
+      {chosen && !chosen.dishes.length && <p className="text-[11px] text-slate-500">{t('menuNoDishes')}</p>}
       {chosen && chosen.dishes.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {chosen.dishes.map(({ name: d }) => (
