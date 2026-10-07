@@ -5,12 +5,13 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from pydantic import BaseModel
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from .. import programme, programme_files, ratelimit
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
-from ..models import ProgrammeShare, Workspace, utcnow
+from ..models import ProgrammeShare, Tour, Workspace, utcnow
+from ..schemas import DayFields
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["programme"])
 public = APIRouter(tags=["programme"])
@@ -50,7 +51,15 @@ def shared(token: str, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "This link doesn't work any more")
     x.views, x.last_seen_at = (x.views or 0) + 1, utcnow()
     db.commit()
-    return programme.build(db, db.get(Workspace, x.workspace_id), programme.ProgrammeIn.model_validate(x.body))
+    body = programme.ProgrammeIn.model_validate(x.body)
+    # A tour's link shows the tour as it is now (a menu chosen later, a changed hotel), with the options it
+    # was made with; a day without its own programme gets the suggested one, as in the dialog.
+    t = db.scalar(select(Tour).where(Tour.id == body.tour_id, Tour.workspace_id == x.workspace_id)
+                  .options(selectinload(Tour.days))) if body.tour_id else None
+    if t and t.days:
+        body = body.model_copy(update={"start_date": t.start_date, "days": [
+            DayFields.model_validate(d, from_attributes=True) for d in sorted(t.days, key=lambda d: d.day_number)]})
+    return programme.build(db, db.get(Workspace, x.workspace_id), body, fill=True)
 
 
 @router.post("/programme", response_model=programme.ProgrammeOut)

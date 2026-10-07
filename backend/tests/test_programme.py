@@ -381,3 +381,22 @@ def test_each_person_eats_where_the_tour_says(make_client):
     c.patch(f"{url}/staff/{seats['driver']['id']}", json={"meal_seat": "staff"})
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
     assert p["days"][0]["steps"][0]["tables"][1] == {"who": "staff", "people": 2, "roles": ["guide", "driver"]}
+
+
+def test_a_tours_link_shows_the_tour_as_it_is_now(make_client):
+    c, base, _ = agency(make_client)
+    resto = mk(c, f"{base}/vendors", {"name": "Barbarestan", "type": "restaurant", "city": "Tbilisi"})
+    menu = c.put(f"{base}/vendors/{resto['id']}/services", json=[
+        {"name": "Barbarestan · Dinner 1", "category": "meal", "unit": "person", "rates": [{"price": "30", "currency": "GEL"}],
+         "dishes": [{"name": "Khinkali", "per_plate": 5}]}]).json()[0]
+    tour = mk(c, f"{base}/tours", {"code": "T-21", "start_date": "2026-11-01", "end_date": "2026-11-02", "pax": 10})
+    url = f"{base}/tours/{tour['id']}"
+    days = c.get(url).json()["days"]
+    c.patch(f"{url}/days/{days[0]['id']}", json={"city": "Tbilisi", "dinner_id": resto["id"]})
+    x = c.post(f"{base}/programme/share", json={"days": [{"city": "Tbilisi"}], "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
+    link = f"/api/shared/programme/{x['token']}"
+    dinner = lambda: next(s for s in c.get(link).json()["days"][0]["steps"] if s["meal"] == "dinner")
+    assert dinner()["dishes"] == [] and dinner()["place"] == "Barbarestan"      # the saved day, not what was sent
+    # The menu is chosen afterwards: the same link shows it, with its plates.
+    c.patch(f"{url}/days/{days[0]['id']}", json={"city": "Tbilisi", "dinner_id": resto["id"], "dinner_menu_id": menu["id"]})
+    assert [(d["name"], d["plates"]) for d in dinner()["dishes"]] == [("Khinkali", 2)]
