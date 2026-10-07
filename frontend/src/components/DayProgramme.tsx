@@ -13,6 +13,7 @@ import { AlertTriangle, ArrowDownUp, BedDouble, Car, ChevronDown, Coffee, Map as
 import { useQuery } from '@tanstack/react-query'
 import { Fragment, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
 import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
+import { airportName } from '../lib/airports'
 import { wsPath } from '../lib/data'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
@@ -146,7 +147,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
   // and the day's lunch/dinner follow — one change, with the programme.
   onSetDay?: (patch: Partial<DayFields>) => void
 }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const saved = day.schedule ?? []
   const [open, setOpen] = useState(startOpen ?? saved.length > 0)
   const [adding, setAdding] = useState(false)
@@ -198,7 +199,8 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
     }
     if (r.startsWith('flight:')) {
       const f = (day.flights ?? [])[Number(r.slice(7))]
-      return { text: f ? `${t(f.direction === 'arrival' ? 'flightArrival' : 'flightDeparture')} ${f.number}` : '—', missing: !f }
+      const where = f?.airport ? ` · ${airportName(f.airport, lang)}` : ''
+      return { text: f ? `${t(f.direction === 'arrival' ? 'flightArrival' : 'flightDeparture')} ${f.number}${where}` : '—', missing: !f }
     }
     return { text: x.title, missing: false }
   }
@@ -657,6 +659,9 @@ const LATEST = 23 * 60 + 55
 /** Where a step happens on the map: the hotel's address (else the night's city) for the check-in, the
  * restaurant's address or town for lunch and dinner, the place picked or typed for a visit. */
 const placeOf = (x: ScheduleItem, day: DayFields, byId?: Map<string, Vendor>) => {
+  // A flight: the airport (by its full name, so the map finds it) - arriving, the day starts there;
+  // leaving, it is the day's last destination.
+  if (x.ref?.startsWith('flight:')) return airportName((day.flights ?? [])[Number(x.ref.slice(7))]?.airport)
   if (x.ref === 'hotel') return byId?.get(day.hotel_id ?? '')?.address || day.city
   if (x.ref === 'breakfast') {
     // At the hotel: where the group slept (no drive). At a café: its address or town.
@@ -693,6 +698,9 @@ export function pathOf(items: ScheduleItem[], day: DayFields, byId: Map<string, 
   // Where the day ends, when the programme has no check-in: the night's hotel (no drive when they're
   // already there - dinner at the hotel), else the day's town (the airport, home) - unless the last
   // place is already in that town.
+  // Ending with a departure: the airport is the last destination.
+  const lastStep = items.find((x) => x.id === pts[pts.length - 1]?.id)
+  if (lastStep?.ref?.startsWith('flight:') && (day.flights ?? [])[Number(lastStep.ref.slice(7))]?.direction === 'departure') return pts
   if (!items.some((x) => x.ref === 'hotel')) {
     const hotel = last ? undefined : byId?.get(day.hotel_id ?? '')
     const end = pts[pts.length - 1]?.place.toLowerCase() ?? ''
