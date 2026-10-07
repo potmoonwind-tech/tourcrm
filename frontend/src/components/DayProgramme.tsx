@@ -690,8 +690,15 @@ export function pathOf(items: ScheduleItem[], day: DayFields, byId: Map<string, 
     if (p && pts[pts.length - 1]?.place.toLowerCase() !== p.toLowerCase()) pts.push({ place: p, id })
   }
   for (const x of items) push(placeOf(x, day, byId), x.id)
-  // The last day has no check-in: the group still ends in the day's city (the airport, home).
-  if (last || !items.some((x) => x.ref === 'hotel')) push(day.city, null)
+  // Where the day ends, when the programme has no check-in: the night's hotel (no drive when they're
+  // already there - dinner at the hotel), else the day's town (the airport, home) - unless the last
+  // place is already in that town.
+  if (!items.some((x) => x.ref === 'hotel')) {
+    const hotel = last ? undefined : byId?.get(day.hotel_id ?? '')
+    const end = pts[pts.length - 1]?.place.toLowerCase() ?? ''
+    if (hotel) push(hotel.address || hotel.name, null)
+    else if (!(day.city && end.includes(day.city.trim().toLowerCase()))) push(day.city, null)
+  } else if (last) push(day.city, null)
   return pts
 }
 

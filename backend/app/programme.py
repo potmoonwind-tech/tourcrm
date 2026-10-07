@@ -256,9 +256,21 @@ def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], 
             else:
                 sight = _sight(x.title, vendors)
                 push((sight.address if sight else "") or x.place or x.title, x.title or x.place, x.id)
+    # Where the day ends (the day plan's rule): at the airport when it ends with a flight; else, with no
+    # check-in in the programme, at the night's hotel (no drive when they're already there - dinner at the
+    # hotel) or the day's town, unless the last place is already in that town.
     leaving = any((x.ref or "").startswith("flight:") and pts and pts[-1][2] == x.id for x in d.schedule)
-    if not leaving and (last or not any(x.ref == "hotel" for x in d.schedule)):
-        push(d.city, d.city)        # where the day ends, unless it ends at the airport
+    if leaving:
+        return pts
+    if not any(x.ref == "hotel" for x in d.schedule):
+        hotel = None if last else vendors.get(d.hotel_id or "")
+        end = pts[-1][0].lower() if pts else ""
+        if hotel:
+            push(hotel.address or hotel.name, hotel.name)
+        elif not (d.city and d.city.strip().lower() in end):
+            push(d.city, d.city)
+    elif last:
+        push(d.city, d.city)
     return pts
 
 

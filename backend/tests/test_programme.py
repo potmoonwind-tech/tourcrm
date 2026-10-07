@@ -207,3 +207,23 @@ def test_flights_in_the_timeline_with_the_airports_name(make_client, monkeypatch
     assert d2["steps"][-1]["text"].startswith("Departure TK385") and d2["steps"][-1]["drive"]["end"] == "Tbilisi International Airport"
     z = c.post(f"{base}/programme", json={"days": days, "lang": "zh", "translate": False, "include": {"schedule": False}}).json()
     assert z["days"][0]["flights"] == ["10:30 \u62b5\u8fbe TK384 (Istanbul) \u00b7 \u7b2c\u6bd4\u5229\u65af\u56fd\u9645\u673a\u573a"]
+
+
+def test_no_drive_after_dinner_at_the_nights_hotel(make_client, monkeypatch):
+    asked = []
+    def fake_legs(db, cities, **kw):
+        asked.append(list(cities))
+        return [{"from": None, "to": cities[0], "km": 0, "minutes": 0}] + [
+            {"from": a, "to": b, "km": 8, "minutes": 16} for a, b in zip(cities, cities[1:])]
+    monkeypatch.setattr(programme.geo, "legs", fake_legs)
+    c, base, _ = agency(make_client)
+    hotel = mk(c, f"{base}/vendors", {"name": "Marco Polo Hotel Gudauri", "type": "hotel", "city": "Gudauri",
+                                      "address": "Marco Polo Hotel Gudauri, Gudauri"})
+    days = [{"city": "Tbilisi"}, {"city": "Gudauri", "hotel_id": hotel["id"], "dinner_id": hotel["id"], "schedule": [
+        {"id": "v", "kind": "visit", "time": "18:35", "end": "18:50", "title": "Gudauri View Point"},
+        {"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}, {"city": "Tbilisi"}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    steps = p["days"][1]["steps"]
+    # View point → (drive) → dinner at the hotel, and the day ends there: no drive "to Gudauri".
+    assert [s["text"] for s in steps] == ["Gudauri View Point", "Dinner: Marco Polo Hotel Gudauri"]
+    assert ["Tbilisi", "Gudauri View Point", "Marco Polo Hotel Gudauri, Gudauri"] in asked
