@@ -5,7 +5,7 @@
  * opened and scrolled to. Big tap targets, readable in a bus.
  */
 import { useQuery } from '@tanstack/react-query'
-import { BedDouble, Car, ChevronDown, MapPin, Navigation, Phone as PhoneIcon, Plane, Ticket, Users, Utensils } from 'lucide-react'
+import { BedDouble, Car, ChevronDown, ChevronRight, MapPin, Navigation, Phone as PhoneIcon, Plane, Ticket, Users, Utensils } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../lib/api'
@@ -199,11 +199,11 @@ export function FieldPage() {
 
 /** The day hour by hour, as in the programme file: each drive with its time and km and a route button,
  * each place with a map button, and under each meal what was ordered (plates and prices). */
-/** "4 plates · 1 plate for 4" / "13 portions": how much of a dish, in the page's words. */
-export type PortionWords = { plates: string; portions: string; per_plate: string }
+/** "4 plates · 1 / 4" (a plate for 4) or "13 portions": how much of a dish, in the page's words. */
+export type PortionWords = { plates: string; portions: string }
 export const portionText = (x: { plates: number | null; per_plate: number }, w: PortionWords) =>
   [x.plates != null && (x.per_plate > 1 ? w.plates : w.portions).replace('{n}', String(x.plates)),
-    x.per_plate > 1 && w.per_plate.replace('{n}', String(x.per_plate))].filter(Boolean).join(' · ')
+    x.per_plate > 1 && `1 / ${x.per_plate}`].filter(Boolean).join(' · ')
 
 export function DishList({ dishes, words }: { dishes: PDish[]; words: PortionWords }) {
   return (
@@ -218,9 +218,12 @@ export function DishList({ dishes, words }: { dishes: PDish[]; words: PortionWor
   )
 }
 
-export function Timeline({ day, orders, words }: { day: PDay; orders: MealOrder[]; words?: { route: string; map: string } & PortionWords }) {
+export function Timeline({ day, orders, words, onMenu }: {
+  day: PDay; orders: MealOrder[]; words?: { route: string; map: string; menu?: string } & PortionWords
+  onMenu?: (meal: string) => void      // the dishes are on the Menu tab: a "Menu ›" link instead of the list
+}) {
   const { t } = useI18n()
-  const w = words ?? { route: t('route'), map: t('fieldMap'), plates: t('fieldPlates'), portions: t('fieldPortions'), per_plate: t('fieldPerPlate') }
+  const w = words ?? { route: t('route'), map: t('fieldMap'), plates: t('fieldPlates'), portions: t('fieldPortions') }
   return (
     <ol className="overflow-hidden rounded-xl border border-slate-200" aria-label={t('dayProgramme')}>
       {(day.km || day.drive) && (
@@ -244,14 +247,17 @@ export function Timeline({ day, orders, words }: { day: PDay; orders: MealOrder[
               )}
             </div>
           )}
-          <Step s={s} order={s.meal ? orders.find((o) => o.meal === s.meal) : undefined} mapLabel={w.map} words={w} />
+          <Step s={s} order={s.meal ? orders.find((o) => o.meal === s.meal) : undefined} mapLabel={w.map} words={w}
+            menu={onMenu && s.meal && s.dishes?.length ? { label: w.menu ?? t('menu'), open: () => onMenu(s.meal!) } : undefined} />
         </li>
       ))}
     </ol>
   )
 }
 
-function Step({ s, order, mapLabel, words }: { s: PStep; order?: MealOrder; mapLabel: string; words: PortionWords }) {
+function Step({ s, order, mapLabel, words, menu }: {
+  s: PStep; order?: MealOrder; mapLabel: string; words: PortionWords; menu?: { label: string; open: () => void }
+}) {
   const { t } = useI18n()
   const Icon = ICON[s.kind ?? ''] ?? MapPin
   const money = (n: number | null) => (n == null ? '' : `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${order?.currency ?? ''}`.trim())
@@ -283,6 +289,10 @@ function Step({ s, order, mapLabel, words }: { s: PStep; order?: MealOrder; mapL
               </span>
             )}
           </span>
+        ) : menu ? (
+          <button type="button" onClick={menu.open} className="mt-0.5 flex items-center gap-1 text-sm font-medium text-brand-700 active:text-brand-800">
+            {s.menu || menu.label}<ChevronRight size={14} />
+          </button>
         ) : s.dishes?.length ? <DishList dishes={s.dishes} words={words} />
           : s.note ? <span className="mt-0.5 block text-sm italic text-slate-500">{s.note}</span> : null}
       </span>

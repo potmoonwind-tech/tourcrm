@@ -5,15 +5,15 @@
  * served at each meal. In the programme's language (English, Georgian or Chinese).
  */
 import { useQuery } from '@tanstack/react-query'
-import { BedDouble, Car, ChevronDown, Map as MapIcon, Plane, Ticket, Utensils } from 'lucide-react'
+import { BedDouble, Car, ChevronDown, Map as MapIcon, MapPin, Phone, Plane, Ticket } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { FullPageSpinner } from '../components/ui'
 import { today } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
 import { cn } from '../lib/utils'
-import { DishList, Timeline } from './Field'
-import type { PDay, PDish, Programme } from './ProgrammePrint'
+import { Timeline } from './Field'
+import type { PDay, Programme } from './ProgrammePrint'
 
 const LOCALE: Record<string, string> = { en: 'en-GB', ka: 'ka-GE', zh: 'zh-CN' }
 
@@ -103,7 +103,8 @@ export function ProgrammeSharedPage() {
                   )}
                   {day.flights.map((f) => <Line key={f} icon={<Plane size={16} />}>{f}</Line>)}
                   {day.steps.length > 0
-                    ? <Timeline day={day} orders={[]} words={{ route: L.route, map: L.map, plates: L.plates, portions: L.portions, per_plate: L.per_plate }} />
+                    ? <Timeline day={day} orders={[]} words={{ route: L.route, map: L.map, menu: L.tab_menu, plates: L.plates, portions: L.portions }}
+                        onMenu={(meal) => { setTab('menu'); setTimeout(() => document.getElementById(`menu-${day.number}-${meal}`)?.scrollIntoView({ block: 'start' }), 50) }} />
                     : day.legs.length > 0 && (
                       <ul className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
                         {day.legs.map((g, i) => <li key={i}>{g.start} → {g.end}{g.km ? ` · ${g.km} ${L.km}` : ''}{g.drive ? ` · ${g.drive}` : ''}</li>)}
@@ -117,39 +118,90 @@ export function ProgrammeSharedPage() {
               )}
             </article>
           )
-        }) : d.days.map((day) => <MenuDay key={day.number} day={day} labels={L} date={date(day.date, { weekday: 'short', day: 'numeric', month: 'short' })} />)}
+        }) : (
+          <>
+            {/* Jump to a day: the menus of a long tour are a long page. */}
+            <nav aria-label={L.jump} className="-mx-3 flex gap-1.5 overflow-x-auto px-3 pb-1">
+              {d.days.filter((day) => day.steps.some((s) => s.meal) || day.meals.length).map((day) => (
+                <button key={day.number} type="button" onClick={() => document.getElementById(`menu-day-${day.number}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                  className={cn('shrink-0 rounded-full border px-3 py-1.5 text-sm font-medium', day.date === now ? 'border-brand-300 bg-brand-50 text-brand-800' : 'border-slate-200 bg-white text-slate-700')}>
+                  {L.day.replace('{n}', String(day.number))}
+                </button>
+              ))}
+            </nav>
+            <div className="space-y-5">
+              {d.days.map((day) => <MenuDay key={day.number} day={day} labels={L} isToday={!!day.date && day.date === now} date={date(day.date, { weekday: 'short', day: 'numeric', month: 'short' })} />)}
+            </div>
+          </>
+        )}
       </main>
     </div>
   )
 }
 
-/** One day's meals: where, and what is served (the set menu's dishes). */
-function MenuDay({ day, labels: L, date }: { day: PDay; labels: Record<string, string>; date: string }) {
-  // From the timeline when there is one (each meal with its menu under it), else the day's meals list.
-  const meals: [string, string, PDish[]][] = day.steps.length
-    ? day.steps.filter((s) => s.meal).map((s) => [s.text, s.note ?? '', s.dishes ?? []])
-    : day.meals.map(([a, b]) => { const [place, ...menu] = b.split(': '); return [`${a}: ${place}`, menu.join(': '), []] })
-  if (!meals.length) return null
+/** One day on the Menu tab: each meal as a card - which meal and when, the restaurant (map, call), the set
+ * menu's name, and its dishes with how much for the group ("16 portions", "4 plates · 1 / 4"). */
+function MenuDay({ day, labels: L, date, isToday }: { day: PDay; labels: Record<string, string>; date: string; isToday: boolean }) {
+  const meals = day.steps.filter((s) => s.meal)
+  if (!meals.length && !day.meals.length) return null
+  const words = { plates: L.plates, portions: L.portions }
   return (
-    <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
-      <p className="flex items-baseline justify-between gap-3 bg-sky-50 px-4 py-2">
-        <b className="truncate text-slate-900">{L.day.replace('{n}', String(day.number))}{day.route.length ? ` · ${day.route[day.route.length - 1]}` : ''}</b>
-        <span className="shrink-0 text-sm text-slate-500">{date}</span>
-      </p>
-      <ul className="divide-y divide-slate-100">
-        {meals.map(([what, menu, dishes], i) => (
-          <li key={i} className="flex gap-3 px-4 py-2.5">
-            <Utensils size={16} className="mt-1 shrink-0 text-sky-600" />
-            <span className="min-w-0 flex-1">
-              <span className="block font-medium text-slate-900">{what}</span>
-              {dishes.length > 0
-                ? <DishList dishes={dishes} words={{ plates: L.plates, portions: L.portions, per_plate: L.per_plate }} />
-                : <span className={cn('block text-sm', menu ? 'text-slate-600' : 'italic text-slate-400')}>{menu || L.no_menu}</span>}
-            </span>
-          </li>
-        ))}
-      </ul>
+    <section id={`menu-day-${day.number}`} className="scroll-mt-36">
+      <h2 className="mb-1.5 flex items-baseline gap-2 px-1">
+        <span className={cn('flex h-6 min-w-6 items-center justify-center rounded-full px-1.5 text-xs font-bold text-white', isToday ? 'bg-brand-600' : 'bg-slate-800')}>{day.number}</span>
+        <span className="min-w-0 flex-1 truncate font-semibold text-slate-900">{day.route[day.route.length - 1] ?? day.title}</span>
+        <span className="shrink-0 text-sm text-slate-500">{isToday ? <b className="text-brand-700">{L.today}</b> : date}</span>
+      </h2>
+      <div className="space-y-2">
+        {meals.length ? meals.map((s, i) => {
+          const total = s.dishes?.find((x) => x.plates != null && x.per_plate === 1)?.plates
+          return (
+            <article key={i} id={`menu-${day.number}-${s.meal}`} className="scroll-mt-36 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+              <header className="flex items-start gap-3 px-4 pt-3">
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-semibold uppercase tracking-wide text-amber-700">
+                    {L[s.meal!] ?? s.meal}{s.time && ` · ${s.time}`}
+                  </span>
+                  <span className="block text-base font-semibold text-slate-900">{s.place || s.text}</span>
+                  {(s.menu || total) && (
+                    <span className="block text-sm text-slate-500">{[s.menu, total && L.people.replace('{n}', String(total))].filter(Boolean).join(' · ')}</span>
+                  )}
+                </span>
+                {s.map && <IconLink href={s.map} label={L.map}><MapPin size={16} /></IconLink>}
+                {s.phone && <IconLink href={`tel:${s.phone.replace(/[^\d+]/g, '')}`} label={s.phone}><Phone size={16} /></IconLink>}
+              </header>
+              {s.dishes?.length ? (
+                <ul className="mt-2 divide-y divide-slate-100 border-t border-slate-100">
+                  {s.dishes.map((x) => (
+                    <li key={x.name} className="flex items-center gap-3 px-4 py-2">
+                      <span className="min-w-0 flex-1 text-slate-800">{x.name}</span>
+                      {x.per_plate > 1 && <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-amber-800">1 / {x.per_plate}</span>}
+                      {x.plates != null && (
+                        <span className="w-24 shrink-0 text-right text-sm tabular-nums text-slate-600">
+                          <b className="text-slate-900">{x.plates}</b> {(x.per_plate > 1 ? words.plates : words.portions).replace('{n}', '').trim()}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              ) : <p className="px-4 pb-3 pt-1 text-sm italic text-slate-400">{L.no_menu}</p>}
+              {s.dishes?.length ? <div className="h-1" /> : null}
+            </article>
+          )
+        }) : (
+          <ul className="divide-y divide-slate-100 overflow-hidden rounded-2xl border border-slate-200 bg-white">
+            {day.meals.map(([a, b]) => <li key={a} className="px-4 py-2.5 text-sm"><b className="text-slate-900">{a}</b> <span className="text-slate-600">{b}</span></li>)}
+          </ul>
+        )}
+      </div>
     </section>
+  )
+}
+
+function IconLink({ href, label, children }: { href: string; label: string; children: ReactNode }) {
+  return (
+    <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noopener noreferrer" aria-label={label}
+      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-700 active:bg-slate-100">{children}</a>
   )
 }
 

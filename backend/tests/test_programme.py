@@ -324,5 +324,6 @@ def test_the_menu_with_its_portions(make_client):
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "people": 13}).json()
     # 13 people: a plate of khinkali for 4 -> 4 plates; soup each their own -> 13.
     assert p["days"][0]["steps"][0]["dishes"] == [{"name": "Khinkali", "plates": 4, "per_plate": 4}, {"name": "Soup", "plates": 13, "per_plate": 1}]
+    assert (p["days"][0]["steps"][0]["place"], p["days"][0]["steps"][0]["menu"]) == ("Barbarestan", "")     # the usual dinner: no own name
     q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
     assert q["days"][0]["steps"][0]["dishes"][0] == {"name": "Khinkali", "plates": None, "per_plate": 4}

@@ -2778,7 +2778,6 @@ const en = {
   fieldPlates: "{n} plates",
   programmePart_phones: "Phone numbers of hotels, restaurants and places",
   fieldPortions: "{n} portions",
-  fieldPerPlate: "1 plate for {n}",
 }
 
 type Dict = typeof en
@@ -5553,7 +5552,6 @@ const ka: Dict = {
   fieldPlates: "{n} თეფში",
   programmePart_phones: "სასტუმროების, რესტორნების და ადგილების ტელეფონები",
   fieldPortions: "{n} პორცია",
-  fieldPerPlate: "1 თეფში {n} კაცზე",
 }
 
 export type Lang = 'en' | 'ka'
