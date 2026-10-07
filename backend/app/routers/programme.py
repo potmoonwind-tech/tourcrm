@@ -65,7 +65,7 @@ def shared(token: str, request: Request, db: Session = Depends(get_db)):
 @router.post("/programme", response_model=programme.ProgrammeOut)
 def build(body: programme.ProgrammeIn, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
     """The programme as data (the print page shows it, and prints it to PDF)."""
-    return programme.build(db, ctx.workspace, body)
+    return programme.build(db, ctx.workspace, body, fill=True)     # as the share link shows it
 
 
 def _name(p: programme.ProgrammeOut, ext: str) -> str:

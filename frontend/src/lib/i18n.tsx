@@ -2784,6 +2784,21 @@ const en = {
   mealSeat_group: "With the group",
   mealSeat_staff: "At the staff table",
   mealSeat_none: "Not with us",
+  seatTitle: "Where they eat",
+  seatHelp: "Usually, at every meal. A meal can be different: Meals tab → the people at that meal.",
+  seatPerson: "Who",
+  mealSeatCol_group: "With the group",
+  mealSeatCol_staff: "Staff table",
+  mealSeatCol_none: "Not with us",
+  seatLeaders: "Tour leaders × {n}",
+  seatLeadersSub: "free, part of the group",
+  seatUsually: "usually {where}",
+  seatThisMeal: "Who sits where at this meal",
+  seatBackToUsual: "Back to the usual",
+  seatTables: "Tables: {tables}",
+  seatMealHelp: "Only this meal. Plates, costs and the restaurant's email count each table.",
+  previewBanner: "Preview: this is what people will see from the share link. Nothing is shared yet.",
+  preview: "Preview",
 }
 
 type Dict = typeof en
@@ -5564,6 +5579,21 @@ const ka: Dict = {
   mealSeat_group: "ჯგუფთან ერთად",
   mealSeat_staff: "პერსონალის მაგიდასთან",
   mealSeat_none: "ჩვენთან არა",
+  seatTitle: "სად ჭამენ",
+  seatHelp: "ჩვეულებრივ, ყველა კვებაზე. ცალკე კვება შეიძლება განსხვავდებოდეს: კვება → ხალხი იმ კვებაზე.",
+  seatPerson: "ვინ",
+  mealSeatCol_group: "ჯგუფთან",
+  mealSeatCol_staff: "პერსონალის მაგიდა",
+  mealSeatCol_none: "ჩვენთან არა",
+  seatLeaders: "ტურლიდერები × {n}",
+  seatLeadersSub: "უფასო, ჯგუფის ნაწილი",
+  seatUsually: "ჩვეულებრივ: {where}",
+  seatThisMeal: "ვინ სად ზის ამ კვებაზე",
+  seatBackToUsual: "ჩვეულზე დაბრუნება",
+  seatTables: "მაგიდები: {tables}",
+  seatMealHelp: "მხოლოდ ეს კვება. თეფშები, ხარჯი და რესტორნის წერილი თითო მაგიდაზე ითვლება.",
+  previewBanner: "წინასწარი ნახვა: ასე დაინახავენ გაზიარების ბმულით. ჯერ არაფერია გაზიარებული.",
+  preview: "ნახვა",
 }
 
 export type Lang = 'en' | 'ka'

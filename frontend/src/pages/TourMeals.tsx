@@ -5,14 +5,16 @@
  * Prices are shown to managers only.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { UtensilsCrossed } from 'lucide-react'
-import { Label } from '../components/overlay'
+import { Users, UtensilsCrossed } from 'lucide-react'
+import { useState } from 'react'
+import { Dialog, Label } from '../components/overlay'
+import { SeatGrid, type SeatRow } from '../components/SeatGrid'
 import { EmptyState } from '../components/tour'
-import { Button, Card, Select, Spinner } from '../components/ui'
-import { api, type DishSummary, type MealRow, type Tour, type TourMeals } from '../lib/api'
+import { Button, Card, ErrorText, Select, Spinner } from '../components/ui'
+import { api, type DishSummary, type MealRow, type MealSeat, type Tour, type TourMeals } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { fmt } from '../lib/dates'
-import { useI18n } from '../lib/i18n'
+import { useI18n, type TKey } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
 import { cn, money, moneyList } from '../lib/utils'
 
@@ -26,6 +28,7 @@ export function MealsTab({ tour, onTab }: { tour: Tour; onTab: (tab: string) => 
     queryKey: ['meals', ws.id, tour.id],
     queryFn: () => api<TourMeals>(wsPath(ws.id, `/tours/${tour.id}/meals`)),
   })
+  const [seating, setSeating] = useState<MealRow | null>(null)
   if (q.isLoading || !q.data) return <div className="flex justify-center py-10"><Spinner /></div>
   const { rows, dishes, totals, sees_prices, plate_share, agency_plate_share } = q.data
   if (!rows.length) {
@@ -66,11 +69,12 @@ export function MealsTab({ tour, onTab }: { tour: Tour; onTab: (tab: string) => 
             </tr>
           </thead>
           <tbody>
-            {rows.map((r, i) => <Row key={i} r={r} first={i === 0 || rows[i - 1].day !== r.day} prices={sees_prices} />)}
+            {rows.map((r, i) => <Row key={i} r={r} first={i === 0 || rows[i - 1].day !== r.day} prices={sees_prices} onSeats={() => setSeating(r)} />)}
           </tbody>
         </table>
       </Card>
 
+      {seating && <MealSeating tour={tour} row={rows.find((r) => r.day === seating.day && r.meal === seating.meal) ?? seating} onClose={() => setSeating(null)} />}
       {dishes.length > 0 && (
         <Card className="overflow-x-auto p-0">
           <div className="border-b border-slate-200 px-4 py-3">
@@ -104,7 +108,7 @@ function Stat({ label, value, hint, warn }: { label: string; value: string; hint
   )
 }
 
-function Row({ r, first, prices }: { r: MealRow; first: boolean; prices: boolean }) {
+function Row({ r, first, prices, onSeats }: { r: MealRow; first: boolean; prices: boolean; onSeats: () => void }) {
   const { t, lang } = useI18n()
   // The menu price differs from the sum of its dishes: worth a look.
   const off = r.price_pp !== null && r.dish_sum !== null && Math.abs(r.price_pp - r.dish_sum) >= 0.01
@@ -138,7 +142,15 @@ function Row({ r, first, prices }: { r: MealRow; first: boolean; prices: boolean
           {off && <span className={cn('block text-xs', r.price_pp! > r.dish_sum! ? 'text-amber-700' : 'text-slate-500')} title={t('dishSumDiffHelp')}>{t('dishSum')}: {money(r.dish_sum!)}</span>}
         </td>
       )}
-      <td className="px-2 py-2 text-right tabular-nums">{r.people}</td>
+      <td className="px-2 py-2 text-right tabular-nums">
+        {/* Who sits where at this meal: "19 + 3" with a staff table. */}
+        {r.seats?.length ? (
+          <button type="button" onClick={onSeats} title={t('seatThisMeal')}
+            className={cn('rounded-md px-1.5 py-0.5 hover:bg-slate-100', r.seats.some((s) => s.seat !== s.usual) && 'bg-amber-50 text-amber-900')}>
+            {(r.tables ?? [r.people]).join(' + ')}<Users size={12} className="ml-1 inline text-slate-400" />
+          </button>
+        ) : r.people}
+      </td>
       {prices && <td className="px-4 py-2 text-right font-medium whitespace-nowrap tabular-nums">{r.tourists_pay ? <span className="font-normal text-amber-700" title={t('mealTouristsHelp')}>{t('mealTourists')}</span> : r.total !== null ? money(r.total, r.currency ?? undefined) : '—'}</td>}
     </tr>
   )
@@ -196,5 +208,37 @@ function PlateShare({ tour, value, usual }: { tour: Tour; value: number | null; 
         {[1, 2, 3, 4, 5, 6, 8].map((n) => <option key={n} value={n}>{n === 1 ? t('plateOwn') : t('platePer', { n })}</option>)}
       </Select>
     </label>
+  )
+}
+
+
+/** Who sits where at one meal: the usual (Staff tab) unless changed here. */
+function MealSeating({ tour, row, onClose }: { tour: Tour; row: MealRow; onClose: () => void }) {
+  const ws = useWorkspace()!
+  const { t, lang } = useI18n()
+  const qc = useQueryClient()
+  const seats = row.seats ?? []
+  const save = useMutation({
+    mutationFn: (map: Record<string, MealSeat>) =>
+      api(wsPath(ws.id, `/tours/${tour.id}/days/${row.day}/seating/${row.meal}`), { method: 'PUT', body: { seats: map } }),
+    onSuccess: () => { for (const k of ['meals', 'costs', 'bookings']) qc.invalidateQueries({ queryKey: [k, ws.id] }) },
+  })
+  const current = Object.fromEntries(seats.map((s) => [s.key, s.seat])) as Record<string, MealSeat>
+  const rows: SeatRow[] = seats.map((s) => ({
+    key: s.key, seat: s.seat, usual: s.usual,
+    label: s.key === 'leader' ? t('seatLeaders', { n: s.count }) : s.name, sub: s.key === 'leader' ? undefined : t(`staffRole_${s.role}` as TKey),
+  }))
+  const changed = seats.some((s) => s.seat !== s.usual)
+  return (
+    <Dialog title={`${t('dayN', { n: row.day })} · ${t(row.meal)} · ${row.vendor.name}`} onClose={onClose}
+      footer={<div className="flex justify-between gap-2">
+        <Button variant="ghost" disabled={!changed || save.isPending} onClick={() => save.mutate({})}>{t('seatBackToUsual')}</Button>
+        <Button onClick={onClose}>{t('done')}</Button>
+      </div>}>
+      <p className="mb-1 text-sm text-slate-600">{fmt(row.date, lang)} · {t('seatTables', { tables: (row.tables ?? [row.people]).join(' + ') })}</p>
+      <p className="mb-3 text-xs text-slate-500">{t('seatMealHelp')}</p>
+      <SeatGrid rows={rows} disabled={save.isPending} onChange={(key, seat) => save.mutate({ ...current, [key]: seat })} />
+      <ErrorText error={save.error} />
+    </Dialog>
   )
 }

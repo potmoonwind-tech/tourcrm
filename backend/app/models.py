@@ -269,6 +269,8 @@ class _DayFields:
     # "flight:<number>") so the restaurant or ticket stays one thing; free items (free time, a
     # walk, a transfer) have none. Empty = not arranged yet (the screen suggests an order).
     schedule: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    # Who sits elsewhere than usual at a meal: {"dinner": {"leader": "staff", "<staff id>": "none"}} (app/seating.py).
+    seating: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     # Where the driver and guide sleep after this day: "none" (not counted), "same" (the group's hotel),
     # "own" (staff_hotel_id: another hotel, or the same one at a staff price), "free" (the hotel gives it).
     staff_stay: Mapped[str] = mapped_column(String(10), default="none", server_default="none")

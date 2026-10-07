@@ -92,3 +92,23 @@ def test_calculation_from_the_tour_takes_its_crew(make_client):
     n = doc["nights"][0]
     assert doc["leaders"] == 2
     assert (n["staff_stay"], n["staff_hotel"], float(n["staff_price"])) == ("own", "Guest House", 40)
+
+
+def test_one_meal_seats_people_differently(make_client):
+    c, base, _ = agency(make_client)
+    t, hotel, guest, cafe = setup(c, base, lambda gh: {})
+    staff = {a["role"]: a for a in c.get(f"{base}/tours/{t['id']}/staff").json()}
+    c.patch(f"{base}/tours/{t['id']}", json={"leaders": 1, "leader_seat": "group"})
+    [row] = [r for r in c.get(f"{base}/tours/{t['id']}/meals").json()["rows"] if r["meal"] == "dinner"]
+    assert row["tables"] == [22] and {s["key"]: s["seat"] for s in row["seats"]} == {
+        "leader": "group", staff["guide"]["id"]: "group", staff["driver"]["id"]: "group"}
+    # At this dinner the leader, guide and driver sit at their own table.
+    seats = {"leader": "staff", staff["guide"]["id"]: "staff", staff["driver"]["id"]: "staff"}
+    assert c.put(f"{base}/tours/{t['id']}/days/{row['day']}/seating/dinner", json={"seats": seats}).status_code == 204
+    [row] = [r for r in c.get(f"{base}/tours/{t['id']}/meals").json()["rows"] if r["meal"] == "dinner"]
+    assert row["tables"] == [19, 3] and all(s["seat"] == "staff" and s["usual"] == "group" for s in row["seats"])
+    meal = sorted((x["quantity"], x["unit_price"]) for x in lines(c, base, t) if x["category"] == "meal")
+    assert meal == [(3, 20), (19, 50)]
+    # Back to the usual: nothing kept for that meal.
+    c.put(f"{base}/tours/{t['id']}/days/{row['day']}/seating/dinner", json={"seats": {"leader": "group"}})
+    assert [r for r in c.get(f"{base}/tours/{t['id']}/meals").json()["rows"] if r["meal"] == "dinner"][0]["tables"] == [22]

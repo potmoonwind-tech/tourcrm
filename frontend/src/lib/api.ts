@@ -261,6 +261,8 @@ export interface MealRow {
   day: number; date: string; meal: 'breakfast' | 'lunch' | 'dinner'; vendor: VendorRef; menu_id: string | null; menu_name: string | null
   dishes: MealDish[]; people: number; price_pp: number | null; dish_sum: number | null; currency: string | null; total: number | null; tourists_pay?: boolean
   shared?: boolean      // family style: priced plate by plate
+  tables?: number[]     // people at each table: [group] or [group, staff]
+  seats?: { key: string; role: string; name: string; count: number; seat: MealSeat; usual: MealSeat }[]
 }
 export interface DishSummary {
   name: string; days: number[]; servings: number; places: { vendor: VendorRef; menu_name: string; price: number | null }[]

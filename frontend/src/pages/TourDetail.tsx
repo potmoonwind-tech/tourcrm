@@ -8,7 +8,7 @@ import { CodeChip } from '../components/tour'
 import { Button, Card, ErrorText, Field, FullPageSpinner, Input, Select, Textarea } from '../components/ui'
 import { QuickClientDialog } from '../components/QuickAdd'
 import { parseRooms, RoomsPicker, roomsText } from '../components/RoomsPicker'
-import { api, atLeast, TOUR_STATUSES, type BusReturn, type DayFields, type QuoteOut, type Tour, type TourStatus, can, MEAL_SEATS, type MealSeat } from '../lib/api'
+import { api, atLeast, TOUR_STATUSES, type BusReturn, type DayFields, type QuoteOut, type Tour, type TourStatus, can } from '../lib/api'
 import { useClients, wsPath } from '../lib/data'
 import { addDays, diffDays, fmt, today } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
@@ -210,7 +210,6 @@ function TourDetailsDrawer({ tour, focus, onClose, onSaved }: { tour: Tour; focu
     code: tour.code, name: tour.name, client_id: tour.client_id ?? '', status: tour.status,
     start_date: tour.start_date, end_date: tour.end_date, pax: tour.pax ? String(tour.pax) : '', rooms: tour.rooms ?? '',
     pax_estimated: !!tour.pax_estimated, leaders: String(tour.leaders ?? 0),
-    leader_seat: (tour.leader_seat ?? (tour.staff_table ? 'staff' : 'group')) as MealSeat,
     notes: tour.notes, price_pp: tour.price_pp === null ? '' : String(tour.price_pp),
     price_currency: tour.price_currency ?? ws.base_currency,
   })
@@ -300,14 +299,6 @@ function TourDetailsDrawer({ tour, focus, onClose, onSaved }: { tour: Tour; focu
             <Field label={t('tourLeaders')} hint={t('tourLeadersHelp')}>
               <Input type="number" min={0} max={20} value={form.leaders} onChange={set('leaders')} className="w-28" />
             </Field>
-            {Number(form.leaders) > 0 && (
-              // Where they eat; the guide and driver each have theirs on the Staff tab.
-              <Field label={t('leaderSeat')} hint={t('mealSeatHint')}>
-                <Select value={form.leader_seat} onChange={(e) => setForm({ ...form, leader_seat: e.target.value as MealSeat })} className="w-52">
-                  {MEAL_SEATS.map((s) => <option key={s} value={s}>{t(`mealSeat_${s}`)}</option>)}
-                </Select>
-              </Field>
-            )}
           </div>
         </section>
         {seesMoney && (

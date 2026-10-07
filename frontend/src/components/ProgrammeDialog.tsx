@@ -3,7 +3,7 @@
  * not), in English, Georgian or Chinese, as PDF (the print page), Word or Excel. Distances, driving times and
  * places are in it; prices and team details are not.
  */
-import { Copy, Download, FileSpreadsheet, FileText, Link2, MessageCircle, Printer } from 'lucide-react'
+import { Copy, Download, Eye, FileSpreadsheet, FileText, Link2, MessageCircle, Printer } from 'lucide-react'
 import { useState } from 'react'
 import type { DayFields } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
@@ -79,6 +79,13 @@ export function ProgrammeDialog({ title, startDate, days, people, tourId, onClos
       setBusy(false)
     }
   }
+  // See the page the share link gives, before making it (a new tab; nothing is shared).
+  const preview = () => {
+    const key = Math.random().toString(36).slice(2)
+    try { sessionStorage.setItem(`${PROGRAMME_KEY}:${key}`, JSON.stringify(body)) } catch { /* private mode */ }
+    try { localStorage.setItem(`${PROGRAMME_KEY}:${key}`, JSON.stringify(body)) } catch { /* private mode */ }
+    window.open(`/w/${ws.id}/preview/programme?k=${key}`, '_blank', 'noopener')
+  }
   const download = async () => {
     setError(null)
     if (format === 'pdf') {
@@ -116,6 +123,7 @@ export function ProgrammeDialog({ title, startDate, days, people, tourId, onClos
     <Dialog title={t('programmeDownload')} onClose={onClose}
       footer={<div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>{t('cancel')}</Button>
+        <Button variant="secondary" onClick={preview} disabled={!days.length || services.isLoading}><Eye size={16} />{t('preview')}</Button>
         <Button variant="secondary" onClick={share} disabled={busy || !days.length || services.isLoading}><Link2 size={16} />{t('shareLink')}</Button>
         <Button onClick={download} disabled={busy || !days.length || services.isLoading}>
           {format === 'pdf' ? <Printer size={16} /> : <Download size={16} />}{busy ? t('programmeMaking') : t('download')}

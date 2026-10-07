@@ -6,6 +6,7 @@ days it's served and its price at each restaurant. Prices are for managers only.
 """
 from collections import defaultdict
 from datetime import date
+from typing import Literal
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -33,6 +34,16 @@ class DishOut(BaseModel):
     prev_day: bool             # also served the day before
 
 
+class SeatOut(BaseModel):
+    """Someone who could eat at this meal: where they sit, and where they usually sit."""
+    key: str                   # "leader" (the tour leaders) or the staff assignment's id
+    role: str                  # leader / guide / driver / assistant
+    name: str
+    count: int = 1
+    seat: str                  # group / staff / none
+    usual: str
+
+
 class MealRow(BaseModel):
     day: int
     date: date
@@ -48,6 +59,8 @@ class MealRow(BaseModel):
     total: float | None
     tourists_pay: bool = False  # reserved by us, paid by the tourists: not in our totals
     shared: bool = False        # family style: priced plate by plate (total = Σ dish price × plates)
+    tables: list[int] = []      # people at each table: [group] or [group, staff]
+    seats: list[SeatOut] = []   # who sits where (leaders, guide, driver)
 
 
 class DishPlace(BaseModel):
@@ -94,7 +107,6 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
     summary: dict[str, dict] = {}
     prev: set[str] = set()
     for d in sorted(t.days, key=lambda x: x.day_number):
-        seat = seating.tables(t, d.day_number, pax)      # the group's table, and the staff table when some eat apart
         meals = []
         for meal, vendor, menu_id in (("breakfast", d.breakfast, d.breakfast_menu_id), ("lunch", d.lunch, d.lunch_menu_id),
                                       ("dinner", d.dinner, d.dinner_menu_id)):
@@ -109,6 +121,7 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
                 today[x["name"].lower()] += 1
         for meal, vendor, menu, ds in meals:
             rate = catalog.pick(menu.rates, d.date, pax or None) if menu else catalog.price_for(vendor, meal, d.date, pax or None)
+            seat = seating.tables(t, d.day_number, pax, meal)      # the group's table, and the staff table when some eat apart
             people = seat.group + seat.staff
             price = rate.price if rate else None
             total = (price * people).quantize(Decimal("0.01")) if price is not None else None
@@ -132,7 +145,8 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
                 people=people, price_pp=price if money else None,
                 dish_sum=dish_util.total(menu.dishes) if (money and menu) else None,
                 currency=rate.currency if (rate and money) else None, total=total if money else None,
-                tourists_pay=paid_by_them))
+                tourists_pay=paid_by_them, tables=seat.tables,
+                seats=[SeatOut(**x) for x in seating.people(t, d.day_number, meal, pax)]))
             for x in ds:
                 s = summary.setdefault(x["name"].lower(), {"name": x["name"], "days": set(), "servings": 0, "places": {}})
                 s["days"].add(d.day_number)
@@ -147,3 +161,27 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
                                   min_price=min(prices) if prices else None, max_price=max(prices) if prices else None))
     return TourMeals(rows=rows, dishes=dishes, totals={k: float(v) for k, v in sorted(totals.items())}, sees_prices=money,
                      plate_share=t.plate_share, agency_plate_share=share_all)
+
+
+class SeatingIn(BaseModel):
+    seats: dict[str, Literal["group", "staff", "none"]]       # "leader" or a staff id -> where they sit
+
+
+@router.put("/tours/{tour_id}/days/{day_number}/seating/{meal}", status_code=204)
+def set_seating(tour_id: str, day_number: int, meal: Literal["breakfast", "lunch", "dinner"], body: SeatingIn,
+                ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
+    """Who sits where at this one meal; only who differs from the tour's usual is kept."""
+    t = db.scalar(select(Tour).where(Tour.id == tour_id, Tour.workspace_id == ctx.workspace.id)
+                  .options(selectinload(Tour.days), selectinload(Tour.staff)))
+    d = next((x for x in t.days if x.day_number == day_number), None) if t else None
+    if not d:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Day not found")
+    usual = {"leader": seating.leader_seat(t), **{a.id: seating.seat_of(a, t) for a in t.staff}}
+    keep = {k: v for k, v in body.seats.items() if k in usual and v != usual[k]}
+    s = dict(d.seating or {})
+    if keep:
+        s[meal] = keep
+    else:
+        s.pop(meal, None)
+    d.seating = s
+    db.commit()

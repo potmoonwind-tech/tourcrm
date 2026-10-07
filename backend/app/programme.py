@@ -557,12 +557,12 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
         """["tour leader", "guide", "2 drivers"]: who is at a table besides the group."""
         return [f"{c[r]} {L['role_' + r]}" if c[r] > 1 else L["role_" + r] for r in ("leader", "guide", "driver", "assistant") if c[r]]
 
-    def tables(n: int) -> list[PTable]:
+    def tables(n: int, meal: str) -> list[PTable]:
         if not group:
             return []
         if not tour:
             return [PTable(who="all", people=group)]
-        seat = seating.tables(tour, n, group)
+        seat = seating.tables(tour, n, group, meal)
         if not seat.staff:
             return [PTable(who="all", people=seat.group, roles=roles(seat.group_roles))]
         return [PTable(who="group", people=seat.group, roles=roles(seat.group_roles)),
@@ -659,8 +659,8 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
                                          meal=x.ref if x.ref in ("breakfast", "lunch", "dinner") and x.kind != "free" else "",
                                          map=map_search(_place_of(x, d, prev, vendors, services) or where_of.get(x.id, "")),
                                          note=dishes(d, meal) if meal and inc.meals else "",
-                                         dishes=portions(d, meal, tables(i + 1)) if meal and inc.meals else [],
-                                         tables=tables(i + 1) if meal and inc.meals else [],
+                                         dishes=portions(d, meal, tables(i + 1, meal)) if meal and inc.meals else [],
+                                         tables=tables(i + 1, meal) if meal and inc.meals else [],
                                          place=T(at.name) if at else "",
                                          menu=T(m.name) if meal and inc.meals and (m := menu_of(d, meal)) and not m.code else ""))
             if ends and len(ends) == len(p.legs) and p.steps:

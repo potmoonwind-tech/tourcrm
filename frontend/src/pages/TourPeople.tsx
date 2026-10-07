@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { SeatGrid, type SeatRow } from '../components/SeatGrid'
 import { ask, Dialog, toast } from '../components/overlay'
 import { AlertTriangle, ArrowRightLeft, BedDouble, Copy, Download, MessageCircle, Plus, Smartphone, Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -12,7 +13,7 @@ import { Tooltip } from '../components/Tooltip'
 import { QuickVendorDialog } from '../components/QuickAdd'
 import { Button, Card, ErrorText, Input, SegmentedControl, Select } from '../components/ui'
 import { RoomsBoard } from '../components/RoomsBoard'
-import { api, ROLE_VENDOR_TYPES, ROOM_TYPES, STAFF_ROLES, type Participant, type RoomingSummary, type StaffAssignment, type StaffRole, type Tour, MEAL_SEATS, MEAL_STAFF_ROLES, type MealSeat } from '../lib/api'
+import { api, ROLE_VENDOR_TYPES, ROOM_TYPES, STAFF_ROLES, type Participant, type RoomingSummary, type StaffAssignment, type StaffRole, type Tour, MEAL_STAFF_ROLES, type MealSeat } from '../lib/api'
 import { useVendors, wsPath } from '../lib/data'
 import { addDays, diffDays } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
@@ -284,14 +285,6 @@ export function StaffTab({ tour }: { tour: Tour }) {
                 <option value="">{t('untilEnd')}</option>
                 {dayOptions.map((d) => <option key={d} value={d} disabled={d < a.start_day}>{dayLabel(d)}</option>)}
               </Select>
-              {MEAL_STAFF_ROLES.includes(a.role) && (
-                // Where they eat: plates and costs count each table from this.
-                <Select className="h-8 w-44" aria-label={t('mealSeat')} title={t('mealSeatHint')}
-                  value={a.meal_seat ?? (tour.staff_table ? 'staff' : 'group')}
-                  onChange={(e) => update.mutate({ id: a.id, body: { meal_seat: e.target.value as MealSeat } })}>
-                  {MEAL_SEATS.map((s) => <option key={s} value={s}>{t(`mealSeat_${s}`)}</option>)}
-                </Select>
-              )}
               {['guide', 'driver', 'tour_leader', 'assistant'].includes(a.role) && (
                 <Button size="sm" variant="secondary" onClick={() => setLinkFor(a)} title={t('phoneLinkHelp')}
                   className={cn(links.data?.some((x) => x.staff_id === a.id) && 'border-emerald-300 text-emerald-800')}>
@@ -308,6 +301,7 @@ export function StaffTab({ tour }: { tour: Tour }) {
         {handFor && <HandOver tour={tour} staff={handFor} onClose={() => setHandFor(null)} onDone={refresh} />}
         {linkFor && <PhoneLinkDialog tourId={tour.id} staff={linkFor} live={links.data?.find((x) => x.staff_id === linkFor.id)} onClose={() => setLinkFor(null)} />}
       </Card>
+      <EatsWhere tour={tour} onSaved={refresh} />
       <TeamChanges tourId={tour.id} code={tour.code} />
 
       {quickAdd && <QuickVendorDialog type={ROLE_VENDOR_TYPES[form.role][0]} onCreated={(v) => setForm({ ...form, vendor_id: v.id })} onClose={() => setQuickAdd(false)} />}
@@ -399,5 +393,34 @@ function PhoneLinkDialog({ tourId, staff, live, onClose }: { tourId: string; sta
         </div>
       </div>
     </Dialog>
+  )
+}
+
+
+/** Where each person usually eats - the tour leaders, each guide, driver, assistant. One meal can differ
+ * (Meals tab); costs, plates and the restaurant's email count each table from this. */
+function EatsWhere({ tour, onSaved }: { tour: Tour; onSaved: () => void }) {
+  const ws = useWorkspace()!
+  const { t } = useI18n()
+  const usual = (tour.staff_table ? 'staff' : 'group') as MealSeat
+  const save = useMutation({
+    mutationFn: ({ key, seat }: { key: string; seat: MealSeat }) => key === 'leader'
+      ? api(wsPath(ws.id, `/tours/${tour.id}`), { method: 'PATCH', body: { leader_seat: seat } })
+      : api(wsPath(ws.id, `/tours/${tour.id}/staff/${key}`), { method: 'PATCH', body: { meal_seat: seat } }),
+    onSuccess: onSaved,
+  })
+  const rows: SeatRow[] = [
+    ...(tour.leaders ? [{ key: 'leader', label: t('seatLeaders', { n: tour.leaders }), sub: t('seatLeadersSub'), seat: tour.leader_seat ?? usual }] : []),
+    ...tour.staff.filter((a) => MEAL_STAFF_ROLES.includes(a.role))
+      .map((a) => ({ key: a.id, label: a.vendor.name, sub: t(`staffRole_${a.role}`), seat: a.meal_seat ?? usual })),
+  ]
+  if (!rows.length) return null
+  return (
+    <Card className="p-5">
+      <h3 className="font-semibold text-slate-900">{t('seatTitle')}</h3>
+      <p className="mb-2 text-sm text-slate-500">{t('seatHelp')}</p>
+      <SeatGrid rows={rows} disabled={save.isPending} onChange={(key, seat) => save.mutate({ key, seat })} />
+      <ErrorText error={save.error} />
+    </Card>
   )
 }

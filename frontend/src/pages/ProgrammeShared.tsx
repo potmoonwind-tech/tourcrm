@@ -5,10 +5,13 @@
  * served at each meal. In the programme's language (English, Georgian or Chinese).
  */
 import { useQuery } from '@tanstack/react-query'
-import { BedDouble, Car, ChevronDown, Map as MapIcon, MapPin, Phone, Plane, Ticket } from 'lucide-react'
+import { BedDouble, Car, ChevronDown, Eye, Map as MapIcon, MapPin, Phone, Plane, Ticket } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
-import { useParams } from 'react-router-dom'
+import { useParams, useSearchParams } from 'react-router-dom'
+import { PROGRAMME_KEY, type ProgrammeRequest } from '../components/ProgrammeDialog'
 import { FullPageSpinner } from '../components/ui'
+import { api } from '../lib/api'
+import { wsPath } from '../lib/data'
 import { today } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
 import { cn } from '../lib/utils'
@@ -28,20 +31,6 @@ export function ProgrammeSharedPage() {
       return (await res.json()) as Programme
     },
   })
-  const [tab, setTab] = useState<'days' | 'menu'>('days')
-  const [open, setOpen] = useState<number | null>(null)
-  const now = today()
-  const todayDay = p.data?.days.find((d) => d.date === now)?.number
-  const shown = open ?? todayDay ?? p.data?.days[0]?.number ?? null
-  useEffect(() => {
-    if (!p.data) return
-    document.title = `${p.data.title} · ${p.data.agency}`
-    document.documentElement.lang = p.data.lang
-  }, [p.data])
-  useEffect(() => {
-    if (todayDay) document.getElementById(`pday-${todayDay}`)?.scrollIntoView({ block: 'start' })
-  }, [todayDay])
-
   if (p.isLoading) return <FullPageSpinner />
   if (!p.data) {
     return (
@@ -50,11 +39,29 @@ export function ProgrammeSharedPage() {
       </div>
     )
   }
-  const d = p.data
+  return <ProgrammeWeb d={p.data} />
+}
+
+/** The programme as a phone web page: the shared link's page, and the office's preview of it. */
+export function ProgrammeWeb({ d, banner }: { d: Programme; banner?: ReactNode }) {
+  const [tab, setTab] = useState<'days' | 'menu'>('days')
+  const [open, setOpen] = useState<number | null>(null)
+  const now = today()
+  const todayDay = d.days.find((d) => d.date === now)?.number
+  const shown = open ?? todayDay ?? d.days[0]?.number ?? null
+  useEffect(() => {
+    document.title = `${d.title} · ${d.agency}`
+    document.documentElement.lang = d.lang
+  }, [d])
+  useEffect(() => {
+    if (todayDay) document.getElementById(`pday-${todayDay}`)?.scrollIntoView({ block: 'start' })
+  }, [todayDay])
+
   const L = d.labels
   const date = (s: string | null, opts: Intl.DateTimeFormatOptions) => (s ? new Date(`${s}T00:00:00`).toLocaleDateString(LOCALE[d.lang] ?? 'en-GB', opts) : '')
   return (
     <div lang={d.lang} className="min-h-screen bg-slate-50 pb-10">
+      {banner}
       <header className="sticky top-0 z-10 border-b border-slate-200 bg-white px-4 pb-2 pt-3">
         <div className="mx-auto max-w-2xl">
           <p className="truncate text-xs text-slate-500">{d.agency}</p>
@@ -230,4 +237,28 @@ function IconLink({ href, label, children }: { href: string; label: string; chil
 
 function Line({ icon, children }: { icon: ReactNode; children: ReactNode }) {
   return <p className="flex items-start gap-2 px-1 text-sm text-slate-700"><span className="mt-0.5 text-slate-400">{icon}</span><span>{children}</span></p>
+}
+
+
+/** "Preview" in Download programme: the page people will get from the share link, before making it. */
+export function ProgrammePreviewPage() {
+  const { t } = useI18n()
+  const { workspaceId } = useParams()
+  const [params] = useSearchParams()
+  const [req] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem(`${PROGRAMME_KEY}:${params.get('k')}`) ?? localStorage.getItem(`${PROGRAMME_KEY}:${params.get('k')}`) ?? 'null') as ProgrammeRequest | null } catch { return null }
+  })
+  const p = useQuery({
+    queryKey: ['programmePreview', workspaceId, params.get('k')], enabled: !!req, staleTime: Infinity,
+    queryFn: () => api<Programme>(wsPath(workspaceId!, '/programme'), { method: 'POST', body: req }),
+  })
+  if (!req) return <p className="p-8 text-slate-600">{t('programmeExpired')}</p>
+  if (!p.data) return <FullPageSpinner />
+  return (
+    <ProgrammeWeb d={p.data} banner={
+      <p className="flex items-center justify-center gap-2 bg-amber-100 px-4 py-2 text-center text-sm font-medium text-amber-900">
+        <Eye size={16} aria-hidden />{t('previewBanner')}
+      </p>
+    } />
+  )
 }

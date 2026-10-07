@@ -238,7 +238,7 @@ def booking_values(t, b, u, lang: str, *, my_name: str, agency: str, signature: 
                 extra = f" ({w['tourists_pay']})" if getattr(d, f"{meal}_mode") == "tourists" else ""
                 menu = getattr(d, f"{meal}_menu")
                 # Who sits where: the group's table (with the staff who eat with them), and the staff table.
-                seat = seating.tables(t, d.day_number, people)
+                seat = seating.tables(t, d.day_number, people, meal)
                 plates = lambda share: " + ".join(str(dish_util.plates(n, share)) for n in seat.tables)    # noqa: E731
                 if menu is not None and dish_util.sharing(menu.dishes, t.plate_share, agency_share):
                     # Family style: the restaurant needs the plates, dish by dish (each table its own).

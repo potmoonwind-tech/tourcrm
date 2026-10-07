@@ -311,15 +311,15 @@ def _plan(t: Tour, services: dict[str, Service], ctx: _Ctx) -> list[_Plan]:
                 plans.append(_Plan(f"staffroom:{d.id}", where, "hotel",
                                    f"staff {'TWN' if d.staff_twin else 'SGL'} × {n_rooms} ({eating_staff} staff)",
                                    d.date, None, Decimal(n_rooms), kind))
-        # Who sits where (app/seating.py): the group's table, and the staff table when some eat apart.
-        seat = seating.tables(t, d.day_number, int(pax))
-        crew = seat.staff
-        with_us = sum(n for r, n in seat.group_roles.items() if r != "leader")     # staff at the group's table
         for meal, vendor, menu in (("breakfast", d.breakfast, d.breakfast_menu), ("lunch", d.lunch, d.lunch_menu),
                                    ("dinner", d.dinner, d.dinner_menu)):
             # Tourists paying on the spot, or a free meal time: nothing for us to pay.
             if (getattr(d, f"{meal}_mode", None) or "included") != "included":
                 continue
+            # Who sits where at this meal (app/seating.py): the group's table, and the staff table when some eat apart.
+            seat = seating.tables(t, d.day_number, int(pax), meal)
+            crew = seat.staff
+            with_us = sum(n for r, n in seat.group_roles.items() if r != "leader")     # staff at the group's table
             if vendor and pax:
                 if crew:
                     # Their own table: leader + driver + guide, at the restaurant's staff price when it has one.

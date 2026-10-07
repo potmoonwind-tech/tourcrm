@@ -7,7 +7,7 @@ import { applyTheme, applyView } from './lib/theme'
 import { LoginPage, SignupPage } from './pages/Auth'
 import { ClientsPage, VendorsPage } from './pages/Catalog'
 import { FieldPage } from './pages/Field'
-import { ProgrammeSharedPage } from './pages/ProgrammeShared'
+import { ProgrammePreviewPage, ProgrammeSharedPage } from './pages/ProgrammeShared'
 import { SeriesPage } from './pages/SeriesPage'
 import { DashboardPage } from './pages/Home'
 import { DayViewPage } from './pages/DayView'
@@ -110,6 +110,7 @@ export default function App() {
         <Route path="/w/:workspaceId/print/invoice/:invoiceId" element={<InvoicePrintPage />} />
         <Route path="/w/:workspaceId/print/quote/:quoteId" element={<PriceListPrintPage />} />
         <Route path="/w/:workspaceId/print/programme" element={<ProgrammePrintPage />} />
+        <Route path="/w/:workspaceId/preview/programme" element={<ProgrammePreviewPage />} />
         <Route path="/w/:workspaceId" element={<WorkspaceRoute />}>
           <Route index element={<DashboardPage />} />
           <Route path="tours" element={<ToursPage />} />

@@ -1,8 +1,9 @@
 """Who eats where at a tour's meals: the group's table and, when some sit apart, the staff table.
 
 The tour's free tour leaders (part of its group size) and each day's guides, drivers and assistants each
-eat with the group, at the staff table, or not with us (e.g. a driver who eats on his own). Not chosen:
-the tour's old "staff table" switch decides (on: the staff table, off: with the group).
+eat with the group, at the staff table, or not with us (e.g. a driver who eats on his own). The tour says
+where each usually eats (not chosen: its old "staff table" switch decides); one meal can differ - a day's
+`seating` keeps, per meal, only who sits elsewhere than usual: {"dinner": {"leader": "staff", "<staff id>": "group"}}.
 
 Costs, the meals page, the restaurant's booking email and the programme all count people - and so the
 plates of each dish, table by table - from here.
@@ -35,11 +36,32 @@ class Seating:
         return [self.group, self.staff] if self.staff else [self.group]
 
 
-def tables(t, day: int, pax: int) -> Seating:
-    """The tables of one day's meals, for a group of `pax` (tour leaders included)."""
+def changed(t, day: int, meal: str | None) -> dict:
+    """Who sits elsewhere than usual at this meal."""
+    d = next((x for x in t.days if x.day_number == day), None) if meal else None
+    return dict(((d.seating or {}).get(meal) or {})) if d is not None else {}
+
+
+def people(t, day: int, meal: str | None, pax: int) -> list[dict]:
+    """Everyone who could eat at this meal, with where they sit and where they usually sit (the grid)."""
+    pax = int(pax or 0)
+    o = changed(t, day, meal)
+    leaders = min(t.leaders or 0, pax)
+    out = [{"key": "leader", "role": "leader", "name": "", "count": leaders,
+            "seat": o.get("leader") or leader_seat(t), "usual": leader_seat(t)}] if leaders else []
+    for a in t.staff:
+        if a.role in MEAL_STAFF and a.covers(day):
+            out.append({"key": a.id, "role": a.role, "name": a.vendor.name if a.vendor else "", "count": 1,
+                        "seat": o.get(a.id) or seat_of(a, t), "usual": seat_of(a, t)})
+    return out
+
+
+def tables(t, day: int, pax: int, meal: str | None = None) -> Seating:
+    """The tables of one day's meal, for a group of `pax` (tour leaders included)."""
     pax = int(pax or 0)
     leaders = min(t.leaders or 0, pax)
     s = Seating(group=pax - leaders)
+    o = changed(t, day, meal)
 
     def put(where: str, role: str, n: int) -> None:
         if n <= 0 or where == "none":
@@ -51,8 +73,8 @@ def tables(t, day: int, pax: int) -> Seating:
             s.group += n
             s.group_roles[role] += n
 
-    put(leader_seat(t), "leader", leaders)
+    put(o.get("leader") or leader_seat(t), "leader", leaders)
     for a in t.staff:
         if a.role in MEAL_STAFF and a.covers(day):
-            put(seat_of(a, t), a.role, 1)
+            put(o.get(a.id) or seat_of(a, t), a.role, 1)
     return s

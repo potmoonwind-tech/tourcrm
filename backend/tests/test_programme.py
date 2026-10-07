@@ -154,8 +154,11 @@ def test_distance_from_the_map_when_the_day_has_none_saved(make_client, monkeypa
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
     d2 = p["days"][1]
     assert asked == [["Tbilisi", "Gori", "Kutaisi"]]
-    assert d2["km"] == 200 and d2["drive"] == "3 h 20 min" and len(d2["legs"]) == 2 and p["total_km"] == 200
-    assert {k: d2["legs"][0][k] for k in ("start", "end", "km", "drive")} == {"start": "Tbilisi", "end": "Gori", "km": 100, "drive": "1 h 40 min"}
+    assert d2["km"] == 200 and d2["drive"] == "3 h 20 min" and p["total_km"] == 200
+    # The day had no programme: it gets the suggested one, and each drive is in it, before its place.
+    drives = [s["drive"] for s in d2["steps"] if s.get("drive")]
+    assert [(g["start"], g["end"], g["km"], g["drive"]) for g in drives] == [
+        ("Tbilisi", "Gori", 100, "1 h 40 min"), ("Gori", "Kutaisi", 100, "1 h 40 min")]
 
 
 def test_distance_between_the_destinations_of_the_day_programme(make_client, monkeypatch):
