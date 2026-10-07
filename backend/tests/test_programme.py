@@ -71,7 +71,7 @@ def test_programme_by_day_in_chinese_translated_once(make_client, translator):
     assert p["labels"]["breakfast"] == "早餐" and p["warnings"] == []
     d1, d2, d3 = p["days"]
     assert d1["title"].startswith("第1天") and d1["hotel"] == "ZH:Rooms Hotel" and d1["date"] == "2026-11-01"
-    assert d1["steps"][0] == {"time": "15:00", "end": "17:00", "text": "ZH:Old Tbilisi walk"}
+    assert d1["steps"][0] == {"time": "15:00", "end": "17:00", "text": "ZH:Old Tbilisi walk", "drive": None}
     assert d1["steps"][1]["text"] == "晚餐: ZH:Barbarestan"
     # Day 2: the road through its places, km and the coach time (×1.25: 120 min → 2 h 30 min).
     assert d2["route"] == ["ZH:Tbilisi", "ZH:Mtskheta", "ZH:Ananuri", "ZH:Kazbegi"]
@@ -157,6 +157,27 @@ def test_distance_between_the_destinations_of_the_day_programme(make_client, mon
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
     d2 = p["days"][1]
     assert ["Tbilisi", "Jvari, Mtskheta", "Ananuri", "Gudauri ski resort"] in asked      # where the map looks
-    assert [(g["start"], g["end"], g["km"]) for g in d2["legs"]] == [
-        ("Tbilisi", "Jvari Monastery", 10), ("Jvari Monastery", "Ananuri", 20), ("Ananuri", "Gudauri Lodge", 30)]
+    # In the timeline: each drive just before the place it leads to.
+    assert [(s["text"], s["drive"]["start"], s["drive"]["km"]) for s in d2["steps"]] == [
+        ("Jvari Monastery", "Tbilisi", 10), ("Ananuri", "Jvari Monastery", 20), ("Check-in: Gudauri Lodge", "Ananuri", 30)]
     assert d2["km"] == 60 and d2["title"] == "Day 2 \u00b7 Tbilisi \u2192 Gudauri"
+
+
+def test_one_timeline_drive_before_each_place(make_client, monkeypatch):
+    monkeypatch.setattr(programme.geo, "legs", lambda db, cities, **kw: [{"from": None, "to": cities[0], "km": 0, "minutes": 0}] + [
+        {"from": a, "to": b, "km": 10 * (j + 1), "minutes": 32} for j, (a, b) in enumerate(zip(cities, cities[1:]))])
+    c, base, _ = agency(make_client)
+    days = [{"city": "Tbilisi"}, {"city": "Gudauri", "schedule": [
+        {"id": "1", "kind": "visit", "time": "10:00", "end": "11:00", "title": "Jvari Monastery"},
+        {"id": "2", "kind": "visit", "time": "12:00", "title": "Ananuri"}]}, {"city": "Tbilisi"}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    d2 = p["days"][1]
+    assert d2["legs"] == []                                   # no separate list: it's in the timeline
+    assert [(s["text"], s["drive"] and s["drive"]["km"]) for s in d2["steps"]] == [
+        ("Jvari Monastery", 10), ("Ananuri", 20), ("Gudauri", 30)]
+    assert d2["steps"][0]["drive"]["drive"] == "40 min" and d2["steps"][2]["time"] == ""
+    # Without the timed programme the place-to-place list stays.
+    q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "include": {"schedule": False}}).json()
+    assert q["days"][1]["steps"] == [] and len(q["days"][1]["legs"]) == 3
+    text = "\n".join(x.text for x in Document(io.BytesIO(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en", "translate": False}).content)).paragraphs)
+    assert "\u2193  10 km \u00b7 40 min\n10:00\u201311:00  Jvari Monastery" in text

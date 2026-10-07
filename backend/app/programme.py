@@ -71,6 +71,7 @@ class PStep(BaseModel):
     time: str = ""
     end: str = ""
     text: str
+    drive: "PLeg | None" = None      # the drive that leads to this step (km, time), shown just before it
 
 
 class PLeg(BaseModel):
@@ -79,6 +80,9 @@ class PLeg(BaseModel):
     end: str
     km: int | None = None
     drive: str = ""
+
+
+PStep.model_rebuild()
 
 
 class PDay(BaseModel):
@@ -187,16 +191,17 @@ def _sight(title: str, vendors: dict[str, Vendor]) -> Vendor | None:
     return starts[0] if len(starts) == 1 else None
 
 
-def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], last: bool) -> list[tuple[str, str]]:
-    """The day's destinations in its programme's order, as (where the map should look, name to show):
+def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], last: bool) -> list[tuple[str, str, str | None]]:
+    """The day's destinations in its programme's order, as (where the map should look, name to show, the
+    step it is - None for last night's town and the day's town at the end):
     last night's town, each visit, restaurant and the hotel, then the day's town when there's no
     check-in. The same place twice in a row is one stop (the day plan's pathOf)."""
-    pts: list[tuple[str, str]] = []
+    pts: list[tuple[str, str, str | None]] = []
 
-    def push(where: str | None, label: str | None) -> None:
+    def push(where: str | None, label: str | None, step: str | None = None) -> None:
         w = (where or "").strip()
         if w and (not pts or pts[-1][0].lower() != w.lower()):
-            pts.append((w, (label or w).strip()))
+            pts.append((w, (label or w).strip(), step))
 
     if prev:
         slept = vendors.get(prev.hotel_id or "")
@@ -205,25 +210,25 @@ def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], 
         r = x.ref or ""
         if r == "hotel":
             h = vendors.get(d.hotel_id or "")
-            push((h.address if h else "") or d.city, h.name if h else d.city)
+            push((h.address if h else "") or d.city, h.name if h else d.city, x.id)
         elif r == "breakfast":
             b = vendors.get(d.breakfast_id or "") if d.breakfast_mode in ("included", "tourists") else None
             if b:
-                push(b.address or b.city, b.name)
+                push(b.address or b.city, b.name, x.id)
         elif r in ("lunch", "dinner"):
             mode, vid = (d.lunch_mode, d.lunch_id) if r == "lunch" else (d.dinner_mode, d.dinner_id)
             m = vendors.get(vid or "") if mode != "own" else None
             if m:
-                push(m.address or m.city, m.name)
+                push(m.address or m.city, m.name, x.id)
         elif not r and x.kind == "visit":
             at = None
             if x.place and x.place.strip().lower() != x.title.strip().lower():
                 at = next((v for v in vendors.values() if v.name.strip().lower() == x.place.strip().lower()), None)
             if at:
-                push(at.address or at.name, at.name)
+                push(at.address or at.name, at.name, x.id)
             else:
                 sight = _sight(x.title, vendors)
-                push((sight.address if sight else "") or x.place or x.title, x.title or x.place)
+                push((sight.address if sight else "") or x.place or x.title, x.title or x.place, x.id)
     if last or not any(x.ref == "hotel" for x in d.schedule):
         push(d.city, d.city)
     return pts
@@ -279,10 +284,12 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
         # With a day programme: destination to destination in its order (last night's town, each sight,
         # restaurant and the hotel) - the drives the day plan shows.
         path = _day_path(d, prev, vendors, i == len(body.days) - 1) if inc.distance and d.schedule else []
+        ends: list[str | None] = []          # the step each drive leads to (None: the day's town)
         if len(path) >= 2:
-            got = _map_legs(db, ws, [q for q, _ in path])
+            got = _map_legs(db, ws, [q for q, _, _ in path])
             if got:
-                stops, (leg_km, leg_min) = [T(label) for _, label in path], got
+                stops, (leg_km, leg_min) = [T(label) for _, label, _ in path], got
+                ends = [step for _, _, step in path][1:]
         # Not saved on the day: the map's answer for the same road - what the day plan shows.
         if inc.distance and len(stops) >= 2 and len(leg_km) != len(stops) - 1:
             got = _map_legs(db, ws, stops)
@@ -325,10 +332,16 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
                     if e.optional:
                         p.activities[-1] += f" ({L['optional']})"
         if inc.schedule:
+            # One timeline: each drive just before the place it leads to; the drive to the day's town at
+            # the end. The separate place-to-place list is then not needed.
+            to_step = {e: g for e, g in zip(ends, p.legs) if e} if ends and len(ends) == len(p.legs) else {}
             for x in d.schedule:
                 text = _step_text(x, d, prev, c, L)
                 if text:
-                    p.steps.append(PStep(time=x.time, end=x.end, text=text))
+                    p.steps.append(PStep(time=x.time, end=x.end, text=text, drive=to_step.get(x.id)))
+            if to_step:
+                p.steps += [PStep(text=g.end, drive=g) for e, g in zip(ends, p.legs) if e is None]
+                p.legs = []
         for f in d.flights:
             word = L["arrival"] if f.direction == "arrival" else L["departure"]
             p.flights.append(" ".join(x for x in (word, f.number, f.time, f.airport) if x))
@@ -351,7 +364,9 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
         p.hotel = t(p.hotel)
         p.meals = [(a, t(b) if b in tr else _tr_inside(b, tr)) for a, b in p.meals]
         p.activities = [_tr_inside(a, tr) for a in p.activities]
-        p.steps = [PStep(time=s.time, end=s.end, text=_tr_inside(s.text, tr)) for s in p.steps]
+        p.steps = [PStep(time=s.time, end=s.end, text=_tr_inside(s.text, tr),
+                         drive=PLeg(start=t(s.drive.start), end=t(s.drive.end), km=s.drive.km, drive=s.drive.drive) if s.drive else None)
+                   for s in p.steps]
         p.border, p.notes = t(p.border), t(p.notes)
         p.title = f"{L['day'].format(n=p.number)} · {' → '.join(p.route)}" if p.route else L["day"].format(n=p.number)
     title = t(T(body.title)) if body.title else L["programme"]

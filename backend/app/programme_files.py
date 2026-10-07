@@ -24,6 +24,11 @@ def _step(s) -> str:
     return f"{when}  {s.text}" if when else s.text
 
 
+def _hop(g, L) -> str:
+    """The drive just before a step: "25 km · 40 min"."""
+    return " \u00b7 ".join(x for x in (f"{g.km} {L['km']}" if g.km else "", g.drive) if x)
+
+
 def _leg(g, L) -> str:
     return " \u00b7 ".join(x for x in (f"{g.start} \u2192 {g.end}", f"{g.km} {L['km']}" if g.km else "", g.drive) if x)
 
@@ -59,6 +64,10 @@ def docx_bytes(p: ProgrammeOut) -> bytes:
             doc.add_paragraph(f"\u2708 {f}")
         if d.steps:
             for s in d.steps:
+                if s.drive and _hop(s.drive, L):
+                    hop = doc.add_paragraph(f"\u2193  {_hop(s.drive, L)}")
+                    hop.paragraph_format.left_indent = Pt(18)
+                    hop.runs[0].font.size, hop.runs[0].font.color.rgb = Pt(9), RGBColor(0x64, 0x74, 0x8B)
                 doc.add_paragraph(_step(s), style="List Bullet")
         if d.activities:
             para = doc.add_paragraph()
@@ -105,7 +114,8 @@ def xlsx_bytes(p: ProgrammeOut) -> bytes:
         when = f"{d.number}" + (f"\n{_date(d.date)}" if d.date else "")
         dist = "\n".join([f"{d.km} {L['km']}" if d.km else "", *(_leg(g, L) for g in d.legs)]).strip()
         ws.append([when, " \u2192 ".join(d.route), dist, d.drive,
-                   "\n".join([*(f"\u2708 {f}" for f in d.flights), *(_step(s) for s in d.steps)]),
+                   "\n".join([*(f"\u2708 {f}" for f in d.flights),
+                              *(line for s in d.steps for line in ([f"   \u2193 {_hop(s.drive, L)}"] if s.drive and _hop(s.drive, L) else []) + [_step(s)])]),
                    "\n".join(d.activities), "\n".join(f"{a}: {b}" for a, b in d.meals),
                    d.hotel, "\n".join(x for x in (d.border and f"{L['border']}: {d.border}", d.notes) if x)])
     for row in ws.iter_rows(min_row=6):

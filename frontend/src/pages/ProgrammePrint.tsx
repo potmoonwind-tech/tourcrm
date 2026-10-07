@@ -8,7 +8,7 @@ import { api } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { useI18n } from '../lib/i18n'
 
-interface PStep { time: string; end: string; text: string }
+interface PStep { time: string; end: string; text: string; drive?: PLeg | null }
 interface PLeg { start: string; end: string; km: number | null; drive: string }
 interface PDay {
   number: number; date: string | null; title: string; route: string[]; km: number | null; drive: string; legs: PLeg[]; hotel: string
@@ -81,9 +81,17 @@ export function ProgrammePrintPage() {
               {day.steps.length > 0 && (
                 <ul className="mt-2 space-y-0.5">
                   {day.steps.map((s, i) => (
-                    <li key={i} className="flex gap-3">
-                      <span className="w-24 shrink-0 tabular-nums text-slate-500">{s.time}{s.end && `–${s.end}`}</span>
-                      <span>{s.text}</span>
+                    <li key={i}>
+                      {/* The drive that leads here, just before the place: one timeline. */}
+                      {s.drive && (s.drive.km || s.drive.drive) && (
+                        <span className="my-0.5 flex items-center gap-1.5 pl-[6.75rem] text-xs text-slate-500">
+                          <Car size={12} aria-hidden />{[s.drive.km && `${s.drive.km} ${L.km}`, s.drive.drive].filter(Boolean).join(' · ')}
+                        </span>
+                      )}
+                      <span className="flex gap-3">
+                        <span className="w-24 shrink-0 tabular-nums text-slate-500">{s.time}{s.end && `–${s.end}`}</span>
+                        <span>{s.text}</span>
+                      </span>
                     </li>
                   ))}
                 </ul>
