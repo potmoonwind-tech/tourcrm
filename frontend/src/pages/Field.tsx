@@ -215,7 +215,8 @@ export function Timeline({ day, orders, words }: { day: PDay; orders: MealOrder[
             <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 text-sm text-slate-600">
               <span className="w-14 shrink-0 tabular-nums leading-tight">{s.drive.depart}
                 {s.drive.arrive && <span className="block">–{s.drive.arrive}</span>}</span>
-              <span className="min-w-0 flex-1">↓ {[s.drive.km && `${s.drive.km} km`, s.drive.drive].filter(Boolean).join(' · ')}</span>
+              <span className="min-w-0 flex-1">↓ {[s.drive.km && `${s.drive.km} km`, s.drive.drive].filter(Boolean).join(' · ')}
+                <span className="block truncate text-xs text-slate-500">{s.drive.start} → {s.drive.end}</span></span>
               {s.drive.map && (
                 <a href={s.drive.map} target="_blank" rel="noopener noreferrer" aria-label={w.route}
                   className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 active:bg-slate-100">
@@ -265,10 +266,16 @@ function Step({ s, order, mapLabel }: { s: PStep; order?: MealOrder; mapLabel: s
           </span>
         ) : s.note ? <span className="mt-0.5 block text-sm italic text-slate-500">{s.note}</span> : null}
       </span>
-      {s.map && (
-        <a href={s.map} target="_blank" rel="noopener noreferrer" aria-label={mapLabel}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white active:bg-brand-700"><MapPin size={16} /></a>
-      )}
+      <span className="flex shrink-0 flex-col gap-1.5">
+        {s.map && (
+          <a href={s.map} target="_blank" rel="noopener noreferrer" aria-label={mapLabel}
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-brand-600 text-white active:bg-brand-700"><MapPin size={16} /></a>
+        )}
+        {s.phone && (
+          <a href={`tel:${s.phone.replace(/[^\d+]/g, '')}`} aria-label={`${t('fieldCall')} ${s.phone}`}
+            className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-700 active:bg-slate-100"><PhoneIcon size={16} /></a>
+        )}
+      </span>
     </div>
   )
 }

@@ -2776,6 +2776,7 @@ const en = {
   shareLinkDead: "This link doesn't work any more. Ask the agency for a new one.",
   fieldOrdered: "Ordered",
   fieldPlates: "{n} plates",
+  programmePart_phones: "Phone numbers of hotels, restaurants and places",
 }
 
 type Dict = typeof en
@@ -5548,6 +5549,7 @@ const ka: Dict = {
   shareLinkDead: "ეს ბმული აღარ მუშაობს. სთხოვეთ სააგენტოს ახალი.",
   fieldOrdered: "შეკვეთილია",
   fieldPlates: "{n} თეფში",
+  programmePart_phones: "სასტუმროების, რესტორნების და ადგილების ტელეფონები",
 }
 
 export type Lang = 'en' | 'ka'

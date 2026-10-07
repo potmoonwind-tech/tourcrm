@@ -81,6 +81,7 @@ class Include(BaseModel):
     activities: bool = True
     schedule: bool = True
     notes: bool = True
+    phones: bool = True              # the phone of each hotel, restaurant and place (a call button on the web page)
 
 
 class ProgrammeIn(BaseModel):
@@ -102,6 +103,7 @@ class PStep(BaseModel):
     kind: str = ""                   # breakfast, meal, visit, checkin, flight, free, arrive (the day's town)…
     meal: str = ""                   # breakfast / lunch / dinner: the meal this step is (its order, on the guide's page)
     map: str = ""                    # the place on Google Maps
+    phone: str = ""                  # the place's phone (hotel, restaurant, sight)
 
 
 class PLeg(BaseModel):
@@ -335,8 +337,13 @@ def _drive(minutes: int, factor: Decimal, L: dict[str, str]) -> str:
 
 def _place_of(x, d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], services: dict[str, Service]) -> str:
     """What the map should look for at a step that is a hotel, restaurant or activity place: its name and
-    address ("Imereti Family Kitchen, Kutaisi") - more precise than the town. Breakfast at the hotel is
-    where the group slept."""
+    address ("Imereti Family Kitchen, Kutaisi") - more precise than the town."""
+    v = _vendor_of(x, d, prev, vendors, services)
+    return ", ".join(p for p in (v.name, v.address or v.city) if p) if v else ""
+
+
+def _vendor_of(x, d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], services: dict[str, Service]) -> Vendor | None:
+    """The hotel, restaurant or place a step is at (breakfast at the hotel: where the group slept)."""
     r = x.ref or ""
     vid = None
     if r == "breakfast":
@@ -349,8 +356,10 @@ def _place_of(x, d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor
         slot = next((e for e in d.extras if e.id == r[6:]), None)
         s = services.get(slot.service_id) if slot else None
         vid = s.vendor_id if s else None
-    v = vendors.get(vid or "")
-    return ", ".join(p for p in (v.name, v.address or v.city) if p) if v else ""
+    elif not r and x.kind == "visit":
+        sight = _sight(x.title, vendors)
+        vid = sight.id if sight else None
+    return vendors.get(vid or "")
 
 
 def map_search(where: str) -> str:
@@ -580,11 +589,13 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
                 text = _step_text(x, d, prev, c, L, lang)
                 if text:
                     meal = x.ref if x.ref in ("lunch", "dinner") else "breakfast" if x.ref == "breakfast" and d.breakfast_mode in ("included", "tourists") else ""
+                    at = _vendor_of(x, d, prev, vendors, services)
                     p.steps.append(PStep(time=x.time, end=x.end, text=text, drive=to_step.get(x.id), kind=x.kind,
+                                         phone=(at.phone or at.phone2) if at and inc.phones else "",
                                          meal=x.ref if x.ref in ("breakfast", "lunch", "dinner") and x.kind != "free" else "",
                                          map=map_search(_place_of(x, d, prev, vendors, services) or where_of.get(x.id, "")),
                                          note=dishes(d, meal) if meal and inc.meals else ""))
-            if to_step:
+            if ends and len(ends) == len(p.legs) and p.steps:
                 p.steps += [PStep(text=g.end, drive=g, kind="arrive", map=map_search(wheres[j + 1]))
                             for j, (e, g) in enumerate(zip(ends, p.legs)) if e is None]
                 p.legs = []

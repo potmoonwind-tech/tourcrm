@@ -297,3 +297,18 @@ def test_a_link_anyone_can_open(make_client):
     assert "Narikala" in p["days"][0]["steps"][0]["map"]
     assert c.get("/api/shared/programme/made-up").status_code == 404
 
+
+
+def test_the_only_drive_of_the_day_and_the_phones(make_client, monkeypatch):
+    monkeypatch.setattr(programme.geo, "legs", lambda db, cities, **kw: [{"from": None, "to": cities[0], "km": 0, "minutes": 0}] + [
+        {"from": a, "to": b, "km": 219, "minutes": 176} for a, b in zip(cities, cities[1:])])
+    c, base, _ = agency(make_client)
+    hotel = mk(c, f"{base}/vendors", {"name": "Kutaisi Inn", "type": "hotel", "city": "Kutaisi", "phone": "+995 431 00 00"})
+    days = [{"city": "Kutaisi", "hotel_id": hotel["id"]}, {"city": "Tbilisi", "schedule": [
+        {"id": "b", "kind": "breakfast", "time": "08:00", "end": "08:30", "ref": "breakfast"}]}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    breakfast, arrive = p["days"][1]["steps"]
+    assert breakfast["phone"] == "+995 431 00 00"                         # last night's hotel, to call
+    assert (arrive["text"], arrive["drive"]["km"], arrive["drive"]["depart"], arrive["time"]) == ("Tbilisi", 219, "08:30", "12:10")
+    q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "include": {"phones": False}}).json()
+    assert q["days"][1]["steps"][0]["phone"] == ""

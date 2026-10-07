@@ -8,7 +8,7 @@ import { api } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { useI18n } from '../lib/i18n'
 
-export interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string; kind?: string; meal?: string; map?: string }
+export interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string; kind?: string; meal?: string; map?: string; phone?: string }
 export interface PLeg { start: string; end: string; km: number | null; drive: string; depart?: string; arrive?: string; map?: string }
 
 // One small icon per kind of step, so the day reads at a glance.
@@ -116,6 +116,7 @@ export function ProgrammeDoc({ d, toolbar }: { d: Programme; toolbar?: ReactNode
                             <span className="text-slate-900">{s.map
                               ? <a href={s.map} target="_blank" rel="noopener noreferrer" className="text-sky-800 no-underline hover:underline print:text-slate-900">{s.text}</a>
                               : s.text}
+                              {s.phone && <span className="ml-2 whitespace-nowrap text-xs text-slate-500">☎ {s.phone}</span>}
                               {s.note && <span className="block text-xs italic text-slate-500">{s.note}</span>}</span>
                           </div>
                         </li>

@@ -16,7 +16,7 @@ import { Button, ErrorText, Input, SegmentedControl } from './ui'
 
 type Lang = 'en' | 'ka' | 'zh'
 type Format = 'pdf' | 'docx' | 'xlsx'
-const PARTS = ['distance', 'hotels', 'meals', 'activities', 'schedule', 'notes'] as const
+const PARTS = ['distance', 'hotels', 'meals', 'activities', 'schedule', 'notes', 'phones'] as const
 export const PROGRAMME_KEY = 'programmePrint'
 
 export interface ProgrammeRequest {
@@ -32,7 +32,7 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
   const { t, lang: appLang } = useI18n()
   const [lang, setLang] = useState<Lang>(appLang === 'ka' ? 'ka' : 'en')
   const [format, setFormat] = useState<Format>('pdf')
-  const [include, setInclude] = useState<ProgrammeRequest['include']>({ distance: true, hotels: true, meals: true, activities: true, schedule: true, notes: true })
+  const [include, setInclude] = useState<ProgrammeRequest['include']>({ distance: true, hotels: true, meals: true, activities: true, schedule: true, notes: true, phones: true })
   const [translate, setTranslate] = useState(true)
   // Which days go in the file (all at first); the others still count for the route and last night's hotel.
   const [skip, setSkip] = useState<Set<number>>(new Set())
