@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from . import geo
 from .config import settings
 from .models import Service, TextTranslation, Vendor, Workspace
 from .schemas import DayFields
@@ -173,6 +174,18 @@ def translate(db: Session, ws: Workspace, texts: set[str], lang: str, warnings: 
 
 # --- building ------------------------------------------------------------------------------------------
 
+def _map_legs(db: Session, ws: Workspace, route: list[str]) -> tuple[list[int], list[int]] | None:
+    """Road km and car minutes for each leg of a day, from the map (kept answers first, as the day plan
+    asks). None when the map can't say - the programme then just has no distance for that day."""
+    try:
+        rows = geo.legs(db, route, countries=ws.countries or None, workspace_id=ws.id)[1:]
+    except Exception:          # noqa: BLE001 - no map, no distance; the programme is still made
+        return None
+    if len(rows) != len(route) - 1 or not any(r.get("km") for r in rows):
+        return None
+    return [int(r.get("km") or 0) for r in rows], [int(r.get("minutes") or 0) for r in rows]
+
+
 def _drive(minutes: int, factor: Decimal, L: dict[str, str]) -> str:
     m = int(round(minutes * float(factor) / 5) * 5)
     if m <= 0:
@@ -207,17 +220,23 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
     for i, d in enumerate(body.days):
         prev = body.days[i - 1] if i else None
         route = [T(x) for x in ([prev.city] if prev and prev.city and prev.city != d.city else []) + list(d.stops) + [d.city] if x]
-        km = d.km if d.km is not None else (sum(d.drive_km) or None)
+        factor = ws.drive_factor or Decimal("1.25")
+        leg_km, leg_min = list(d.drive_km), list(d.drive_minutes)
+        # Not saved on the day: the map's answer for the same road - what the day plan shows.
+        if inc.distance and len(route) >= 2 and len(leg_km) != len(route) - 1:
+            got = _map_legs(db, ws, route)
+            if got:
+                leg_km, leg_min = got
+        km = d.km or (sum(leg_km) or None)
         total += km or 0
-        drive = _drive(sum(d.drive_minutes), ws.drive_factor or Decimal("1.25"), L) if d.drive_minutes else ""
+        drive = _drive(sum(leg_min), factor, L) if leg_min else ""
         p = PDay(number=i + 1, date=body.start_date + timedelta(days=i) if body.start_date else None,
                  title="", route=route, km=km if inc.distance else None, drive=drive if inc.distance else "")
-        # Place to place, when the map gave every leg of the day (same order as the route).
-        if inc.distance and len(route) >= 2 and len(d.drive_km) == len(route) - 1:
+        # Place to place, every leg of the day (same order as the route).
+        if inc.distance and len(route) >= 2 and len(leg_km) == len(route) - 1:
             for j, (a, b) in enumerate(zip(route, route[1:])):
-                mins = d.drive_minutes[j] if j < len(d.drive_minutes) else 0
-                p.legs.append(PLeg(start=a, end=b, km=d.drive_km[j],
-                                   drive=_drive(mins, ws.drive_factor or Decimal("1.25"), L) if mins else ""))
+                mins = leg_min[j] if j < len(leg_min) else 0
+                p.legs.append(PLeg(start=a, end=b, km=leg_km[j] or None, drive=_drive(mins, factor, L) if mins else ""))
         last = i == len(body.days) - 1
         if inc.hotels:
             p.hotel = T(c.name(d.hotel_id)) or ("" if not last else "")

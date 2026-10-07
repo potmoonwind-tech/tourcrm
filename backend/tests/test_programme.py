@@ -28,6 +28,12 @@ class FakeTranslator:
         return SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps([f"{lang}:{x}" for x in items], ensure_ascii=False))])
 
 
+@pytest.fixture(autouse=True)
+def no_map(monkeypatch):
+    """No real map in tests: a day without saved km stays without (one test gives its own map)."""
+    monkeypatch.setattr(programme.geo, "legs", lambda db, cities, **kw: [])
+
+
 @pytest.fixture
 def translator(monkeypatch):
     monkeypatch.setattr(settings, "anthropic_api_key", "test-key")
@@ -114,3 +120,20 @@ def test_place_to_place_km_and_only_some_days(make_client, translator):
     assert p["days"][0]["meals"][0] == ["Breakfast", "Rooms Hotel"]     # day 1 left out, its hotel still counts
     text = "\n".join(x.text for x in Document(io.BytesIO(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en"}).content)).paragraphs)
     assert "Mtskheta \u2192 Ananuri \u00b7 45 km" in text
+
+
+def test_distance_from_the_map_when_the_day_has_none_saved(make_client, monkeypatch):
+    """The day plan shows the map's km live; the file must show the same, not only km saved on the day."""
+    asked = []
+    def fake_legs(db, cities, **kw):
+        asked.append(list(cities))
+        return [{"from": None, "to": cities[0], "km": 0, "minutes": 0}] + [
+            {"from": a, "to": b, "km": 100, "minutes": 80} for a, b in zip(cities, cities[1:])]
+    monkeypatch.setattr(programme.geo, "legs", fake_legs)
+    c, base, _ = agency(make_client)
+    days = [{"city": "Tbilisi"}, {"city": "Kutaisi", "stops": ["Gori"]}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    d2 = p["days"][1]
+    assert asked == [["Tbilisi", "Gori", "Kutaisi"]]
+    assert d2["km"] == 200 and d2["drive"] == "3 h 20 min" and len(d2["legs"]) == 2 and p["total_km"] == 200
+    assert d2["legs"][0] == {"start": "Tbilisi", "end": "Gori", "km": 100, "drive": "1 h 40 min"}
