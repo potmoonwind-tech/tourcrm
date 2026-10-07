@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     anthropic_api_key: str = ""
     anthropic_workspace_id: str = ""     # only for a key that isn't scoped to a Console workspace
     ai_model: str = "claude-opus-5-5"
+    # Translating programme texts (place names, notes): a lighter model is plenty and cheaper.
+    ai_translate_model: str = "claude-sonnet-5-5"
     ai_monthly_usd: float = 25.0
     # Maps: Google when a key is set (place search, places, road distances), else OpenStreetMap.
     # The server key is used by the server only; the browser key (restricted to the site's address

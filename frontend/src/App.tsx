@@ -14,6 +14,7 @@ import { CalcEditorPage } from './pages/CalcEditor'
 import { CalculationsPage } from './pages/Calculations'
 import { FinancePage } from './pages/Finance'
 import { PriceListPrintPage } from './pages/PriceListPrint'
+import { ProgrammePrintPage } from './pages/ProgrammePrint'
 import { ImportPage } from './pages/ImportPage'
 import { InvoicePrintPage } from './pages/InvoicePrint'
 import { PaymentsPage } from './pages/Payments'
@@ -106,6 +107,7 @@ export default function App() {
         <Route path="/new-workspace" element={<NewWorkspacePage />} />
         <Route path="/w/:workspaceId/print/invoice/:invoiceId" element={<InvoicePrintPage />} />
         <Route path="/w/:workspaceId/print/quote/:quoteId" element={<PriceListPrintPage />} />
+        <Route path="/w/:workspaceId/print/programme" element={<ProgrammePrintPage />} />
         <Route path="/w/:workspaceId" element={<WorkspaceRoute />}>
           <Route index element={<DashboardPage />} />
           <Route path="tours" element={<ToursPage />} />

@@ -8,6 +8,7 @@ pyjwt
 argon2-cffi
 python-multipart
 openpyxl
+python-docx
 psycopg[binary]
 pytest
 httpx

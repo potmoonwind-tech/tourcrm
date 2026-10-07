@@ -9,7 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from .config import settings
 from .locks import TourLocked
 from .routers import (
-    alerts, assistant, auth, bills, bookings, distances, field, hotel_change, staff_change, meals, budget, cancellation, catalog, lifecycle, finance, imports, incidents, invites, invoices, people, pricing, mail, quotes, rooms, search, series, setup, dashboard, tasks, tours, workspaces,
+    alerts, assistant, auth, bills, bookings, distances, field, hotel_change, staff_change, meals, budget, cancellation, catalog, lifecycle, finance, imports, incidents, invites, invoices, people, pricing, programme, mail, quotes, rooms, search, series, setup, dashboard, tasks, tours, workspaces,
 )
 
 from .config import LOCAL
@@ -78,6 +78,7 @@ app.include_router(field.router)
 app.include_router(assistant.router)
 app.include_router(hotel_change.router)
 app.include_router(staff_change.router)
+app.include_router(programme.router)
 
 
 @app.get("/health")

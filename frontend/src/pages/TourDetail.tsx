@@ -1,7 +1,7 @@
 import { toFields } from '../components/DayProgramme'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, Drawer, Menu, useGuardedClose } from '../components/overlay'
-import { Ban, Calculator, Check, Minus, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Ban, Calculator, Check, Download, Minus, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { CodeChip } from '../components/tour'
@@ -20,6 +20,7 @@ import { IncidentsTab } from './Incidents'
 import { CancelTourModal } from './CancelTour'
 import { AlertBars, useAlerts } from '../components/Alerts'
 import { ItineraryBuilder } from '../components/ItineraryBuilder'
+import { ProgrammeDialog } from '../components/ProgrammeDialog'
 import { ClosePanel, LifecycleBar } from './TourClose'
 import { ParticipantsTab, StaffTab } from './TourPeople'
 import { CURRENCIES } from './Onboarding'
@@ -333,6 +334,7 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
   const saved = tour.days.map(toFields)
   const [draft, setDraft] = useState<DayFields[] | null>(null)
   const [back, setBack] = useState<BusReturn | null | undefined>(undefined)   // undefined: as saved
+  const [exporting, setExporting] = useState(false)
   const alerts = useAlerts(tour.id)
   const days = draft ?? saved
   const busReturn = back === undefined ? tour.bus_return ?? null : back
@@ -364,6 +366,11 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
           <Link to={`/w/${ws.id}/routes?open=${tour.series_id}`} className="font-medium text-brand-700 hover:underline">{t('openRoute')}</Link>
         </p>
       )}
+      {/* The programme to send - from what is on screen, saved or not. */}
+      <div className="flex justify-end">
+        <Button size="sm" variant="secondary" onClick={() => setExporting(true)}><Download size={16} />{t('programmeDownload')}</Button>
+      </div>
+      {exporting && <ProgrammeDialog title={tour.name || tour.code} startDate={tour.start_date} days={days} onClose={() => setExporting(false)} />}
       <ItineraryBuilder days={days} dates={tour.days.map((d) => d.date)} fixedLength disabled={!canEdit}
         alerts={dirty ? [] : alerts.data ?? []} onChange={setDraft}
         busReturn={busReturn} onBusReturn={(b) => setBack(b)} />

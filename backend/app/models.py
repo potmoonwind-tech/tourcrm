@@ -903,6 +903,21 @@ class TaskAssignment(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class TextTranslation(Base):
+    """A text of the agency's (a place name, a programme line) in another language, kept so it is
+    translated - and paid for - once. Keyed by a hash of the text."""
+    __tablename__ = "text_translations"
+    __table_args__ = (UniqueConstraint("workspace_id", "lang", "source_hash"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    lang: Mapped[str] = mapped_column(String(5))
+    source_hash: Mapped[str] = mapped_column(String(40))
+    source: Mapped[str] = mapped_column(Text)
+    result: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class TaskStage(Base):
     """Where a task is on the board when that isn't worked out from the work itself: "in progress", or
     "waiting" for an own task or a payment. Keyed like TaskAssignment ("task:<id>", "booking:<id>"…)."""

@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SetupNudge } from '../components/GetStarted'
 import { Drawer, ask } from '../components/overlay'
-import { Plus } from 'lucide-react'
+import { Download, Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { blankDay, ItineraryBuilder } from '../components/ItineraryBuilder'
+import { ProgrammeDialog } from '../components/ProgrammeDialog'
 import { COLOR, CodeChip, EmptyState } from '../components/tour'
 import { Button, Card, ErrorText, Field, Input } from '../components/ui'
 import { api, SERIES_COLORS, type DayFields, type Series, type TourSummary, can } from '../lib/api'
@@ -93,6 +94,7 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
     bus_return: series?.bus_return ?? null,
   })
   const [f, setF] = useState(initial)
+  const [exporting, setExporting] = useState(false)
   const [start] = useState(() => JSON.stringify(initial()))
   // Closing with unsaved changes asks first (Esc, ×, the backdrop and Cancel).
   const close = () => {
@@ -151,6 +153,10 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
               </div>
             </div>
           </div>
+          <div className="flex justify-end">
+            <Button type="button" size="sm" variant="secondary" onClick={() => setExporting(true)}><Download size={16} />{t('programmeDownload')}</Button>
+          </div>
+          {exporting && <ProgrammeDialog title={f.name || f.code} days={f.days} onClose={() => setExporting(false)} />}
           <ItineraryBuilder days={f.days} disabled={!canEdit} onChange={(days) => setF({ ...f, days })}
             busReturn={f.bus_return} onBusReturn={(bus_return) => setF({ ...f, bus_return })} />
         </fieldset>
