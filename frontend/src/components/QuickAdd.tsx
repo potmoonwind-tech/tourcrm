@@ -7,7 +7,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { useState, type KeyboardEvent } from 'react'
 import { api, VENDOR_TYPES, type Client, type Dish, type Service, type ServiceCategory, type ServiceUnit, type Vendor, type VendorType } from '../lib/api'
-import { useVendors, wsPath } from '../lib/data'
+import { useServiceList, useVendors, wsPath } from '../lib/data'
+import { nextMenuName } from '../lib/menus'
 import { useI18n } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
 import { CURRENCIES } from '../pages/Onboarding'
@@ -148,8 +149,9 @@ export function DishesInput({ value, onChange, disabled, currency, onUseSum }: {
 }
 
 /** A new service (or a set menu) for a vendor: appended to the vendor's services. */
-export function QuickServiceDialog({ vendorId, category = 'other', menu, onCreated, onClose }: {
+export function QuickServiceDialog({ vendorId, category = 'other', menu, meal, onCreated, onClose }: {
   vendorId?: string; category?: ServiceCategory; menu?: boolean; onCreated: (s: Service) => void; onClose: () => void
+  meal?: 'breakfast' | 'lunch' | 'dinner'     // a menu for this meal: named "Restaurant · Lunch 1"
 }) {
   const ws = useWorkspace()!
   const { t } = useI18n()
@@ -159,14 +161,21 @@ export function QuickServiceDialog({ vendorId, category = 'other', menu, onCreat
     vendor_id: vendorId ?? null as string | null, name: '', category: menu ? 'meal' as ServiceCategory : category,
     unit: 'person' as ServiceUnit, price: '', currency: ws.base_currency, dishes: [] as Dish[],
   })
+  // A menu's name is made for you ("Barbarestan · Lunch 2") until you type your own.
+  const all = useServiceList()
+  const [typed, setTyped] = useState(false)
+  const place = vendors.data?.find((v) => v.id === f.vendor_id)
+  const auto = menu && place
+    ? nextMenuName(place.name, t(meal ?? 'menu'), (all.data ?? []).filter((x) => x.vendor.id === place.id).map((x) => x.name)) : ''
+  const name = typed ? f.name : f.name || auto
   const create = useMutation({
     mutationFn: async () => {
       const url = wsPath(ws.id, `/vendors/${f.vendor_id}/services`)
       const existing = await api<Service[]>(url)
-      const mine = { code: null, name: f.name, category: f.category, unit: f.unit, notes: '', dishes: f.dishes, is_active: true,
+      const mine = { code: null, name, category: f.category, unit: f.unit, notes: '', dishes: f.dishes, is_active: true,
         rates: f.price ? [{ valid_from: null, valid_to: null, min_pax: null, max_pax: null, price: Number(f.price), currency: f.currency, notes: '' }] : [] }
       const saved = await api<Service[]>(url, { method: 'PUT', body: [...existing, mine] })
-      return saved.find((s) => s.name === f.name && !existing.some((e) => e.id === s.id))!
+      return saved.find((s) => s.name === name && !existing.some((e) => e.id === s.id))!
     },
     onSuccess: (s) => {
       for (const k of ['services', 'vendorServices', 'catalog']) qc.invalidateQueries({ queryKey: [k] })
@@ -182,7 +191,7 @@ export function QuickServiceDialog({ vendorId, category = 'other', menu, onCreat
           </Field>
         )}
         <Field label={menu ? t('menuName') : t('serviceName')}>
-          <Input required autoFocus value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} placeholder={menu ? t('menuNamePh') : ''} />
+          <Input required autoFocus value={name} onChange={(e) => { setTyped(true); setF({ ...f, name: e.target.value }) }} placeholder={menu ? t('menuNamePh') : ''} />
         </Field>
         {menu && <Field label={t('dishes')} hint={t('dishesHelp')}><DishesInput value={f.dishes} currency={f.currency} onChange={(dishes) => setF({ ...f, dishes })} onUseSum={(n) => setF({ ...f, price: n.toFixed(2) })} /></Field>}
         <div className="grid grid-cols-[1fr_6rem] gap-3">

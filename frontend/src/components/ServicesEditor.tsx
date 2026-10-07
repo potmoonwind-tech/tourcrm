@@ -6,6 +6,7 @@ import {
   type Dish, type RateKind, type Service, type ServiceCategory, type ServiceUnit, type Vendor,
 } from '../lib/api'
 import { wsPath } from '../lib/data'
+import { nextMenuName } from '../lib/menus'
 import { useI18n } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
@@ -110,13 +111,16 @@ export function ServicesEditor({ vendor, standalone, onDirtyChange, autoStart, s
     if (vendor.type === 'activity') d.category = 'activity'
     return d
   }
+  // "Restaurant · Lunch 2": the next free number for this meal among the place's services (not counting row `skip`).
+  const menuName = (meal: 'breakfast' | 'lunch' | 'dinner', skip?: number) =>
+    nextMenuName(vendor.name, t(meal), rows.filter((_, j) => j !== skip).map((x) => x.name))
   const addService = () => {
     // A restaurant's next service, once it has its lunch and dinner prices, is a set menu - not a
     // "per person" price picked by itself (which no menu list would show).
     const menuNext = vendor.type === 'restaurant' && used.has('lunch') && used.has('dinner')
     const code = menuNext ? undefined : RATE_KINDS_FOR[vendor.type].find((k) => !used.has(k))
     setRows([...rows, {
-      code: code ?? '', name: code ? t(`rate_${code}`) : '', notes: '', dishes: [], is_active: true, rates: [blankRate()],
+      code: code ?? '', name: code ? t(`rate_${code}`) : menuNext ? menuName('lunch') : '', notes: '', dishes: [], is_active: true, rates: [blankRate()],
       ...(code ? defaultsFor(code) : { unit: 'person', category: menuNext ? 'meal' : 'other' }),
     }])
   }
@@ -151,7 +155,7 @@ export function ServicesEditor({ vendor, standalone, onDirtyChange, autoStart, s
                 <span className="block text-xs font-medium text-slate-500">{t('whatIsIt')}</span>
                 <Select value={!s.code && s.category === 'meal' ? '__menu__' : s.code} title={t('systemCodeHelp')}
                   onChange={(e) => e.target.value === '__menu__'
-                    ? setSvc(i, { code: '', category: 'meal', unit: 'person', name: RATE_KINDS.some((k) => t(`rate_${k}`) === s.name) ? '' : s.name })
+                    ? setSvc(i, { code: '', category: 'meal', unit: 'person', name: !s.name || RATE_KINDS.some((k) => t(`rate_${k}`) === s.name) ? menuName('lunch') : s.name })
                     : pickCode(i, e.target.value as RateKind | '')}>
                   {(vendor.type === 'restaurant' || vendor.type === 'hotel') && <option value="__menu__">{t('setMenuOption')}</option>}
                   <option value="">{t('ownService')}</option>
@@ -162,6 +166,14 @@ export function ServicesEditor({ vendor, standalone, onDirtyChange, autoStart, s
                 <label className="min-w-40 flex-[2] space-y-1">
                   <span className="block text-xs font-medium text-slate-500">{t('serviceName')}</span>
                   <Input value={s.name} placeholder={t('serviceNamePh')} onChange={(e) => setSvc(i, { name: e.target.value })} />
+                  {!s.code && s.category === 'meal' && (vendor.type === 'restaurant' || vendor.type === 'hotel') && (
+                    <span className="flex gap-1">
+                      {(['breakfast', 'lunch', 'dinner'] as const).map((m) => (
+                        <button key={m} type="button" onClick={() => setSvc(i, { name: menuName(m, i) })}
+                          className="rounded-full border border-slate-200 px-2 py-0.5 text-[11px] text-slate-600 hover:bg-slate-50">{t(m)}</button>
+                      ))}
+                    </span>
+                  )}
                 </label>
               )}
               {!s.code && (

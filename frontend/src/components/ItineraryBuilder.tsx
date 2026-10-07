@@ -71,7 +71,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   const canCreate = !disabled && can(ws, 'operations')
   // Quick-add dialogs; `then` puts the new thing where it was asked for.
   const [newVendor, setNewVendor] = useState<{ type: VendorType; city?: string; then?: (v: Vendor) => void } | null>(null)
-  const [newService, setNewService] = useState<{ vendorId?: string; menu?: boolean; then?: (s: Service) => void } | null>(null)
+  const [newService, setNewService] = useState<{ vendorId?: string; menu?: boolean; then?: (s: Service) => void; meal?: 'breakfast' | 'lunch' | 'dinner' } | null>(null)
   const vendors = useVendors()
   const services = useServiceList()
   // Stable keys for dragging, kept in step with every change made here.
@@ -189,7 +189,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
                 vendors={vs} byId={byId} disabled={disabled} fixedLength={fixedLength} dragging={dragging} picked={picked}
                 menus={services.data ?? []} canCreate={canCreate}
                 onNewVendor={(type, then) => setNewVendor({ type, city: d.city, then })}
-                onNewService={(vendorId, menu, then) => setNewService({ vendorId, menu, then })}
+                onNewService={(vendorId, menu, then, meal) => setNewService({ vendorId, menu, then, meal })}
                 alerts={alerts.filter((a) => a.day === i + 1)}
                 onSet={(patch) => set(i, patch)} onPlace={(slot, item) => place(i, slot, item)}
                 onDuplicate={() => insert(i + 1, structuredClone(d))} onInsert={() => insert(i + 1, blankDay(d.city))}
@@ -209,7 +209,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
       <DragOverlay>{dragging && <Chip item={dragging} lifted />}</DragOverlay>
       {newVendor && <QuickVendorDialog type={newVendor.type} city={newVendor.city} onClose={() => setNewVendor(null)}
         onCreated={(v) => newVendor.then?.(v)} />}
-      {newService && <QuickServiceDialog vendorId={newService.vendorId} menu={newService.menu} onClose={() => setNewService(null)}
+      {newService && <QuickServiceDialog vendorId={newService.vendorId} menu={newService.menu} meal={newService.meal} onClose={() => setNewService(null)}
         onCreated={(sv) => newService.then?.(sv)} />}
     </DndContext>
   )
@@ -469,7 +469,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   disabled?: boolean; fixedLength?: boolean; dragging: Item | null; picked: Item | null; alerts: TourAlert[]
   menus: ServiceBrief[]; canCreate: boolean
   onNewVendor: (type: VendorType, then: (v: Vendor) => void) => void
-  onNewService: (vendorId: string | undefined, menu: boolean, then: (s: Service) => void) => void
+  onNewService: (vendorId: string | undefined, menu: boolean, then: (s: Service) => void, meal?: 'breakfast' | 'lunch' | 'dinner') => void
   onSet: (p: Partial<DayFields>) => void; onPlace: (slot: Slot, item: Item) => void
   onDuplicate: () => void; onInsert: () => void; onRemove: () => void; onHotelNext: () => void
 }) {
@@ -568,7 +568,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
               onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ breakfast_id: v.id, breakfast_menu_id: null })) : undefined} />
             <MenuPick meal="breakfast" vendorId={day.breakfast_id ?? null} value={day.breakfast_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
               onChange={(m) => onSet({ breakfast_menu_id: m })}
-              onAddNew={canCreate && day.breakfast_id ? () => onNewService(day.breakfast_id!, true, (s) => onSet({ breakfast_menu_id: s.id ?? null })) : undefined} />
+              onAddNew={canCreate && day.breakfast_id ? () => onNewService(day.breakfast_id!, true, (s) => onSet({ breakfast_menu_id: s.id ?? null }), 'breakfast') : undefined} />
             {day.breakfast_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
         </SlotBox>
@@ -582,7 +582,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ lunch_id: v.id, lunch_menu_id: null })) : undefined} />
           <MenuPick meal="lunch" vendorId={day.lunch_id} value={day.lunch_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
             onChange={(m) => onSet({ lunch_menu_id: m })}
-            onAddNew={canCreate && day.lunch_id ? () => onNewService(day.lunch_id!, true, (s) => onSet({ lunch_menu_id: s.id ?? null })) : undefined} />
+            onAddNew={canCreate && day.lunch_id ? () => onNewService(day.lunch_id!, true, (s) => onSet({ lunch_menu_id: s.id ?? null }), 'lunch') : undefined} />
           {day.lunch_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
         </SlotBox>
@@ -596,7 +596,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ dinner_id: v.id, dinner_menu_id: null })) : undefined} />
           <MenuPick meal="dinner" vendorId={day.dinner_id} value={day.dinner_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
             onChange={(m) => onSet({ dinner_menu_id: m })}
-            onAddNew={canCreate && day.dinner_id ? () => onNewService(day.dinner_id!, true, (s) => onSet({ dinner_menu_id: s.id ?? null })) : undefined} />
+            onAddNew={canCreate && day.dinner_id ? () => onNewService(day.dinner_id!, true, (s) => onSet({ dinner_menu_id: s.id ?? null }), 'dinner') : undefined} />
           {day.dinner_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
         </SlotBox>
