@@ -2745,6 +2745,7 @@ const en = {
   freeLineHelp: "Costs nothing on purpose (a free museum, a free tasting): not shown as a missing price",
   freeService: "Free",
   freeServiceHelp: "No charge (a free museum, a free tasting): calculations and tour costs count it as 0, without a \"no price\" warning",
+  breakfastLastHotelNotSet: "At last night's hotel - choose that night's hotel first",
 }
 
 type Dict = typeof en
@@ -5486,6 +5487,7 @@ const ka: Dict = {
   freeLineHelp: "განზრახ უფასოა (უფასო მუზეუმი, დეგუსტაცია): დაკარგულ ფასად არ ჩაითვლება",
   freeService: "უფასო",
   freeServiceHelp: "უფასოა (მუზეუმი, დეგუსტაცია): კალკულაციები და ხარჯები 0-ად ითვლის, „ფასი არ არის“ გაფრთხილების გარეშე",
+  breakfastLastHotelNotSet: "წინა ღამის სასტუმროში - ჯერ იმ ღამის სასტუმრო აირჩიეთ",
 }
 
 export type Lang = 'en' | 'ka'

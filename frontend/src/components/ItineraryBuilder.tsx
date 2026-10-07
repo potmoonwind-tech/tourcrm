@@ -552,8 +552,12 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           aside={<BreakfastModePick value={day.breakfast_mode ?? 'hotel'} disabled={disabled}
             onChange={(m) => onSet(m === 'hotel' || m === 'own' ? { breakfast_mode: m, breakfast_id: null, breakfast_menu_id: null } : { breakfast_mode: m })} />}>
           {(day.breakfast_mode ?? 'hotel') === 'hotel' ? (
-            <p className="flex items-center gap-1 py-1.5 text-xs text-slate-600">
-              {index === 0 ? t('breakfastNoneFirstDay') : t('breakfastAtLastHotel')}
+            // Which hotel: last night's, by name - or a quiet note when that night has no hotel yet.
+            <p className={cn('flex items-center gap-1 py-1.5 text-xs', index > 0 && !prevHotel ? 'text-amber-700' : 'text-slate-600')}>
+              {index === 0 ? t('breakfastNoneFirstDay')
+                : prevHotel ? <><BedDouble size={13} className="shrink-0 text-slate-400" aria-hidden />
+                    <span className="min-w-0 truncate"><span className="text-slate-500">{t('breakfastAtLastHotel')}:</span> <b className="font-medium text-slate-800">{byId.get(prevHotel)?.name ?? '…'}</b></span></>
+                : t('breakfastLastHotelNotSet')}
               <InfoTip label={index === 0 ? t('breakfastHotelFirstDay') : t('breakfastHotelHelp')} />
             </p>
           ) : day.breakfast_mode === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
