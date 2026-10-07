@@ -22,7 +22,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from . import dishes as dish_util, geo
+from . import dishes as dish_util, geo, seating
 from .config import settings
 from .models import Service, TextTranslation, Tour, Vendor, Workspace
 from .schemas import DayFields, ScheduleItem
@@ -541,35 +541,32 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
         own = menus.get(vid or "", [])
         return next((s for s in own if s.id == mid), None) or next((s for s in own if s.code == meal), None)
 
-    # Who eats, table by table: a tour's group (tour leaders are part of it), and that day's guides and
-    # drivers; with "staff table" the leaders, guide and driver sit apart - each table gets its own plates
-    # (19 at 1 per 5 -> 4 plates; staff of 3 -> 1 more). Without a tour: the group size sent, one table.
-    group, leaders, apart, plate_share = body.people, 0, False, body.plate_share
-    crew_of = lambda n: []
+    # Who eats, table by table (app/seating.py): a tour's group (tour leaders are part of it) and that
+    # day's guides and drivers, each with the group, at the staff table, or not with us - each table gets
+    # its own plates (18 at 1 per 5 -> 4 plates; staff of 3 -> 1 more). Without a tour: the group size sent.
+    group, plate_share, tour = body.people, body.plate_share, None
     if body.tour_id:
-        from .finance import MEAL_STAFF, group_size
+        from .finance import group_size
         tour = db.scalar(select(Tour).where(Tour.id == body.tour_id, Tour.workspace_id == ws.id)
                          .options(selectinload(Tour.staff), selectinload(Tour.participants)))
         if tour:
             group = group_size(tour) or group
-            leaders, apart = min(tour.leaders or 0, group or 0), bool(tour.staff_table)
             plate_share = plate_share or tour.plate_share
-            crew_of = lambda n: [a.role for a in tour.staff if a.role in MEAL_STAFF and a.covers(n)]
 
-    def roles(crew: list[str], with_leaders: bool) -> list[str]:
-        """["tour leader", "guide", "2 drivers"]: who is at the table, as the day has them."""
-        counts = ([("leader", leaders)] if with_leaders and leaders else []) + [
-            (r, crew.count(r)) for r in ("guide", "driver", "assistant") if crew.count(r)]
-        return [f"{n} {L['role_' + r]}" if n > 1 else L["role_" + r] for r, n in counts]
+    def roles(c) -> list[str]:
+        """["tour leader", "guide", "2 drivers"]: who is at a table besides the group."""
+        return [f"{c[r]} {L['role_' + r]}" if c[r] > 1 else L["role_" + r] for r in ("leader", "guide", "driver", "assistant") if c[r]]
 
     def tables(n: int) -> list[PTable]:
         if not group:
             return []
-        crew = crew_of(n)
-        if apart and leaders + len(crew) and group - leaders > 0:
-            return [PTable(who="group", people=group - leaders),
-                    PTable(who="staff", people=leaders + len(crew), roles=roles(crew, True))]
-        return [PTable(who="all", people=group + len(crew), roles=roles(crew, False))]
+        if not tour:
+            return [PTable(who="all", people=group)]
+        seat = seating.tables(tour, n, group)
+        if not seat.staff:
+            return [PTable(who="all", people=seat.group, roles=roles(seat.group_roles))]
+        return [PTable(who="group", people=seat.group, roles=roles(seat.group_roles)),
+                PTable(who="staff", people=seat.staff, roles=roles(seat.staff_roles))]
 
     def portions(d: DayFields, meal: str, at: list[PTable]) -> list[PDish]:
         """The meal's set menu dish by dish, with how many plates at each table."""

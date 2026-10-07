@@ -313,6 +313,8 @@ class Tour(Base):
     leaders: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Leader, driver and guide eat at their own table (a restaurant's "staff_meal" price when it has one).
     staff_table: Mapped[bool] = mapped_column(default=False, server_default="0")
+    # Where the tour leaders eat: "group", "staff" (table), "none"; NULL = as staff_table says (app/seating.py).
+    leader_seat: Mapped[str | None] = mapped_column(String(10), nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
     # What the client pays per tourist (managers only). Expected revenue = pax × price until invoiced.
     price_pp: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
@@ -399,6 +401,8 @@ class StaffAssignment(Base):
     start_day: Mapped[int] = mapped_column(Integer, default=1)
     end_day: Mapped[int | None] = mapped_column(Integer, nullable=True)
     notes: Mapped[str] = mapped_column(Text, default="")
+    # Where they eat at the meals: "group", "staff" (table), "none"; NULL = as the tour's staff_table says.
+    meal_seat: Mapped[str | None] = mapped_column(String(10), nullable=True)
 
     tour: Mapped[Tour] = relationship(back_populates="staff")
     vendor: Mapped[Vendor] = relationship()

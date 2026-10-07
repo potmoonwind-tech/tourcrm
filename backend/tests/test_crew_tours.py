@@ -68,6 +68,21 @@ def test_staff_table(make_client):
     assert "separate staff table" in body
 
 
+def test_each_person_has_a_seat_in_the_costs(make_client):
+    c, base, _ = agency(make_client)
+    t, hotel, guest, cafe = setup(c, base, lambda gh: {})
+    staff = {a["role"]: a for a in c.get(f"{base}/tours/{t['id']}/staff").json()}
+    # The tour leader eats with the group, the guide at the staff table, the driver on his own.
+    c.patch(f"{base}/tours/{t['id']}", json={"leaders": 1, "leader_seat": "group"})
+    c.patch(f"{base}/tours/{t['id']}/staff/{staff['guide']['id']}", json={"meal_seat": "staff"})
+    c.patch(f"{base}/tours/{t['id']}/staff/{staff['driver']['id']}", json={"meal_seat": "none"})
+    meal = sorted((x["quantity"], x["unit_price"]) for x in lines(c, base, t) if x["category"] == "meal")
+    assert meal == [(1, 20), (20, 50)]                                                      # 20 with the leader · the guide
+    b = next(b for b in c.get(f"{base}/tours/{t['id']}/bookings").json()["bookings"] if b["vendor"]["name"] == "Cafe")
+    body = c.post(f"{base}/tours/{t['id']}/bookings/{b['id']}/email-draft", json={"language": "en"}).json()["body"]
+    assert "20 people · separate staff table × 1" in body
+
+
 def test_calculation_from_the_tour_takes_its_crew(make_client):
     c, base, _ = agency(make_client)
     t, hotel, guest, cafe = setup(c, base, lambda gh: {"staff_stay": "own", "staff_hotel_id": gh["id"]})

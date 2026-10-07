@@ -20,7 +20,7 @@ from email.utils import formataddr, make_msgid
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from . import dishes as dish_util
+from . import dishes as dish_util, seating
 from .config import settings
 
 
@@ -237,17 +237,20 @@ def booking_values(t, b, u, lang: str, *, my_name: str, agency: str, signature: 
             if getattr(d, f"{meal}_id") == b.vendor_id and (getattr(d, f"{meal}_mode") or "included") not in ("own", "hotel"):
                 extra = f" ({w['tourists_pay']})" if getattr(d, f"{meal}_mode") == "tourists" else ""
                 menu = getattr(d, f"{meal}_menu")
+                # Who sits where: the group's table (with the staff who eat with them), and the staff table.
+                seat = seating.tables(t, d.day_number, people)
+                plates = lambda share: " + ".join(str(dish_util.plates(n, share)) for n in seat.tables)    # noqa: E731
                 if menu is not None and dish_util.sharing(menu.dishes, t.plate_share, agency_share):
-                    # Family style: the restaurant needs the plates, dish by dish.
+                    # Family style: the restaurant needs the plates, dish by dish (each table its own).
                     share = t.plate_share or agency_share
-                    extra += f" · {w['plate_rule'].format(n=share, plates=dish_util.plates(people, share))}"
-                if t.staff_table:
-                    extra += f" · {w['staff_table']}"
-                lines.append(f"{w[meal]}: {d_(d.date, lang)} · {people} {w['people']}{extra}")
+                    extra += f" · {w['plate_rule'].format(n=share, plates=plates(share))}"
+                if seat.staff:
+                    extra += f" · {w['staff_table']} × {seat.staff}"
+                lines.append(f"{w[meal]}: {d_(d.date, lang)} · {seat.group} {w['people']}{extra}")
                 if menu is not None:
                     for x in dish_util.normalize(menu.dishes):
                         s = dish_util.share_of(x, t.plate_share, agency_share)
-                        lines.append(f"   – {x['name']}" + (f": {dish_util.plates(people, s)} {w['plates']}" if s > 1 or share_any(menu, t, agency_share) else ""))
+                        lines.append(f"   – {x['name']}" + (f": {plates(s)} {w['plates']}" if s > 1 or share_any(menu, t, agency_share) else ""))
     for name, days in (det.get("services") or {}).items():
         lines.append(f"{name} × {days} {w['days']}")
     for s in det.get("staff") or []:

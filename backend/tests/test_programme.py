@@ -353,5 +353,31 @@ def test_plates_for_the_group_table_and_the_staff_table(make_client):
     # Without the staff table: everyone at one table, 19 + guide + driver.
     c.patch(url, json={"staff_table": False})
     q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
-    assert q["days"][0]["steps"][0]["tables"] == [{"who": "all", "people": 21, "roles": ["guide", "driver"]}]
+    assert q["days"][0]["steps"][0]["tables"] == [{"who": "all", "people": 21, "roles": ["tour leader", "guide", "driver"]}]
     assert q["days"][0]["steps"][0]["dishes"][0]["plates_at"] == [5]
+
+
+def test_each_person_eats_where_the_tour_says(make_client):
+    c, base, _ = agency(make_client)
+    resto = mk(c, f"{base}/vendors", {"name": "Barbarestan", "type": "restaurant", "city": "Tbilisi"})
+    c.put(f"{base}/vendors/{resto['id']}/services", json=[
+        {"code": "dinner", "name": "Dinner", "category": "meal", "unit": "person", "rates": [{"price": "30", "currency": "GEL"}],
+         "dishes": [{"name": "Khinkali", "per_plate": 5}]}])
+    tour = mk(c, f"{base}/tours", {"code": "T-20", "start_date": "2026-11-01", "end_date": "2026-11-02", "pax": 19})
+    url = f"{base}/tours/{tour['id']}"
+    # The tour leader with the group, the guide at the staff table, the driver eats on his own.
+    assert c.patch(url, json={"leaders": 1, "leader_seat": "group"}).json()["leader_seat"] == "group"
+    seats = {}
+    for name, role, seat in (("Nino", "guide", "staff"), ("Gia", "driver", "none")):
+        v = mk(c, f"{base}/vendors", {"name": name, "type": role})
+        seats[role] = mk(c, f"{url}/staff", {"vendor_id": v["id"], "role": role, "meal_seat": seat})
+    assert seats["driver"]["meal_seat"] == "none"
+    days = [{"city": "Tbilisi", "dinner_id": resto["id"], "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
+    step = p["days"][0]["steps"][0]
+    assert step["tables"] == [{"who": "group", "people": 19, "roles": ["tour leader"]}, {"who": "staff", "people": 1, "roles": ["guide"]}]
+    assert step["dishes"][0]["plates_at"] == [4, 1]
+    # The driver joins the guide: staff table of 2, still one plate.
+    c.patch(f"{url}/staff/{seats['driver']['id']}", json={"meal_seat": "staff"})
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
+    assert p["days"][0]["steps"][0]["tables"][1] == {"who": "staff", "people": 2, "roles": ["guide", "driver"]}

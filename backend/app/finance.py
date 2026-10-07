@@ -14,7 +14,7 @@ from decimal import Decimal
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from . import budget, catalog
+from . import budget, catalog, seating
 from . import dishes as dish_util
 from .models import ExchangeRate, Service, Tour, TourBooking, TourCost, Vendor, VendorPayment, Workspace
 from .routers.people import rooming
@@ -192,7 +192,7 @@ _ROOM_WORDS = [  # (word prefix, room type): longest prefixes first where they o
 def room_kind(word: str) -> str | None:
     w = word.lower()
     return next((kind for prefix, kind in _ROOM_WORDS if w.startswith(prefix)), None)
-MEAL_STAFF = {"guide", "driver", "assistant"}
+from .seating import MEAL_STAFF  # noqa: E402 - staff roles that eat at the meals (kept here for imports)
 STAFF_CATEGORY = {"guide": "guide", "tour_leader": "guide", "assistant": "guide",
                   "driver": "transport", "transport": "transport", "other": "other"}
 
@@ -311,8 +311,10 @@ def _plan(t: Tour, services: dict[str, Service], ctx: _Ctx) -> list[_Plan]:
                 plans.append(_Plan(f"staffroom:{d.id}", where, "hotel",
                                    f"staff {'TWN' if d.staff_twin else 'SGL'} × {n_rooms} ({eating_staff} staff)",
                                    d.date, None, Decimal(n_rooms), kind))
-        leaders = min(t.leaders or 0, int(pax))
-        crew = leaders + eating_staff if t.staff_table else 0
+        # Who sits where (app/seating.py): the group's table, and the staff table when some eat apart.
+        seat = seating.tables(t, d.day_number, int(pax))
+        crew = seat.staff
+        with_us = sum(n for r, n in seat.group_roles.items() if r != "leader")     # staff at the group's table
         for meal, vendor, menu in (("breakfast", d.breakfast, d.breakfast_menu), ("lunch", d.lunch, d.lunch_menu),
                                    ("dinner", d.dinner, d.dinner_menu)):
             # Tourists paying on the spot, or a free meal time: nothing for us to pay.
@@ -323,11 +325,8 @@ def _plan(t: Tour, services: dict[str, Service], ctx: _Ctx) -> list[_Plan]:
                     # Their own table: leader + driver + guide, at the restaurant's staff price when it has one.
                     plans.append(_Plan(f"{meal}_staff:{d.id}", vendor, "meal", f"{meal} · staff table × {crew}", d.date, None,
                                        Decimal(crew), "staff_meal" if catalog.service_by_code(vendor, "staff_meal") else meal))
-                    n = pax - leaders
-                    what = f"{meal} × {n}"
-                else:
-                    n = pax + eating_staff
-                    what = f"{meal} × {n}" + (f" ({pax} + {eating_staff} staff)" if eating_staff else "")
+                n = seat.group
+                what = f"{meal} × {n}" + (f" ({n - with_us} + {with_us} staff)" if with_us else "")
                 if menu is not None and menu.vendor_id == vendor.id:
                     shared = dish_util.plate_total(menu.dishes, int(n), t.plate_share, ctx.plate_share) \
                         if dish_util.sharing(menu.dishes, t.plate_share, ctx.plate_share) else None

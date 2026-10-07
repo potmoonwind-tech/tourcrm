@@ -161,6 +161,7 @@ export interface Tour extends TourSummary {
   bus_return?: BusReturn | null
   price_pp: number | null; price_currency: string | null   // managers only
   leaders?: number; staff_table?: boolean   // of pax, free tour leaders · leader + driver + guide eat at their own table
+  leader_seat?: MealSeat | null             // where the tour leaders eat (null: as staff_table says)
   route_changed?: boolean   // its route's days were edited after this tour copied them
 }
 export interface DayViewRow { tour: TourSummary; day: TourDay; staff_today: StaffAssignment[]; is_first_day: boolean; is_last_day: boolean; prev_hotel?: VendorRef | null }
@@ -173,7 +174,11 @@ export const ROLE_VENDOR_TYPES: Record<StaffRole, VendorType[]> = {
   guide: ['guide'], driver: ['driver'], transport: ['transport', 'driver'],
   tour_leader: ['guide', 'other'], assistant: ['guide', 'other'], other: VENDOR_TYPES,
 }
-export interface StaffAssignment { id: string; role: StaffRole; vendor: VendorRef; start_day: number; end_day: number | null; notes: string }
+/** Where someone eats at the meals: with the group, at the staff table, or not with us. */
+export type MealSeat = 'group' | 'staff' | 'none'
+export const MEAL_SEATS: MealSeat[] = ['group', 'staff', 'none']
+export const MEAL_STAFF_ROLES: StaffRole[] = ['guide', 'driver', 'assistant']     // staff who eat at the meals
+export interface StaffAssignment { id: string; role: StaffRole; vendor: VendorRef; start_day: number; end_day: number | null; notes: string; meal_seat?: MealSeat | null }
 
 export type RoomType = '' | 'SGL' | 'DBL' | 'TWN' | 'TRP' | 'QUAD'
 export const ROOM_TYPES: RoomType[] = ['SGL', 'DBL', 'TWN', 'TRP', 'QUAD']

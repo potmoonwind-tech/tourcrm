@@ -13,10 +13,10 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .. import catalog, dishes as dish_util
+from .. import catalog, dishes as dish_util, seating
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
-from ..finance import MEAL_STAFF, group_size
+from ..finance import group_size
 from ..models import Service, StaffAssignment, Tour, TourDay, Vendor
 from ..schemas import VendorRef
 
@@ -94,7 +94,7 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
     summary: dict[str, dict] = {}
     prev: set[str] = set()
     for d in sorted(t.days, key=lambda x: x.day_number):
-        staff = sum(1 for a in t.staff if a.role in MEAL_STAFF and a.covers(d.day_number))
+        seat = seating.tables(t, d.day_number, pax)      # the group's table, and the staff table when some eat apart
         meals = []
         for meal, vendor, menu_id in (("breakfast", d.breakfast, d.breakfast_menu_id), ("lunch", d.lunch, d.lunch_menu_id),
                                       ("dinner", d.dinner, d.dinner_menu_id)):
@@ -109,13 +109,14 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
                 today[x["name"].lower()] += 1
         for meal, vendor, menu, ds in meals:
             rate = catalog.pick(menu.rates, d.date, pax or None) if menu else catalog.price_for(vendor, meal, d.date, pax or None)
-            people = pax + staff
+            people = seat.group + seat.staff
             price = rate.price if rate else None
             total = (price * people).quantize(Decimal("0.01")) if price is not None else None
             # Family style: so many plates of each dish (12 people, 1 plate per 4 → 3 plates).
             shared = bool(menu) and dish_util.sharing(menu.dishes, t.plate_share, share_all)
             if shared:
-                total = dish_util.plate_total(menu.dishes, people, t.plate_share, share_all)
+                each = [dish_util.plate_total(menu.dishes, n, t.plate_share, share_all) for n in seat.tables]
+                total = None if None in each else sum(each)        # plates are set table by table
                 price = (total / people).quantize(Decimal("0.01")) if total is not None and people else None
             paid_by_them = (getattr(d, f"{meal}_mode", None) or "included") == "tourists"
             if total is not None and money and not paid_by_them:
@@ -126,7 +127,7 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
                 shared=shared,
                 dishes=[DishOut(name=x["name"], price=x["price"] if money else None, same_day=today[x["name"].lower()] > 1,
                                 per_plate=dish_util.share_of(x, t.plate_share, share_all),
-                                plates=dish_util.plates(people, dish_util.share_of(x, t.plate_share, share_all)),
+                                plates=sum(dish_util.plates(n, dish_util.share_of(x, t.plate_share, share_all)) for n in seat.tables),
                                 prev_day=x["name"].lower() in prev) for x in ds],
                 people=people, price_pp=price if money else None,
                 dish_sum=dish_util.total(menu.dishes) if (money and menu) else None,

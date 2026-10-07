@@ -880,8 +880,6 @@ const en = {
   staffRoomPriceHelp: 'Priced at the hotel’s ’Driver / guide room’ price when it has one, else its single (or double, to share)',
   tourLeaders: 'Free tour leaders',
   tourLeadersHelp: 'Of the people above: 19+1 → 1',
-  staffTableShort: 'Staff table',
-  staffTableHelp: 'Leader, driver and guide eat at their own table (the restaurant’s staff price when it has one)',
   rate_staff_room: 'Driver / guide room · per night',
   rate_staff_meal: 'Staff table meal · per person',
   leaderRoomKind: 'Tour leader’s room',
@@ -2780,6 +2778,12 @@ const en = {
   fieldPortions: "{n} portions",
   fieldGroupTable: "Group",
   fieldStaffTable: "Staff",
+  mealSeat: "Where they eat",
+  leaderSeat: "Tour leaders eat",
+  mealSeatHint: "With the group, at a separate staff table, or not with us. Plates and meal costs count each table.",
+  mealSeat_group: "With the group",
+  mealSeat_staff: "At the staff table",
+  mealSeat_none: "Not with us",
 }
 
 type Dict = typeof en
@@ -3660,8 +3664,6 @@ const ka: Dict = {
   staffRoomPriceHelp: 'ფასი — სასტუმროს „მძღოლის / გიდის ნომერი“, თუ აქვს; თუ არა — სინგლი (ან დაბლი, ერთად თუ არიან)',
   tourLeaders: 'უფასო ტურლიდერები',
   tourLeadersHelp: 'ზემოთ მითითებულიდან: 19+1 → 1',
-  staffTableShort: 'პერსონალის მაგიდა',
-  staffTableHelp: 'ლიდერი, მძღოლი და გიდი ცალკე მაგიდასთან სხედან (რესტორნის პერსონალის ფასით, თუ აქვს)',
   rate_staff_room: 'მძღოლის / გიდის ნომერი · ღამე',
   rate_staff_meal: 'პერსონალის კვება · ერთ ადამიანზე',
   leaderRoomKind: 'ტურლიდერის ნომერი',
@@ -5556,6 +5558,12 @@ const ka: Dict = {
   fieldPortions: "{n} პორცია",
   fieldGroupTable: "ჯგუფი",
   fieldStaffTable: "პერსონალი",
+  mealSeat: "სად ჭამენ",
+  leaderSeat: "ტურლიდერები ჭამენ",
+  mealSeatHint: "ჯგუფთან ერთად, პერსონალის ცალკე მაგიდასთან, ან ჩვენთან არა. თეფშები და კვების ხარჯი თითო მაგიდაზე ითვლება.",
+  mealSeat_group: "ჯგუფთან ერთად",
+  mealSeat_staff: "პერსონალის მაგიდასთან",
+  mealSeat_none: "ჩვენთან არა",
 }
 
 export type Lang = 'en' | 'ka'

@@ -498,6 +498,7 @@ class TourUpdate(BaseModel):
     plate_share: int | None = Field(default=None, ge=0, le=20)     # 0 = back to the agency's usual
     leaders: int | None = Field(default=None, ge=0, le=20)         # of pax, free tour leaders
     staff_table: bool | None = None
+    leader_seat: Literal["group", "staff", "none"] | None = None   # where the tour leaders eat
     notes: str | None = Field(default=None, max_length=5000)
     price_pp: Decimal | None = Field(default=None, ge=0, max_digits=12, decimal_places=2)
     price_currency: str | None = None
@@ -605,6 +606,7 @@ class TourOut(TourSummary):
     bus_return: BusReturn | None = None
     leaders: int = 0
     staff_table: bool = False
+    leader_seat: str | None = None
     notes: str
     price_pp: float | None = None       # managers only (None for others)
     price_currency: str | None = None
@@ -635,6 +637,7 @@ class StaffUpdate(BaseModel):
     start_day: int | None = Field(default=None, ge=1, le=60)
     end_day: int | None = Field(default=None, ge=1, le=60)  # explicit null = until the last day
     notes: str | None = Field(default=None, max_length=2000)
+    meal_seat: Literal["group", "staff", "none"] | None = None   # where they eat at the meals
 
 
 class StaffIn(StaffUpdate):
@@ -650,6 +653,7 @@ class StaffOut(_Out):
     start_day: int
     end_day: int | None
     notes: str
+    meal_seat: str | None = None
 
 
 class ParticipantUpdate(BaseModel):

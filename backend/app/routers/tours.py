@@ -54,7 +54,7 @@ def participant_counts(db: Session, tour_ids: list[str]) -> dict[str, int]:
 
 def full(t: Tour, money: bool = False) -> TourOut:
     return TourOut(**summary(t).model_dump(), notes=t.notes, plate_share=t.plate_share, leaders=t.leaders or 0,
-                   staff_table=bool(t.staff_table), bus_return=t.bus_return,
+                   staff_table=bool(t.staff_table), leader_seat=t.leader_seat, bus_return=t.bus_return,
                    days=[TourDayOut.model_validate(d) for d in t.days],
                    price_pp=t.price_pp if money else None, price_currency=t.price_currency if money else None,
                    route_changed=_route_changed(t))
