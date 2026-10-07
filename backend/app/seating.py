@@ -12,6 +12,8 @@ from collections import Counter
 from dataclasses import dataclass, field
 
 MEAL_STAFF = frozenset({"guide", "driver", "assistant"})      # staff roles that eat at the meals
+# A bus company's driver can eat too - but only when chosen (by default not with us, as costs always had it).
+SEATED = MEAL_STAFF | {"transport"}
 SEATS = ("group", "staff", "none")
 
 
@@ -20,7 +22,13 @@ def leader_seat(t) -> str:
 
 
 def seat_of(a, t) -> str:
+    if a.role == "transport":
+        return a.meal_seat or "none"
     return a.meal_seat or ("staff" if t.staff_table else "group")
+
+
+def _role(a) -> str:
+    return "driver" if a.role == "transport" else a.role
 
 
 @dataclass
@@ -50,7 +58,7 @@ def people(t, day: int, meal: str | None, pax: int) -> list[dict]:
     out = [{"key": "leader", "role": "leader", "name": "", "count": leaders,
             "seat": o.get("leader") or leader_seat(t), "usual": leader_seat(t)}] if leaders else []
     for a in t.staff:
-        if a.role in MEAL_STAFF and a.covers(day):
+        if a.role in SEATED and a.covers(day):
             out.append({"key": a.id, "role": a.role, "name": a.vendor.name if a.vendor else "", "count": 1,
                         "seat": o.get(a.id) or seat_of(a, t), "usual": seat_of(a, t)})
     return out
@@ -75,6 +83,6 @@ def tables(t, day: int, pax: int, meal: str | None = None) -> Seating:
 
     put(o.get("leader") or leader_seat(t), "leader", leaders)
     for a in t.staff:
-        if a.role in MEAL_STAFF and a.covers(day):
-            put(o.get(a.id) or seat_of(a, t), a.role, 1)
+        if a.role in SEATED and a.covers(day):
+            put(o.get(a.id) or seat_of(a, t), _role(a), 1)
     return s

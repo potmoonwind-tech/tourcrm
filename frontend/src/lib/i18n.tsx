@@ -2799,6 +2799,8 @@ const en = {
   seatMealHelp: "Only this meal. Plates, costs and the restaurant's email count each table.",
   previewBanner: "Preview: this is what people will see from the share link. Nothing is shared yet.",
   preview: "Preview",
+  seatBusDriver: "Transport · the driver",
+  seatNobody: "Add the guide and driver above (and free tour leaders in the tour details) to choose where they eat.",
 }
 
 type Dict = typeof en
@@ -5594,6 +5596,8 @@ const ka: Dict = {
   seatMealHelp: "მხოლოდ ეს კვება. თეფშები, ხარჯი და რესტორნის წერილი თითო მაგიდაზე ითვლება.",
   previewBanner: "წინასწარი ნახვა: ასე დაინახავენ გაზიარების ბმულით. ჯერ არაფერია გაზიარებული.",
   preview: "ნახვა",
+  seatBusDriver: "ტრანსპორტი · მძღოლი",
+  seatNobody: "დაამატეთ გიდი და მძღოლი ზემოთ (და უფასო ტურლიდერები ტურის დეტალებში), რომ აირჩიოთ სად ჭამენ.",
 }
 
 export type Lang = 'en' | 'ka'

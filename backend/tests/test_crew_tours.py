@@ -112,3 +112,17 @@ def test_one_meal_seats_people_differently(make_client):
     # Back to the usual: nothing kept for that meal.
     c.put(f"{base}/tours/{t['id']}/days/{row['day']}/seating/dinner", json={"seats": {"leader": "group"}})
     assert [r for r in c.get(f"{base}/tours/{t['id']}/meals").json()["rows"] if r["meal"] == "dinner"][0]["tables"] == [22]
+
+
+def test_the_bus_driver_eats_only_when_chosen(make_client):
+    c, base, _ = agency(make_client)
+    t, hotel, guest, cafe = setup(c, base, lambda gh: {})
+    bus = mk(c, f"{base}/vendors", {"name": "Caucasus Coaches", "type": "transport"})
+    a = mk(c, f"{base}/tours/{t['id']}/staff", {"vendor_id": bus["id"], "role": "transport"})
+    meal = sorted((x["quantity"], x["unit_price"]) for x in lines(c, base, t) if x["category"] == "meal")
+    assert meal == [(22, 50)]                                                # not counted until chosen
+    [row] = [r for r in c.get(f"{base}/tours/{t['id']}/meals").json()["rows"] if r["meal"] == "dinner"]
+    assert {s["key"]: s["seat"] for s in row["seats"]}[a["id"]] == "none"     # but in the grid
+    c.patch(f"{base}/tours/{t['id']}/staff/{a['id']}", json={"meal_seat": "group"})
+    meal = sorted((x["quantity"], x["unit_price"]) for x in lines(c, base, t) if x["category"] == "meal")
+    assert meal == [(23, 50)]

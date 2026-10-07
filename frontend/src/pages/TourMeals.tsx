@@ -226,7 +226,8 @@ function MealSeating({ tour, row, onClose }: { tour: Tour; row: MealRow; onClose
   const current = Object.fromEntries(seats.map((s) => [s.key, s.seat])) as Record<string, MealSeat>
   const rows: SeatRow[] = seats.map((s) => ({
     key: s.key, seat: s.seat, usual: s.usual,
-    label: s.key === 'leader' ? t('seatLeaders', { n: s.count }) : s.name, sub: s.key === 'leader' ? undefined : t(`staffRole_${s.role}` as TKey),
+    label: s.key === 'leader' ? t('seatLeaders', { n: s.count }) : s.name,
+    sub: s.key === 'leader' ? undefined : s.role === 'transport' ? t('seatBusDriver') : t(`staffRole_${s.role}` as TKey),
   }))
   const changed = seats.some((s) => s.seat !== s.usual)
   return (

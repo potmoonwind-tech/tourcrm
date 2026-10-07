@@ -411,15 +411,20 @@ function EatsWhere({ tour, onSaved }: { tour: Tour; onSaved: () => void }) {
   })
   const rows: SeatRow[] = [
     ...(tour.leaders ? [{ key: 'leader', label: t('seatLeaders', { n: tour.leaders }), sub: t('seatLeadersSub'), seat: tour.leader_seat ?? usual }] : []),
-    ...tour.staff.filter((a) => MEAL_STAFF_ROLES.includes(a.role))
-      .map((a) => ({ key: a.id, label: a.vendor.name, sub: t(`staffRole_${a.role}`), seat: a.meal_seat ?? usual })),
+    ...tour.staff.filter((a) => MEAL_STAFF_ROLES.includes(a.role) || a.role === 'transport')
+      .map((a) => ({
+        key: a.id, label: a.vendor.name, sub: a.role === 'transport' ? t('seatBusDriver') : t(`staffRole_${a.role}`),
+        // The bus company's driver eats with us only when chosen.
+        seat: a.meal_seat ?? (a.role === 'transport' ? 'none' : usual),
+      })),
   ]
-  if (!rows.length) return null
   return (
     <Card className="p-5">
       <h3 className="font-semibold text-slate-900">{t('seatTitle')}</h3>
       <p className="mb-2 text-sm text-slate-500">{t('seatHelp')}</p>
-      <SeatGrid rows={rows} disabled={save.isPending} onChange={(key, seat) => save.mutate({ key, seat })} />
+      {rows.length
+        ? <SeatGrid rows={rows} disabled={save.isPending} onChange={(key, seat) => save.mutate({ key, seat })} />
+        : <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">{t('seatNobody')}</p>}
       <ErrorText error={save.error} />
     </Card>
   )
