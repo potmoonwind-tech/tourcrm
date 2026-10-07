@@ -19,6 +19,7 @@ export const span = (a?: string, b?: string) => (a && b ? `${a}–${b}` : a ?? '
 export interface PDay {
   number: number; date: string | null; title: string; route: string[]; km: number | null; drive: string; legs: PLeg[]; hotel: string
   meals: [string, string][]; activities: string[]; steps: PStep[]; flights: string[]; border: string; notes: string
+  map?: string
 }
 export interface Programme { title: string; subtitle: string; agency: string; lang: string; labels: Record<string, string>; days: PDay[]; total_km: number; warnings: string[] }
 

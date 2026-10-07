@@ -36,18 +36,18 @@ LABELS: dict[str, dict[str, str]] = {
            "activities": "Activities and tickets", "optional": "optional", "own": "own arrangements",
            "tourists": "paid on the spot", "at_hotel": "at the hotel", "arrival": "Arrival", "departure": "Departure",
            "border": "Border crossing", "notes": "Notes", "km": "km", "h": "h", "min": "min", "total": "Total distance",
-           "days": "{n} days", "checkin": "Check-in", "free": "Free time", "transfer": "Transfer", "no_hotel": "End of the tour"},
+           "days": "{n} days", "checkin": "Check-in", "free": "Free time", "transfer": "Transfer", "no_hotel": "End of the tour", "tab_days": "Days", "tab_menu": "Menu", "map": "Map", "day_map": "The day on the map", "today": "Today", "no_menu": "No menu yet"},
     "ka": {"day": "დღე {n}", "programme": "პროგრამა", "route": "მარშრუტი", "distance": "მანძილი", "driving": "გზაში",
            "overnight": "ღამისთევა", "meals": "კვება", "breakfast": "საუზმე", "lunch": "სადილი", "dinner": "ვახშამი",
            "activities": "აქტივობები და ბილეთები", "optional": "სურვილისამებრ", "own": "საკუთარი ხარჯით",
            "tourists": "ადგილზე გადახდით", "at_hotel": "სასტუმროში", "arrival": "ჩამოფრენა", "departure": "გაფრენა",
            "border": "საზღვრის კვეთა", "notes": "შენიშვნები", "km": "კმ", "h": "სთ", "min": "წთ", "total": "სულ მანძილი",
-           "days": "{n} დღე", "checkin": "განთავსება", "free": "თავისუფალი დრო", "transfer": "გადაადგილება", "no_hotel": "ტურის დასასრული"},
+           "days": "{n} დღე", "checkin": "განთავსება", "free": "თავისუფალი დრო", "transfer": "გადაადგილება", "no_hotel": "ტურის დასასრული", "tab_days": "დღეები", "tab_menu": "მენიუ", "map": "რუკა", "day_map": "დღის მარშრუტი რუკაზე", "today": "დღეს", "no_menu": "მენიუ ჯერ არ არის"},
     "zh": {"day": "第{n}天", "programme": "行程", "route": "路线", "distance": "距离", "driving": "车程",
            "overnight": "住宿", "meals": "餐食", "breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐",
            "activities": "活动与门票", "optional": "自选", "own": "自理", "tourists": "现场自付", "at_hotel": "酒店内",
            "arrival": "抵达", "departure": "离开", "border": "过境", "notes": "备注", "km": "公里", "h": "小时", "min": "分钟",
-           "total": "总里程", "days": "{n}天", "checkin": "入住", "free": "自由活动", "transfer": "交通", "no_hotel": "行程结束"},
+           "total": "总里程", "days": "{n}天", "checkin": "入住", "free": "自由活动", "transfer": "交通", "no_hotel": "行程结束", "tab_days": "行程", "tab_menu": "菜单", "map": "地图", "day_map": "当天路线图", "today": "今天", "no_menu": "暂无菜单"},
 }
 
 
@@ -127,6 +127,7 @@ class PDay(BaseModel):
     km: int | None = None
     drive: str = ""                  # "2 h 30 min" (coach)
     legs: list[PLeg] = []            # place to place, with km and time
+    map: str = ""                    # the whole day's road on Google Maps (every place on the way)
     hotel: str = ""
     meals: list[tuple[str, str]] = []           # (label, text)
     activities: list[str] = []
@@ -356,6 +357,15 @@ def map_search(where: str) -> str:
     return f"https://www.google.com/maps/search/?api=1&query={quote(where)}" if where else ""
 
 
+def map_day(places: list[str]) -> str:
+    """The day's road through all its places (Google takes up to 9 places on the way)."""
+    ps = [x for x in places if x]
+    if len(ps) < 2:
+        return ""
+    via = "|".join(ps[1:-1][:9])
+    return map_route(ps[0], ps[-1]) + (f"&waypoints={quote(via)}" if via else "")
+
+
 def map_route(a: str, b: str) -> str:
     return f"https://www.google.com/maps/dir/?api=1&origin={quote(a)}&destination={quote(b)}&travelmode=driving" if a and b else ""
 
@@ -520,11 +530,12 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
             got = _map_legs(db, ws, stops)
             if got:
                 leg_km, leg_min = got
+        day_map = map_day(wheres) if len(wheres) >= 2 else ""
         km = d.km or (sum(leg_km) or None)
         total += km or 0
         drive = _drive(sum(leg_min), factor, L) if leg_min else ""
         p = PDay(number=i + 1, date=body.start_date + timedelta(days=i) if body.start_date else None,
-                 title="", route=route, km=km if inc.distance else None, drive=drive if inc.distance else "")
+                 title="", route=route, km=km if inc.distance else None, drive=drive if inc.distance else "", map=day_map)
         # Place to place, every leg of the day (in order).
         if inc.distance and len(stops) >= 2 and len(leg_km) == len(stops) - 1:
             for j, (a, b) in enumerate(zip(stops, stops[1:])):

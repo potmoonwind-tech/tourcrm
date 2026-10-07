@@ -279,6 +279,8 @@ def test_each_drive_has_its_own_time(make_client, monkeypatch):
         {"id": "g", "kind": "visit", "time": "11:00", "end": "12:30", "title": "Gori"}]}, {"city": "Tbilisi"}]
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
     gori, arrive = p["days"][1]["steps"][-2:]
+    # The whole day on the map: from last night's town through Gori to Kutaisi.
+    assert p["days"][1]["map"].startswith("https://www.google.com/maps/dir/?api=1&origin=Tbilisi") and "waypoints=Gori" in p["days"][1]["map"]
     # From when breakfast ends to when Gori starts (the drive itself is 72 car minutes x 1.25 = 90).
     assert (gori["drive"]["depart"], gori["drive"]["arrive"], gori["drive"]["minutes"]) == ("08:30", "11:00", 90)
     assert gori["kind"] == "visit" and arrive["kind"] == "arrive" and arrive["text"] == "Kutaisi"

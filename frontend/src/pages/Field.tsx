@@ -199,8 +199,9 @@ export function FieldPage() {
 
 /** The day hour by hour, as in the programme file: each drive with its time and km and a route button,
  * each place with a map button, and under each meal what was ordered (plates and prices). */
-function Timeline({ day, orders }: { day: PDay; orders: MealOrder[] }) {
+export function Timeline({ day, orders, words }: { day: PDay; orders: MealOrder[]; words?: { route: string; map: string } }) {
   const { t } = useI18n()
+  const w = words ?? { route: t('route'), map: t('fieldMap') }
   return (
     <ol className="overflow-hidden rounded-xl border border-slate-200" aria-label={t('dayProgramme')}>
       {(day.km || day.drive) && (
@@ -216,21 +217,21 @@ function Timeline({ day, orders }: { day: PDay; orders: MealOrder[] }) {
                 {s.drive.arrive && <span className="block">–{s.drive.arrive}</span>}</span>
               <span className="min-w-0 flex-1">↓ {[s.drive.km && `${s.drive.km} km`, s.drive.drive].filter(Boolean).join(' · ')}</span>
               {s.drive.map && (
-                <a href={s.drive.map} target="_blank" rel="noopener noreferrer" aria-label={t('route')}
+                <a href={s.drive.map} target="_blank" rel="noopener noreferrer" aria-label={w.route}
                   className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 active:bg-slate-100">
-                  <Navigation size={14} />{t('route')}
+                  <Navigation size={14} />{w.route}
                 </a>
               )}
             </div>
           )}
-          <Step s={s} order={s.meal ? orders.find((o) => o.meal === s.meal) : undefined} />
+          <Step s={s} order={s.meal ? orders.find((o) => o.meal === s.meal) : undefined} mapLabel={w.map} />
         </li>
       ))}
     </ol>
   )
 }
 
-function Step({ s, order }: { s: PStep; order?: MealOrder }) {
+function Step({ s, order, mapLabel }: { s: PStep; order?: MealOrder; mapLabel: string }) {
   const { t } = useI18n()
   const Icon = ICON[s.kind ?? ''] ?? MapPin
   const money = (n: number | null) => (n == null ? '' : `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${order?.currency ?? ''}`.trim())
@@ -265,7 +266,7 @@ function Step({ s, order }: { s: PStep; order?: MealOrder }) {
         ) : s.note ? <span className="mt-0.5 block text-sm italic text-slate-500">{s.note}</span> : null}
       </span>
       {s.map && (
-        <a href={s.map} target="_blank" rel="noopener noreferrer" aria-label={t('fieldMap')}
+        <a href={s.map} target="_blank" rel="noopener noreferrer" aria-label={mapLabel}
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white active:bg-brand-700"><MapPin size={16} /></a>
       )}
     </div>
