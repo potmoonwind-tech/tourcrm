@@ -272,13 +272,20 @@ function Step({ s, order, mapLabel, words, menu }: {
             <span className="block text-xs font-semibold uppercase tracking-wide text-amber-800">
               {t('fieldOrdered')}{order.menu_name ? ` · ${order.menu_name}` : ''} · {t('peopleTotal', { n: order.people })}
             </span>
-            {order.dishes.map((x) => (
+            {order.dishes.map((x) => {
+              // Plates per table (group / staff) from the programme, when the staff eat apart.
+              const own = s.dishes?.find((y) => y.name === x.name)
+              const split = (s.tables?.length ?? 0) > 1 && own?.plates_at
+              return (
               <span key={x.name} className="flex gap-2 py-0.5">
-                <span className="min-w-0 flex-1">{x.name}</span>
-                <span className="shrink-0 tabular-nums text-slate-500">{portionText(x, words)}</span>
+                <span className="min-w-0 flex-1">{x.name}{x.per_plate > 1 && <span className="ml-1.5 text-xs font-semibold text-amber-800">1 / {x.per_plate}</span>}</span>
+                <span className="shrink-0 tabular-nums text-slate-500">{split
+                  ? s.tables!.map((tb, k) => `${tb.who === 'staff' ? t('fieldStaffTable') : t('fieldGroupTable')} ${own!.plates_at![k]}`).join(' · ')
+                  : portionText(own ?? x, words)}</span>
                 {x.price != null && <span className="shrink-0 tabular-nums text-slate-600">{money(x.price)}</span>}
               </span>
-            ))}
+              )
+            })}
             {(order.total != null || order.price_pp != null) && (
               <span className="mt-1 block border-t border-amber-200 pt-1 tabular-nums">
                 {order.price_pp != null && !order.shared

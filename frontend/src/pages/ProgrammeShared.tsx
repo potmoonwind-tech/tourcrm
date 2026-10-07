@@ -13,7 +13,7 @@ import { today } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { Timeline } from './Field'
-import type { PDay, Programme } from './ProgrammePrint'
+import type { PDay, PDish, Programme } from './ProgrammePrint'
 
 const LOCALE: Record<string, string> = { en: 'en-GB', ka: 'ka-GE', zh: 'zh-CN' }
 
@@ -144,7 +144,6 @@ export function ProgrammeSharedPage() {
 function MenuDay({ day, labels: L, date, isToday }: { day: PDay; labels: Record<string, string>; date: string; isToday: boolean }) {
   const meals = day.steps.filter((s) => s.meal)
   if (!meals.length && !day.meals.length) return null
-  const words = { plates: L.plates, portions: L.portions }
   return (
     <section id={`menu-day-${day.number}`} className="scroll-mt-36">
       <h2 className="mb-1.5 flex items-baseline gap-2 px-1">
@@ -154,7 +153,10 @@ function MenuDay({ day, labels: L, date, isToday }: { day: PDay; labels: Record<
       </h2>
       <div className="space-y-2">
         {meals.length ? meals.map((s, i) => {
-          const total = s.dishes?.find((x) => x.plates != null && x.per_plate === 1)?.plates
+          const tables = s.tables ?? []
+          const people = tables.reduce((n, x) => n + x.people, 0)
+          const split = tables.length > 1
+          const unit = (x: PDish) => (x.per_plate > 1 ? L.plates_word : L.portions_word)
           return (
             <article key={i} id={`menu-${day.number}-${s.meal}`} className="scroll-mt-36 overflow-hidden rounded-2xl border border-slate-200 bg-white">
               <header className="flex items-start gap-3 px-4 pt-3">
@@ -163,29 +165,49 @@ function MenuDay({ day, labels: L, date, isToday }: { day: PDay; labels: Record<
                     {L[s.meal!] ?? s.meal}{s.time && ` · ${s.time}`}
                   </span>
                   <span className="block text-base font-semibold text-slate-900">{s.place || s.text}</span>
-                  {(s.menu || total) && (
-                    <span className="block text-sm text-slate-500">{[s.menu, total && L.people.replace('{n}', String(total))].filter(Boolean).join(' · ')}</span>
+                  {(s.menu || people > 0) && (
+                    <span className="block text-sm text-slate-500">{[s.menu, people > 0 && L.people.replace('{n}', String(people))].filter(Boolean).join(' · ')}</span>
                   )}
                 </span>
                 {s.map && <IconLink href={s.map} label={L.map}><MapPin size={16} /></IconLink>}
                 {s.phone && <IconLink href={`tel:${s.phone.replace(/[^\d+]/g, '')}`} label={s.phone}><Phone size={16} /></IconLink>}
               </header>
               {s.dishes?.length ? (
-                <ul className="mt-2 divide-y divide-slate-100 border-t border-slate-100">
-                  {s.dishes.map((x) => (
-                    <li key={x.name} className="flex items-center gap-3 px-4 py-2">
-                      <span className="min-w-0 flex-1 text-slate-800">{x.name}</span>
-                      {x.per_plate > 1 && <span className="rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-amber-800">1 / {x.per_plate}</span>}
-                      {x.plates != null && (
-                        <span className="w-24 shrink-0 text-right text-sm tabular-nums text-slate-600">
-                          <b className="text-slate-900">{x.plates}</b> {(x.per_plate > 1 ? words.plates : words.portions).replace('{n}', '').trim()}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <table className="mt-2 w-full border-t border-slate-100 text-sm">
+                  {split && (
+                    // Two tables: the group's, and the staff's (tour leader, guide, driver) - plates for each.
+                    <thead>
+                      <tr className="text-xs text-slate-500">
+                        <th className="px-4 py-1.5 text-left font-normal" />
+                        {tables.map((x) => (
+                          <th key={x.who} className="w-20 px-2 py-1.5 text-right font-semibold" title={x.who === 'staff' ? L.table_staff_who : undefined}>
+                            {x.who === 'staff' ? L.table_staff : L.table_group}<span className="block font-normal">{L.people.replace('{n}', String(x.people))}</span>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                  )}
+                  <tbody className="divide-y divide-slate-100">
+                    {s.dishes.map((x) => (
+                      <tr key={x.name}>
+                        <td className="px-4 py-2 text-slate-800">
+                          {x.name}
+                          {x.per_plate > 1 && <span className="ml-2 rounded-md bg-amber-50 px-1.5 py-0.5 text-xs font-semibold tabular-nums text-amber-800">1 / {x.per_plate}</span>}
+                        </td>
+                        {split
+                          ? (x.plates_at ?? []).map((n, k) => (
+                            <td key={k} className="w-20 px-2 py-2 text-right tabular-nums"><b className="text-slate-900">{n}</b> <span className="text-xs text-slate-500">{unit(x)}</span></td>
+                          ))
+                          : x.plates != null && (
+                            <td className="w-28 px-4 py-2 text-right tabular-nums"><b className="text-slate-900">{x.plates}</b> <span className="text-xs text-slate-500">{unit(x)}</span></td>
+                          )}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               ) : <p className="px-4 pb-3 pt-1 text-sm italic text-slate-400">{L.no_menu}</p>}
-              {s.dishes?.length ? <div className="h-1" /> : null}
+              {split && s.dishes?.length ? <p className="border-t border-slate-100 px-4 py-1.5 text-xs text-slate-500">{L.table_staff}: {L.table_staff_who}</p> : null}
+              {s.dishes?.length && !split ? <div className="h-1" /> : null}
             </article>
           )
         }) : (

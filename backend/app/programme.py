@@ -20,11 +20,11 @@ from urllib.parse import quote
 
 from pydantic import BaseModel, Field
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from . import dishes as dish_util, geo
 from .config import settings
-from .models import Service, TextTranslation, Vendor, Workspace
+from .models import Service, TextTranslation, Tour, Vendor, Workspace
 from .schemas import DayFields, ScheduleItem
 
 LANGS = ("en", "ka", "zh")
@@ -36,18 +36,18 @@ LABELS: dict[str, dict[str, str]] = {
            "activities": "Activities and tickets", "optional": "optional", "own": "own arrangements",
            "tourists": "paid on the spot", "at_hotel": "at the hotel", "arrival": "Arrival", "departure": "Departure",
            "border": "Border crossing", "notes": "Notes", "km": "km", "h": "h", "min": "min", "total": "Total distance",
-           "days": "{n} days", "checkin": "Check-in", "free": "Free time", "transfer": "Transfer", "no_hotel": "End of the tour", "tab_days": "Days", "tab_menu": "Menu", "map": "Map", "day_map": "The day on the map", "today": "Today", "no_menu": "Menu not chosen yet", "people": "{n} people", "jump": "Go to day", "plates": "{n} plates", "portions": "{n} portions"},
+           "days": "{n} days", "checkin": "Check-in", "free": "Free time", "transfer": "Transfer", "no_hotel": "End of the tour", "tab_days": "Days", "tab_menu": "Menu", "map": "Map", "day_map": "The day on the map", "today": "Today", "no_menu": "Menu not chosen yet", "people": "{n} people", "jump": "Go to day", "table_group": "Group", "table_staff": "Staff", "table_staff_who": "tour leader, guide, driver", "plates_word": "plates", "portions_word": "portions", "plates": "{n} plates", "portions": "{n} portions"},
     "ka": {"day": "დღე {n}", "programme": "პროგრამა", "route": "მარშრუტი", "distance": "მანძილი", "driving": "გზაში",
            "overnight": "ღამისთევა", "meals": "კვება", "breakfast": "საუზმე", "lunch": "სადილი", "dinner": "ვახშამი",
            "activities": "აქტივობები და ბილეთები", "optional": "სურვილისამებრ", "own": "საკუთარი ხარჯით",
            "tourists": "ადგილზე გადახდით", "at_hotel": "სასტუმროში", "arrival": "ჩამოფრენა", "departure": "გაფრენა",
            "border": "საზღვრის კვეთა", "notes": "შენიშვნები", "km": "კმ", "h": "სთ", "min": "წთ", "total": "სულ მანძილი",
-           "days": "{n} დღე", "checkin": "განთავსება", "free": "თავისუფალი დრო", "transfer": "გადაადგილება", "no_hotel": "ტურის დასასრული", "tab_days": "დღეები", "tab_menu": "მენიუ", "map": "რუკა", "day_map": "დღის მარშრუტი რუკაზე", "today": "დღეს", "no_menu": "მენიუ ჯერ არ არის არჩეული", "people": "{n} ადამიანი", "jump": "დღეზე გადასვლა", "plates": "{n} თეფში", "portions": "{n} პორცია"},
+           "days": "{n} დღე", "checkin": "განთავსება", "free": "თავისუფალი დრო", "transfer": "გადაადგილება", "no_hotel": "ტურის დასასრული", "tab_days": "დღეები", "tab_menu": "მენიუ", "map": "რუკა", "day_map": "დღის მარშრუტი რუკაზე", "today": "დღეს", "no_menu": "მენიუ ჯერ არ არის არჩეული", "people": "{n} ადამიანი", "jump": "დღეზე გადასვლა", "table_group": "ჯგუფი", "table_staff": "პერსონალი", "table_staff_who": "ტურლიდერი, გიდი, მძღოლი", "plates_word": "თეფში", "portions_word": "პორცია", "plates": "{n} თეფში", "portions": "{n} პორცია"},
     "zh": {"day": "第{n}天", "programme": "行程", "route": "路线", "distance": "距离", "driving": "车程",
            "overnight": "住宿", "meals": "餐食", "breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐",
            "activities": "活动与门票", "optional": "自选", "own": "自理", "tourists": "现场自付", "at_hotel": "酒店内",
            "arrival": "抵达", "departure": "离开", "border": "过境", "notes": "备注", "km": "公里", "h": "小时", "min": "分钟",
-           "total": "总里程", "days": "{n}天", "checkin": "入住", "free": "自由活动", "transfer": "交通", "no_hotel": "行程结束", "tab_days": "行程", "tab_menu": "菜单", "map": "地图", "day_map": "当天路线图", "today": "今天", "no_menu": "尚未选定菜单", "people": "{n}人", "jump": "跳转到某天", "plates": "{n}盘", "portions": "{n}份"},
+           "total": "总里程", "days": "{n}天", "checkin": "入住", "free": "自由活动", "transfer": "交通", "no_hotel": "行程结束", "tab_days": "行程", "tab_menu": "菜单", "map": "地图", "day_map": "当天路线图", "today": "今天", "no_menu": "尚未选定菜单", "people": "{n}人", "jump": "跳转到某天", "table_group": "团队", "table_staff": "工作人员", "table_staff_who": "领队、导游、司机", "plates_word": "盘", "portions_word": "份", "plates": "{n}盘", "portions": "{n}份"},
 }
 
 
@@ -94,6 +94,13 @@ class ProgrammeIn(BaseModel):
     only_days: list[int] | None = None       # the day numbers to put in the file; None = every day
     people: int | None = Field(default=None, ge=1, le=500)       # who eats: each dish's plates (portions)
     plate_share: int | None = Field(default=None, ge=1, le=20)   # the tour's people per plate (else the agency's)
+    tour_id: str | None = None       # a tour's programme: its group, tour leaders, staff of each day and staff table
+
+
+class PTable(BaseModel):
+    """A table at a meal: the group's, or the staff's (tour leaders, guide, driver) when they eat apart."""
+    who: str                         # "all" (one table), "group", "staff"
+    people: int
 
 
 class PDish(BaseModel):
@@ -101,6 +108,7 @@ class PDish(BaseModel):
     name: str
     plates: int | None = None        # plates (portions) for the group; None when the group size isn't known
     per_plate: int = 1               # people sharing one plate (1 = everyone their own portion)
+    plates_at: list[int] = []        # plates for each of the step's tables, in order
 
 
 class PStep(BaseModel):
@@ -116,6 +124,7 @@ class PStep(BaseModel):
     dishes: list[PDish] = []         # a meal's menu, dish by dish, with its plates
     place: str = ""                  # the hotel / restaurant / place it is at ("Svan Tower Tavern")
     menu: str = ""                   # the set menu's name ("Georgian supra"), when one is chosen
+    tables: list[PTable] = []        # who eats, table by table (the dishes' plates_at follow this order)
 
 
 class PLeg(BaseModel):
@@ -531,13 +540,37 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
         own = menus.get(vid or "", [])
         return next((s for s in own if s.id == mid), None) or next((s for s in own if s.code == meal), None)
 
-    def portions(d: DayFields, meal: str) -> list[PDish]:
-        """The meal's set menu dish by dish, with how many plates for the group."""
+    # Who eats, table by table: a tour's group (tour leaders are part of it), and that day's guides and
+    # drivers; with "staff table" the leaders, guide and driver sit apart - each table gets its own plates
+    # (19 at 1 per 5 -> 4 plates; staff of 3 -> 1 more). Without a tour: the group size sent, one table.
+    group, leaders, apart, plate_share = body.people, 0, False, body.plate_share
+    crew_of = lambda n: 0
+    if body.tour_id:
+        from .finance import MEAL_STAFF, group_size
+        tour = db.scalar(select(Tour).where(Tour.id == body.tour_id, Tour.workspace_id == ws.id)
+                         .options(selectinload(Tour.staff), selectinload(Tour.participants)))
+        if tour:
+            group = group_size(tour) or group
+            leaders, apart = min(tour.leaders or 0, group or 0), bool(tour.staff_table)
+            plate_share = plate_share or tour.plate_share
+            crew_of = lambda n: sum(1 for a in tour.staff if a.role in MEAL_STAFF and a.covers(n))
+
+    def tables(n: int) -> list[PTable]:
+        if not group:
+            return []
+        crew = crew_of(n)
+        if apart and leaders + crew and group - leaders > 0:
+            return [PTable(who="group", people=group - leaders), PTable(who="staff", people=leaders + crew)]
+        return [PTable(who="all", people=group + crew)]
+
+    def portions(d: DayFields, meal: str, at: list[PTable]) -> list[PDish]:
+        """The meal's set menu dish by dish, with how many plates at each table."""
         m = menu_of(d, meal)
         out = []
         for x in dish_util.normalize(m.dishes) if m else []:
-            per = dish_util.share_of(x, body.plate_share, ws.plate_share)
-            out.append(PDish(name=T(x["name"]), per_plate=per, plates=dish_util.plates(body.people, per) if body.people else None))
+            per = dish_util.share_of(x, plate_share, ws.plate_share)
+            each = [dish_util.plates(t.people, per) for t in at]
+            out.append(PDish(name=T(x["name"]), per_plate=per, plates=sum(each) if at else None, plates_at=each))
         return out
     c = _Ctx(vendors, services)
     T = lambda s: (c.texts.add(s), s)[1] if s else s      # remember a text to translate
@@ -621,7 +654,8 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
                                          meal=x.ref if x.ref in ("breakfast", "lunch", "dinner") and x.kind != "free" else "",
                                          map=map_search(_place_of(x, d, prev, vendors, services) or where_of.get(x.id, "")),
                                          note=dishes(d, meal) if meal and inc.meals else "",
-                                         dishes=portions(d, meal) if meal and inc.meals else [],
+                                         dishes=portions(d, meal, tables(i + 1)) if meal and inc.meals else [],
+                                         tables=tables(i + 1) if meal and inc.meals else [],
                                          place=T(at.name) if at else "",
                                          menu=T(m.name) if meal and inc.meals and (m := menu_of(d, meal)) and not m.code else ""))
             if ends and len(ends) == len(p.legs) and p.steps:

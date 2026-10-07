@@ -8,8 +8,9 @@ import { api } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { useI18n } from '../lib/i18n'
 
-export interface PDish { name: string; plates: number | null; per_plate: number }
-export interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string; kind?: string; meal?: string; map?: string; phone?: string; dishes?: PDish[]; place?: string; menu?: string }
+export interface PDish { name: string; plates: number | null; per_plate: number; plates_at?: number[] }
+export interface PTable { who: 'all' | 'group' | 'staff'; people: number }
+export interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string; kind?: string; meal?: string; map?: string; phone?: string; dishes?: PDish[]; place?: string; menu?: string; tables?: PTable[] }
 export interface PLeg { start: string; end: string; km: number | null; drive: string; depart?: string; arrive?: string; map?: string }
 
 // One small icon per kind of step, so the day reads at a glance.

@@ -323,7 +323,34 @@ def test_the_menu_with_its_portions(make_client):
     days = [{"city": "Tbilisi", "dinner_id": resto["id"], "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "people": 13}).json()
     # 13 people: a plate of khinkali for 4 -> 4 plates; soup each their own -> 13.
-    assert p["days"][0]["steps"][0]["dishes"] == [{"name": "Khinkali", "plates": 4, "per_plate": 4}, {"name": "Soup", "plates": 13, "per_plate": 1}]
+    assert p["days"][0]["steps"][0]["dishes"] == [{"name": "Khinkali", "plates": 4, "per_plate": 4, "plates_at": [4]}, {"name": "Soup", "plates": 13, "per_plate": 1, "plates_at": [13]}]
     assert (p["days"][0]["steps"][0]["place"], p["days"][0]["steps"][0]["menu"]) == ("Barbarestan", "")     # the usual dinner: no own name
     q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
-    assert q["days"][0]["steps"][0]["dishes"][0] == {"name": "Khinkali", "plates": None, "per_plate": 4}
+    assert q["days"][0]["steps"][0]["dishes"][0] == {"name": "Khinkali", "plates": None, "per_plate": 4, "plates_at": []}
+
+
+def test_plates_for_the_group_table_and_the_staff_table(make_client):
+    c, base, _ = agency(make_client)
+    resto = mk(c, f"{base}/vendors", {"name": "Barbarestan", "type": "restaurant", "city": "Tbilisi"})
+    c.put(f"{base}/vendors/{resto['id']}/services", json=[
+        {"code": "dinner", "name": "Dinner", "category": "meal", "unit": "person", "rates": [{"price": "30", "currency": "GEL"}],
+         "dishes": [{"name": "Khinkali", "per_plate": 5}, {"name": "Soup"}]}])
+    tour = mk(c, f"{base}/tours", {"code": "T-19", "start_date": "2026-11-01", "end_date": "2026-11-02", "pax": 19})
+    url = f"{base}/tours/{tour['id']}"
+    c.patch(url, json={"leaders": 1, "staff_table": True})
+    for name, role in (("Nino", "guide"), ("Gia", "driver")):
+        v = mk(c, f"{base}/vendors", {"name": name, "type": role})
+        mk(c, f"{url}/staff", {"vendor_id": v["id"], "role": role})
+    days = [{"city": "Tbilisi", "dinner_id": resto["id"], "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
+    step = p["days"][0]["steps"][0]
+    # 19 with 1 tour leader: the group table 18, the staff table leader + guide + driver = 3.
+    assert step["tables"] == [{"who": "group", "people": 18}, {"who": "staff", "people": 3}]
+    khinkali, soup = step["dishes"]
+    assert (khinkali["plates_at"], khinkali["plates"]) == ([4, 1], 5)        # 18 at 1 per 5 -> 4; 3 -> 1
+    assert (soup["plates_at"], soup["plates"]) == ([18, 3], 21)
+    # Without the staff table: everyone at one table, 19 + guide + driver.
+    c.patch(url, json={"staff_table": False})
+    q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
+    assert q["days"][0]["steps"][0]["tables"] == [{"who": "all", "people": 21}]
+    assert q["days"][0]["steps"][0]["dishes"][0]["plates_at"] == [5]
