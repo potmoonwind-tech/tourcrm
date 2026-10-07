@@ -63,12 +63,21 @@ class ProgrammeIn(BaseModel):
     lang: str = "en"
     include: Include = Include()
     translate: bool = True
+    only_days: list[int] | None = None       # the day numbers to put in the file; None = every day
 
 
 class PStep(BaseModel):
     time: str = ""
     end: str = ""
     text: str
+
+
+class PLeg(BaseModel):
+    """One drive between two places of the day: "Tbilisi → Mtskheta · 25 km · 35 min"."""
+    start: str
+    end: str
+    km: int | None = None
+    drive: str = ""
 
 
 class PDay(BaseModel):
@@ -78,6 +87,7 @@ class PDay(BaseModel):
     route: list[str] = []
     km: int | None = None
     drive: str = ""                  # "2 h 30 min" (coach)
+    legs: list[PLeg] = []            # place to place, with km and time
     hotel: str = ""
     meals: list[tuple[str, str]] = []           # (label, text)
     activities: list[str] = []
@@ -202,6 +212,12 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
         drive = _drive(sum(d.drive_minutes), ws.drive_factor or Decimal("1.25"), L) if d.drive_minutes else ""
         p = PDay(number=i + 1, date=body.start_date + timedelta(days=i) if body.start_date else None,
                  title="", route=route, km=km if inc.distance else None, drive=drive if inc.distance else "")
+        # Place to place, when the map gave every leg of the day (same order as the route).
+        if inc.distance and len(route) >= 2 and len(d.drive_km) == len(route) - 1:
+            for j, (a, b) in enumerate(zip(route, route[1:])):
+                mins = d.drive_minutes[j] if j < len(d.drive_minutes) else 0
+                p.legs.append(PLeg(start=a, end=b, km=d.drive_km[j],
+                                   drive=_drive(mins, ws.drive_factor or Decimal("1.25"), L) if mins else ""))
         last = i == len(body.days) - 1
         if inc.hotels:
             p.hotel = T(c.name(d.hotel_id)) or ("" if not last else "")
@@ -242,11 +258,16 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
             p.notes = T(d.notes.strip())
         days.append(p)
 
+    if body.only_days:
+        keep = set(body.only_days)
+        days = [p for p in days if p.number in keep]     # the rest still gave the route and last night's hotel
+        total = sum(p.km or 0 for p in days)
     warnings: list[str] = []
     tr = translate(db, ws, c.texts, lang, warnings) if body.translate else {}
     t = lambda s: tr.get(s, s)
     for p in days:
         p.route = [t(x) for x in p.route]
+        p.legs = [PLeg(start=t(g.start), end=t(g.end), km=g.km, drive=g.drive) for g in p.legs]
         p.hotel = t(p.hotel)
         p.meals = [(a, t(b) if b in tr else _tr_inside(b, tr)) for a, b in p.meals]
         p.activities = [_tr_inside(a, tr) for a in p.activities]

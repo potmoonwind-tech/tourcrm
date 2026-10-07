@@ -9,8 +9,9 @@ import { wsPath } from '../lib/data'
 import { useI18n } from '../lib/i18n'
 
 interface PStep { time: string; end: string; text: string }
+interface PLeg { start: string; end: string; km: number | null; drive: string }
 interface PDay {
-  number: number; date: string | null; title: string; route: string[]; km: number | null; drive: string; hotel: string
+  number: number; date: string | null; title: string; route: string[]; km: number | null; drive: string; legs: PLeg[]; hotel: string
   meals: [string, string][]; activities: string[]; steps: PStep[]; flights: string[]; border: string; notes: string
 }
 interface Programme { title: string; subtitle: string; agency: string; lang: string; labels: Record<string, string>; days: PDay[]; total_km: number; warnings: string[] }
@@ -68,6 +69,13 @@ export function ProgrammePrintPage() {
                   <Car size={14} aria-hidden />
                   {[day.km && `${L.distance}: ${day.km} ${L.km}`, day.drive && `${L.driving}: ${day.drive}`].filter(Boolean).join(' · ')}
                 </p>
+              )}
+              {day.legs.length > 1 && (
+                <ul className="mt-1 space-y-0.5 pl-5 text-xs text-slate-500">
+                  {day.legs.map((g, i) => (
+                    <li key={i}>{g.start} → {g.end}{g.km ? ` · ${g.km} ${L.km}` : ''}{g.drive ? ` · ${g.drive}` : ''}</li>
+                  ))}
+                </ul>
               )}
               {day.flights.map((f) => <p key={f} className="mt-1 flex items-center gap-1.5 text-sm"><Plane size={14} aria-hidden />{f}</p>)}
               {day.steps.length > 0 && (

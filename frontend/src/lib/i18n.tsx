@@ -2763,6 +2763,8 @@ const en = {
   programmeNoAiKey: "Not translated: add an AI key in Settings. The texts are as written.",
   programmeAiFailed: "The translation didn't work this time: the texts are as written. Try again.",
   programmeExpired: "This programme link has expired - download it again from the tour or route.",
+  programmeDays: "Days in the file",
+  programmeDaysHelp: "Tap a day to leave it out (its number and date stay the same on the others).",
 }
 
 type Dict = typeof en
@@ -5522,6 +5524,8 @@ const ka: Dict = {
   programmeNoAiKey: "არ ითარგმნა: დაამატეთ AI გასაღები პარამეტრებში. ტექსტები ისეა, როგორც დაწერილია.",
   programmeAiFailed: "თარგმნა ამჯერად ვერ მოხერხდა: ტექსტები ისეა, როგორც დაწერილია. სცადეთ ხელახლა.",
   programmeExpired: "პროგრამის ბმულს ვადა გაუვიდა - ჩამოტვირთეთ ხელახლა ტურიდან ან მარშრუტიდან.",
+  programmeDays: "დღეები ფაილში",
+  programmeDaysHelp: "დააჭირეთ დღეს, რომ ამოიღოთ (დანარჩენებს ნომერი და თარიღი არ ეცვლებათ).",
 }
 
 export type Lang = 'en' | 'ka'

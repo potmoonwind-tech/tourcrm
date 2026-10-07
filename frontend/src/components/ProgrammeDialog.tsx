@@ -21,6 +21,7 @@ export const PROGRAMME_KEY = 'programmePrint'
 export interface ProgrammeRequest {
   title: string; start_date: string | null; days: DayFields[]; lang: Lang
   include: Record<(typeof PARTS)[number], boolean>; translate: boolean
+  only_days: number[] | null      // the days to put in the file; null = all
 }
 
 export function ProgrammeDialog({ title, startDate, days, onClose }: {
@@ -32,9 +33,14 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
   const [format, setFormat] = useState<Format>('pdf')
   const [include, setInclude] = useState<ProgrammeRequest['include']>({ distance: true, hotels: true, meals: true, activities: true, schedule: true, notes: true })
   const [translate, setTranslate] = useState(true)
+  // Which days go in the file (all at first); the others still count for the route and last night's hotel.
+  const [skip, setSkip] = useState<Set<number>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
-  const body: ProgrammeRequest = { title, start_date: startDate ?? null, days, lang, include, translate }
+  const body: ProgrammeRequest = {
+    title, start_date: startDate ?? null, days, lang, include, translate,
+    only_days: skip.size ? days.map((_, i) => i + 1).filter((n) => !skip.has(n)) : null,
+  }
 
   const warn = (w: string | null) => {
     if (w?.includes('no_ai_key')) toast('programmeNoAiKey', 'error')
@@ -110,6 +116,24 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
               </label>
             ))}
           </div>
+        </fieldset>
+        <fieldset>
+          <legend className="mb-1.5 text-sm font-medium text-slate-700">{t('programmeDays')}</legend>
+          <div className="flex flex-wrap gap-1.5">
+            {days.map((d, i) => {
+              const n = i + 1
+              const on = !skip.has(n)
+              return (
+                <button key={n} type="button" aria-pressed={on}
+                  onClick={() => { const next = new Set(skip); if (on) next.add(n); else next.delete(n); if (next.size < days.length) setSkip(next) }}
+                  className={cn('inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition active:scale-[0.97]',
+                    on ? 'border-brand-300 bg-brand-50 text-brand-800' : 'border-slate-200 text-slate-400 line-through')}>
+                  <b className="font-semibold">{n}</b>{d.city && <span className="max-w-28 truncate">{d.city}</span>}
+                </button>
+              )
+            })}
+          </div>
+          <p className="mt-1 text-xs text-slate-500">{t('programmeDaysHelp')}</p>
         </fieldset>
         <label className="flex items-start gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-700">
           <input type="checkbox" className="mt-0.5 h-4 w-4 accent-brand-600" checked={translate} onChange={(e) => setTranslate(e.target.checked)} />

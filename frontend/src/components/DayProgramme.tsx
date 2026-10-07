@@ -294,8 +294,14 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
       && services.find((s) => s.id === e.service_id)?.vendor.id === vendor && !['transport', 'guide', 'meal'].includes(services.find((s) => s.id === e.service_id)?.category ?? ''))).map((e) => e.id))
     onSetDay({ schedule: next, extras: day.extras.filter((e) => !gone.has(e.id)) })
   }
-  // A meal added from the programme is the day's lunch or dinner (included, unless the day says otherwise).
-  const addMeal = (m: 'lunch' | 'dinner') => {
+  // A meal added from the programme is the day's breakfast, lunch or dinner (included, unless the day says
+  // otherwise). Breakfast goes first in the morning; taken out earlier, it can come back the same way.
+  const addMeal = (m: 'breakfast' | 'lunch' | 'dinner') => {
+    if (m === 'breakfast') {
+      const next = laid([{ id: newId(), kind: 'breakfast' as ScheduleKind, time: '08:00', end: '', title: '', ref: 'breakfast', place: '', notes: '' }, ...items])
+      onSetDay!({ schedule: next, ...(day.breakfast_mode === 'own' ? { breakfast_mode: 'hotel' as const } : {}) })
+      return
+    }
     const next = laid([...items, { id: newId(), kind: 'meal' as ScheduleKind, time: '', end: '', title: '', ref: m, place: '', notes: '' }])
     const mode = m === 'lunch' ? day.lunch_mode : day.dinner_mode
     onSetDay!({ schedule: next, ...(mode === 'own' ? (m === 'lunch' ? { lunch_mode: 'included' as const } : { dinner_mode: 'included' as const }) : {}) })
@@ -428,9 +434,9 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
             <div className="flex flex-wrap items-center gap-2 pt-1">
               {adding ? (
                 <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('progAdd')}>
-                  {onSetDay && (['lunch', 'dinner'] as const).filter((m) => !items.some((x) => x.ref === m)).map((m) => (
+                  {onSetDay && (['breakfast', 'lunch', 'dinner'] as const).filter((m) => !items.some((x) => x.ref === m)).map((m) => (
                     <Button type="button" key={m} size="sm" variant="secondary" onClick={() => { addMeal(m); setAdding(false) }}>
-                      {ICON.meal}{t(m)}
+                      {m === 'breakfast' ? ICON.breakfast : ICON.meal}{t(m)}
                     </Button>
                   ))}
                   {ADDABLE.map((k) => (

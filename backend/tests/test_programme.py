@@ -101,3 +101,16 @@ def test_without_an_ai_key_texts_stay_as_written(make_client, monkeypatch):
     c, base, _ = agency(make_client)
     p = c.post(f"{base}/programme", json={"days": _setup(c, base), "lang": "zh"}).json()
     assert p["warnings"] == ["no_ai_key"] and p["days"][0]["hotel"] == "Rooms Hotel" and p["labels"]["day"] == "第{n}天"
+
+
+def test_place_to_place_km_and_only_some_days(make_client, translator):
+    c, base, _ = agency(make_client)
+    days = _setup(c, base)
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "only_days": [2]}).json()
+    assert [d["number"] for d in p["days"]] == [2] and p["total_km"] == 160
+    legs = p["days"][0]["legs"]
+    assert [(g["start"], g["end"], g["km"]) for g in legs] == [("Tbilisi", "Mtskheta", 25), ("Mtskheta", "Ananuri", 45), ("Ananuri", "Kazbegi", 90)]
+    assert legs[0]["drive"] == "40 min"          # 30 min by car x 1.25, to 5 minutes
+    assert p["days"][0]["meals"][0] == ["Breakfast", "Rooms Hotel"]     # day 1 left out, its hotel still counts
+    text = "\n".join(x.text for x in Document(io.BytesIO(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en"}).content)).paragraphs)
+    assert "Mtskheta \u2192 Ananuri \u00b7 45 km" in text

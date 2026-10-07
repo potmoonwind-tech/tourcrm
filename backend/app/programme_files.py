@@ -24,6 +24,10 @@ def _step(s) -> str:
     return f"{when}  {s.text}" if when else s.text
 
 
+def _leg(g, L) -> str:
+    return " \u00b7 ".join(x for x in (f"{g.start} \u2192 {g.end}", f"{g.km} {L['km']}" if g.km else "", g.drive) if x)
+
+
 def docx_bytes(p: ProgrammeOut) -> bytes:
     L = p.labels
     doc = Document()
@@ -47,6 +51,9 @@ def docx_bytes(p: ProgrammeOut) -> bytes:
             facts.append(f"{L['driving']}: {d.drive}")
         if facts:
             para = doc.add_paragraph(" \u00b7 ".join(facts))
+            para.runs[0].font.color.rgb = RGBColor(0x47, 0x55, 0x69)
+        for g in (d.legs if len(d.legs) > 1 else []):      # one leg is the day's distance already
+            para = doc.add_paragraph(_leg(g, L), style="List Bullet")
             para.runs[0].font.color.rgb = RGBColor(0x47, 0x55, 0x69)
         for f in d.flights:
             doc.add_paragraph(f"\u2708 {f}")
@@ -96,7 +103,8 @@ def xlsx_bytes(p: ProgrammeOut) -> bytes:
         cell.fill = PatternFill("solid", fgColor="1E293B")
     for d in p.days:
         when = f"{d.number}" + (f"\n{_date(d.date)}" if d.date else "")
-        ws.append([when, " \u2192 ".join(d.route), f"{d.km} {L['km']}" if d.km else "", d.drive,
+        dist = "\n".join([f"{d.km} {L['km']}" if d.km else "", *(_leg(g, L) for g in d.legs)]).strip()
+        ws.append([when, " \u2192 ".join(d.route), dist, d.drive,
                    "\n".join([*(f"\u2708 {f}" for f in d.flights), *(_step(s) for s in d.steps)]),
                    "\n".join(d.activities), "\n".join(f"{a}: {b}" for a, b in d.meals),
                    d.hotel, "\n".join(x for x in (d.border and f"{L['border']}: {d.border}", d.notes) if x)])
@@ -104,7 +112,7 @@ def xlsx_bytes(p: ProgrammeOut) -> bytes:
         for cell in row:
             cell.alignment = Alignment(wrap_text=True, vertical="top")
             cell.font = Font(name=font)
-    for col, width in zip("ABCDEFGHI", (8, 30, 11, 12, 46, 30, 32, 26, 30)):
+    for col, width in zip("ABCDEFGHI", (8, 30, 34, 12, 46, 30, 32, 26, 30)):
         ws.column_dimensions[col].width = width
     ws.freeze_panes = "A6"
     defuse(wb)      # nothing typed as a name runs as a formula
