@@ -8,7 +8,7 @@ import { api } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { useI18n } from '../lib/i18n'
 
-interface PStep { time: string; end: string; text: string; drive?: PLeg | null }
+interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string }
 interface PLeg { start: string; end: string; km: number | null; drive: string }
 interface PDay {
   number: number; date: string | null; title: string; route: string[]; km: number | null; drive: string; legs: PLeg[]; hotel: string
@@ -90,7 +90,7 @@ export function ProgrammePrintPage() {
                       )}
                       <span className="flex gap-3">
                         <span className="w-24 shrink-0 tabular-nums text-slate-500">{s.time}{s.end && `–${s.end}`}</span>
-                        <span>{s.text}</span>
+                        <span>{s.text}{s.note && <span className="block text-xs italic text-slate-500">{s.note}</span>}</span>
                       </span>
                     </li>
                   ))}

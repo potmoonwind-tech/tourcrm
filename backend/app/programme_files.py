@@ -69,6 +69,10 @@ def docx_bytes(p: ProgrammeOut) -> bytes:
                     hop.paragraph_format.left_indent = Pt(18)
                     hop.runs[0].font.size, hop.runs[0].font.color.rgb = Pt(9), RGBColor(0x64, 0x74, 0x8B)
                 doc.add_paragraph(_step(s), style="List Bullet")
+                if s.note:
+                    menu = doc.add_paragraph(s.note)
+                    menu.paragraph_format.left_indent = Pt(36)
+                    menu.runs[0].font.size, menu.runs[0].italic = Pt(9.5), True
         if d.activities:
             para = doc.add_paragraph()
             para.add_run(f"{L['activities']}: ").bold = True
@@ -115,7 +119,8 @@ def xlsx_bytes(p: ProgrammeOut) -> bytes:
         dist = "\n".join([f"{d.km} {L['km']}" if d.km else "", *(_leg(g, L) for g in d.legs)]).strip()
         ws.append([when, " \u2192 ".join(d.route), dist, d.drive,
                    "\n".join([*(f"\u2708 {f}" for f in d.flights),
-                              *(line for s in d.steps for line in ([f"   \u2193 {_hop(s.drive, L)}"] if s.drive and _hop(s.drive, L) else []) + [_step(s)])]),
+                              *(line for s in d.steps for line in ([f"   \u2193 {_hop(s.drive, L)}"] if s.drive and _hop(s.drive, L) else []) + [_step(s)]
+                                + ([f"      {s.note}"] if s.note else []))]),
                    "\n".join(d.activities), "\n".join(f"{a}: {b}" for a, b in d.meals),
                    d.hotel, "\n".join(x for x in (d.border and f"{L['border']}: {d.border}", d.notes) if x)])
     for row in ws.iter_rows(min_row=6):

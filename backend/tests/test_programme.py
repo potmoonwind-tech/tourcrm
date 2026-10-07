@@ -71,7 +71,7 @@ def test_programme_by_day_in_chinese_translated_once(make_client, translator):
     assert p["labels"]["breakfast"] == "早餐" and p["warnings"] == []
     d1, d2, d3 = p["days"]
     assert d1["title"].startswith("第1天") and d1["hotel"] == "ZH:Rooms Hotel" and d1["date"] == "2026-11-01"
-    assert d1["steps"][0] == {"time": "15:00", "end": "17:00", "text": "ZH:Old Tbilisi walk", "drive": None}
+    assert d1["steps"][0] == {"time": "15:00", "end": "17:00", "text": "ZH:Old Tbilisi walk", "drive": None, "note": ""}
     assert d1["steps"][1]["text"] == "晚餐: ZH:Barbarestan"
     # Day 2: the road through its places, km and the coach time (×1.25: 120 min → 2 h 30 min).
     assert d2["route"] == ["ZH:Tbilisi", "ZH:Mtskheta", "ZH:Ananuri", "ZH:Kazbegi"]
@@ -227,3 +227,24 @@ def test_no_drive_after_dinner_at_the_nights_hotel(make_client, monkeypatch):
     # View point → (drive) → dinner at the hotel, and the day ends there: no drive "to Gudauri".
     assert [s["text"] for s in steps] == ["Gudauri View Point", "Dinner: Marco Polo Hotel Gudauri"]
     assert ["Tbilisi", "Gudauri View Point", "Marco Polo Hotel Gudauri, Gudauri"] in asked
+
+
+def test_the_menu_under_the_restaurant(make_client):
+    c, base, _ = agency(make_client)
+    resto = mk(c, f"{base}/vendors", {"name": "Barbarestan", "type": "restaurant", "city": "Tbilisi"})
+    menus = c.put(f"{base}/vendors/{resto['id']}/services", json=[
+        {"code": "dinner", "name": "Dinner", "category": "meal", "unit": "person", "dishes": ["Khinkali", "Mtsvadi"],
+         "rates": [{"price": "30", "currency": "GEL"}]},
+        {"name": "Barbarestan · Lunch 1", "category": "meal", "unit": "person", "dishes": ["Lobio", "Mchadi"],
+         "rates": [{"price": "25", "currency": "GEL"}]}]).json()
+    lunch_menu = next(m for m in menus if m["name"].endswith("Lunch 1"))
+    days = [{"city": "Tbilisi", "lunch_id": resto["id"], "lunch_menu_id": lunch_menu["id"], "dinner_id": resto["id"], "schedule": [
+        {"id": "l", "kind": "meal", "time": "13:00", "ref": "lunch"}, {"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    d = p["days"][0]
+    assert [(s["text"], s["note"]) for s in d["steps"]] == [("Lunch: Barbarestan", "Lobio, Mchadi"), ("Dinner: Barbarestan", "Khinkali, Mtsvadi")]
+    assert ["Lunch", "Barbarestan"] in d["meals"]            # the timeline has the menu: not twice
+    q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "include": {"schedule": False}}).json()
+    assert ["Lunch", "Barbarestan: Lobio, Mchadi"] in q["days"][0]["meals"] and ["Dinner", "Barbarestan: Khinkali, Mtsvadi"] in q["days"][0]["meals"]
+    text = "\n".join(x.text for x in Document(io.BytesIO(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en", "translate": False}).content)).paragraphs)
+    assert "13:00  Lunch: Barbarestan\nLobio, Mchadi" in text

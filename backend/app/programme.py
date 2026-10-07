@@ -19,7 +19,7 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from . import geo
+from . import dishes as dish_util, geo
 from .config import settings
 from .models import Service, TextTranslation, Vendor, Workspace
 from .schemas import DayFields
@@ -95,6 +95,7 @@ class PStep(BaseModel):
     end: str = ""
     text: str
     drive: "PLeg | None" = None      # the drive that leads to this step (km, time), shown just before it
+    note: str = ""                   # under it: a meal's menu ("Khinkali, Mtsvadi, Salad")
 
 
 class PLeg(BaseModel):
@@ -312,6 +313,24 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
     vendors = {v.id: v for v in db.scalars(select(Vendor).where(Vendor.workspace_id == ws.id))}
     sids = {e.service_id for d in body.days for e in d.extras}
     services = {s.id: s for s in db.scalars(select(Service).join(Vendor).where(Vendor.workspace_id == ws.id, Service.id.in_(sids)))} if sids else {}
+    # The menus of the day's meal places: the chosen set menu, else the place's usual one (its lunch /
+    # dinner / breakfast price) - its dishes go under the restaurant.
+    meal_places = {x for d in body.days for x in (d.breakfast_id, d.lunch_id, d.dinner_id) if x}
+    menus: dict[str, list[Service]] = {}
+    for s in db.scalars(select(Service).where(Service.vendor_id.in_(meal_places))) if meal_places else []:
+        menus.setdefault(s.vendor_id, []).append(s)
+
+    def dishes(d: DayFields, meal: str, summary: bool = False) -> str:
+        # In the meals summary only when the timeline doesn't already show that meal with its menu.
+        if summary and body.include.schedule and any(x.ref == meal for x in d.schedule):
+            return ""
+        vid, mid = getattr(d, f"{meal}_id"), getattr(d, f"{meal}_menu_id")
+        if not vid:
+            return ""
+        own = menus.get(vid, [])
+        m = next((s for s in own if s.id == mid), None) or next((s for s in own if s.code == meal), None)
+        names = [x["name"] for x in dish_util.normalize(m.dishes)] if m else []
+        return ", ".join(T(n) for n in names)
     c = _Ctx(vendors, services)
     T = lambda s: (c.texts.add(s), s)[1] if s else s      # remember a text to translate
     days: list[PDay] = []
@@ -354,14 +373,17 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
             if i > 0 and bmode == "hotel":
                 p.meals.append((L["breakfast"], T(slept) or L["at_hotel"]))
             elif bmode in ("included", "tourists") and d.breakfast_id:
-                p.meals.append((L["breakfast"], T(c.name(d.breakfast_id)) + (f" ({L['tourists']})" if bmode == "tourists" else "")))
+                menu = dishes(d, "breakfast", summary=True)
+                p.meals.append((L["breakfast"], T(c.name(d.breakfast_id)) + (f" ({L['tourists']})" if bmode == "tourists" else "")
+                                + (f": {menu}" if menu else "")))
             elif bmode == "own" and i > 0:
                 p.meals.append((L["breakfast"], L["own"]))
-            for word, mode, vid in ((L["lunch"], d.lunch_mode, d.lunch_id), (L["dinner"], d.dinner_mode, d.dinner_id)):
+            for meal, word, mode, vid in (("lunch", L["lunch"], d.lunch_mode, d.lunch_id), ("dinner", L["dinner"], d.dinner_mode, d.dinner_id)):
                 if mode == "own":
                     p.meals.append((word, L["own"]))
                 elif vid:
-                    p.meals.append((word, T(c.name(vid)) + (f" ({L['tourists']})" if mode == "tourists" else "")))
+                    menu = dishes(d, meal, summary=True)
+                    p.meals.append((word, T(c.name(vid)) + (f" ({L['tourists']})" if mode == "tourists" else "") + (f": {menu}" if menu else "")))
         if inc.activities:
             for e in d.extras:
                 s = services.get(e.service_id)
@@ -378,7 +400,9 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
             for x in d.schedule:
                 text = _step_text(x, d, prev, c, L, lang)
                 if text:
-                    p.steps.append(PStep(time=x.time, end=x.end, text=text, drive=to_step.get(x.id)))
+                    meal = x.ref if x.ref in ("lunch", "dinner") else "breakfast" if x.ref == "breakfast" and d.breakfast_mode in ("included", "tourists") else ""
+                    p.steps.append(PStep(time=x.time, end=x.end, text=text, drive=to_step.get(x.id),
+                                         note=dishes(d, meal) if meal and inc.meals else ""))
             if to_step:
                 p.steps += [PStep(text=g.end, drive=g) for e, g in zip(ends, p.legs) if e is None]
                 p.legs = []
@@ -407,7 +431,7 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
         p.hotel = t(p.hotel)
         p.meals = [(a, t(b) if b in tr else _tr_inside(b, tr)) for a, b in p.meals]
         p.activities = [_tr_inside(a, tr) for a in p.activities]
-        p.steps = [PStep(time=s.time, end=s.end, text=_tr_inside(s.text, tr),
+        p.steps = [PStep(time=s.time, end=s.end, text=_tr_inside(s.text, tr), note=_tr_inside(s.note, tr) if s.note else "",
                          drive=PLeg(start=t(s.drive.start), end=t(s.drive.end), km=s.drive.km, drive=s.drive.drive) if s.drive else None)
                    for s in p.steps]
         p.border, p.notes = t(p.border), t(p.notes)
