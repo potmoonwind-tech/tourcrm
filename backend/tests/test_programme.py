@@ -312,3 +312,17 @@ def test_the_only_drive_of_the_day_and_the_phones(make_client, monkeypatch):
     assert (arrive["text"], arrive["drive"]["km"], arrive["drive"]["depart"], arrive["time"]) == ("Tbilisi", 219, "08:30", "12:10")
     q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "include": {"phones": False}}).json()
     assert q["days"][1]["steps"][0]["phone"] == ""
+
+
+def test_the_menu_with_its_portions(make_client):
+    c, base, _ = agency(make_client)
+    resto = mk(c, f"{base}/vendors", {"name": "Barbarestan", "type": "restaurant", "city": "Tbilisi"})
+    c.put(f"{base}/vendors/{resto['id']}/services", json=[
+        {"code": "dinner", "name": "Dinner", "category": "meal", "unit": "person", "rates": [{"price": "30", "currency": "GEL"}],
+         "dishes": [{"name": "Khinkali", "per_plate": 4}, {"name": "Soup"}]}])
+    days = [{"city": "Tbilisi", "dinner_id": resto["id"], "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "people": 13}).json()
+    # 13 people: a plate of khinkali for 4 -> 4 plates; soup each their own -> 13.
+    assert p["days"][0]["steps"][0]["dishes"] == [{"name": "Khinkali", "plates": 4, "per_plate": 4}, {"name": "Soup", "plates": 13, "per_plate": 1}]
+    q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    assert q["days"][0]["steps"][0]["dishes"][0] == {"name": "Khinkali", "plates": None, "per_plate": 4}

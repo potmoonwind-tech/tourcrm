@@ -370,7 +370,7 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
       <div className="flex justify-end">
         <Button size="sm" variant="secondary" onClick={() => setExporting(true)}><Download size={16} />{t('programmeDownload')}</Button>
       </div>
-      {exporting && <ProgrammeDialog title={tour.name || tour.code} startDate={tour.start_date} days={days} onClose={() => setExporting(false)} />}
+      {exporting && <ProgrammeDialog title={tour.name || tour.code} startDate={tour.start_date} days={days} people={tour.pax} onClose={() => setExporting(false)} />}
       <ItineraryBuilder days={days} dates={tour.days.map((d) => d.date)} fixedLength disabled={!canEdit}
         alerts={dirty ? [] : alerts.data ?? []} onChange={setDraft}
         busReturn={busReturn} onBusReturn={(b) => setBack(b)} />

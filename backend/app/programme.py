@@ -18,7 +18,7 @@ Day = date      # the type, for a field that is itself called "date"
 from decimal import Decimal
 from urllib.parse import quote
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -36,18 +36,18 @@ LABELS: dict[str, dict[str, str]] = {
            "activities": "Activities and tickets", "optional": "optional", "own": "own arrangements",
            "tourists": "paid on the spot", "at_hotel": "at the hotel", "arrival": "Arrival", "departure": "Departure",
            "border": "Border crossing", "notes": "Notes", "km": "km", "h": "h", "min": "min", "total": "Total distance",
-           "days": "{n} days", "checkin": "Check-in", "free": "Free time", "transfer": "Transfer", "no_hotel": "End of the tour", "tab_days": "Days", "tab_menu": "Menu", "map": "Map", "day_map": "The day on the map", "today": "Today", "no_menu": "No menu yet"},
+           "days": "{n} days", "checkin": "Check-in", "free": "Free time", "transfer": "Transfer", "no_hotel": "End of the tour", "tab_days": "Days", "tab_menu": "Menu", "map": "Map", "day_map": "The day on the map", "today": "Today", "no_menu": "Menu not chosen yet", "plates": "{n} plates", "portions": "{n} portions", "per_plate": "1 plate for {n}"},
     "ka": {"day": "დღე {n}", "programme": "პროგრამა", "route": "მარშრუტი", "distance": "მანძილი", "driving": "გზაში",
            "overnight": "ღამისთევა", "meals": "კვება", "breakfast": "საუზმე", "lunch": "სადილი", "dinner": "ვახშამი",
            "activities": "აქტივობები და ბილეთები", "optional": "სურვილისამებრ", "own": "საკუთარი ხარჯით",
            "tourists": "ადგილზე გადახდით", "at_hotel": "სასტუმროში", "arrival": "ჩამოფრენა", "departure": "გაფრენა",
            "border": "საზღვრის კვეთა", "notes": "შენიშვნები", "km": "კმ", "h": "სთ", "min": "წთ", "total": "სულ მანძილი",
-           "days": "{n} დღე", "checkin": "განთავსება", "free": "თავისუფალი დრო", "transfer": "გადაადგილება", "no_hotel": "ტურის დასასრული", "tab_days": "დღეები", "tab_menu": "მენიუ", "map": "რუკა", "day_map": "დღის მარშრუტი რუკაზე", "today": "დღეს", "no_menu": "მენიუ ჯერ არ არის"},
+           "days": "{n} დღე", "checkin": "განთავსება", "free": "თავისუფალი დრო", "transfer": "გადაადგილება", "no_hotel": "ტურის დასასრული", "tab_days": "დღეები", "tab_menu": "მენიუ", "map": "რუკა", "day_map": "დღის მარშრუტი რუკაზე", "today": "დღეს", "no_menu": "მენიუ ჯერ არ არის არჩეული", "plates": "{n} თეფში", "portions": "{n} პორცია", "per_plate": "1 თეფში {n} კაცზე"},
     "zh": {"day": "第{n}天", "programme": "行程", "route": "路线", "distance": "距离", "driving": "车程",
            "overnight": "住宿", "meals": "餐食", "breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐",
            "activities": "活动与门票", "optional": "自选", "own": "自理", "tourists": "现场自付", "at_hotel": "酒店内",
            "arrival": "抵达", "departure": "离开", "border": "过境", "notes": "备注", "km": "公里", "h": "小时", "min": "分钟",
-           "total": "总里程", "days": "{n}天", "checkin": "入住", "free": "自由活动", "transfer": "交通", "no_hotel": "行程结束", "tab_days": "行程", "tab_menu": "菜单", "map": "地图", "day_map": "当天路线图", "today": "今天", "no_menu": "暂无菜单"},
+           "total": "总里程", "days": "{n}天", "checkin": "入住", "free": "自由活动", "transfer": "交通", "no_hotel": "行程结束", "tab_days": "行程", "tab_menu": "菜单", "map": "地图", "day_map": "当天路线图", "today": "今天", "no_menu": "尚未选定菜单", "plates": "{n}盘", "portions": "{n}份", "per_plate": "每{n}人1盘"},
 }
 
 
@@ -92,6 +92,15 @@ class ProgrammeIn(BaseModel):
     include: Include = Include()
     translate: bool = True
     only_days: list[int] | None = None       # the day numbers to put in the file; None = every day
+    people: int | None = Field(default=None, ge=1, le=500)       # who eats: each dish's plates (portions)
+    plate_share: int | None = Field(default=None, ge=1, le=20)   # the tour's people per plate (else the agency's)
+
+
+class PDish(BaseModel):
+    """One dish of a set menu and how much of it: "Khinkali · 3 plates (1 plate for 4)"."""
+    name: str
+    plates: int | None = None        # plates (portions) for the group; None when the group size isn't known
+    per_plate: int = 1               # people sharing one plate (1 = everyone their own portion)
 
 
 class PStep(BaseModel):
@@ -104,6 +113,7 @@ class PStep(BaseModel):
     meal: str = ""                   # breakfast / lunch / dinner: the meal this step is (its order, on the guide's page)
     map: str = ""                    # the place on Google Maps
     phone: str = ""                  # the place's phone (hotel, restaurant, sight)
+    dishes: list[PDish] = []         # a meal's menu, dish by dish, with its plates
 
 
 class PLeg(BaseModel):
@@ -513,6 +523,17 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
         m = next((s for s in own if s.id == mid), None) or next((s for s in own if s.code == meal), None)
         names = [x["name"] for x in dish_util.normalize(m.dishes)] if m else []
         return ", ".join(T(n) for n in names)
+
+    def portions(d: DayFields, meal: str) -> list[PDish]:
+        """The meal's set menu dish by dish, with how many plates for the group."""
+        vid, mid = getattr(d, f"{meal}_id"), getattr(d, f"{meal}_menu_id")
+        own = menus.get(vid or "", [])
+        m = next((s for s in own if s.id == mid), None) or next((s for s in own if s.code == meal), None)
+        out = []
+        for x in dish_util.normalize(m.dishes) if m else []:
+            per = dish_util.share_of(x, body.plate_share, ws.plate_share)
+            out.append(PDish(name=T(x["name"]), per_plate=per, plates=dish_util.plates(body.people, per) if body.people else None))
+        return out
     c = _Ctx(vendors, services)
     T = lambda s: (c.texts.add(s), s)[1] if s else s      # remember a text to translate
     days: list[PDay] = []
@@ -594,7 +615,8 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
                                          phone=(at.phone or at.phone2) if at and inc.phones else "",
                                          meal=x.ref if x.ref in ("breakfast", "lunch", "dinner") and x.kind != "free" else "",
                                          map=map_search(_place_of(x, d, prev, vendors, services) or where_of.get(x.id, "")),
-                                         note=dishes(d, meal) if meal and inc.meals else ""))
+                                         note=dishes(d, meal) if meal and inc.meals else "",
+                                         dishes=portions(d, meal) if meal and inc.meals else []))
             if ends and len(ends) == len(p.legs) and p.steps:
                 p.steps += [PStep(text=g.end, drive=g, kind="arrive", map=map_search(wheres[j + 1]))
                             for j, (e, g) in enumerate(zip(ends, p.legs)) if e is None]
@@ -626,6 +648,7 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
         p.meals = [(a, t(b) if b in tr else _tr_inside(b, tr)) for a, b in p.meals]
         p.activities = [_tr_inside(a, tr) for a in p.activities]
         p.steps = [s.model_copy(update={"text": _tr_inside(s.text, tr), "note": _tr_inside(s.note, tr) if s.note else "",
+                                        "dishes": [x.model_copy(update={"name": t(x.name)}) for x in s.dishes],
                                         "drive": s.drive.model_copy(update={"start": t(s.drive.start), "end": t(s.drive.end)}) if s.drive else None})
                    for s in p.steps]
         p.border, p.notes = t(p.border), t(p.notes)

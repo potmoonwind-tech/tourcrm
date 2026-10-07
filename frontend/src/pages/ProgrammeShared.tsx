@@ -12,8 +12,8 @@ import { FullPageSpinner } from '../components/ui'
 import { today } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
 import { cn } from '../lib/utils'
-import { Timeline } from './Field'
-import type { PDay, Programme } from './ProgrammePrint'
+import { DishList, Timeline } from './Field'
+import type { PDay, PDish, Programme } from './ProgrammePrint'
 
 const LOCALE: Record<string, string> = { en: 'en-GB', ka: 'ka-GE', zh: 'zh-CN' }
 
@@ -103,7 +103,7 @@ export function ProgrammeSharedPage() {
                   )}
                   {day.flights.map((f) => <Line key={f} icon={<Plane size={16} />}>{f}</Line>)}
                   {day.steps.length > 0
-                    ? <Timeline day={day} orders={[]} words={{ route: L.route, map: L.map }} />
+                    ? <Timeline day={day} orders={[]} words={{ route: L.route, map: L.map, plates: L.plates, portions: L.portions, per_plate: L.per_plate }} />
                     : day.legs.length > 0 && (
                       <ul className="rounded-xl bg-slate-50 px-3 py-2 text-sm text-slate-600">
                         {day.legs.map((g, i) => <li key={i}>{g.start} → {g.end}{g.km ? ` · ${g.km} ${L.km}` : ''}{g.drive ? ` · ${g.drive}` : ''}</li>)}
@@ -126,9 +126,9 @@ export function ProgrammeSharedPage() {
 /** One day's meals: where, and what is served (the set menu's dishes). */
 function MenuDay({ day, labels: L, date }: { day: PDay; labels: Record<string, string>; date: string }) {
   // From the timeline when there is one (each meal with its menu under it), else the day's meals list.
-  const meals: [string, string][] = day.steps.length
-    ? day.steps.filter((s) => s.meal).map((s) => [s.text, s.note ?? ''])
-    : day.meals.map(([a, b]) => { const [place, ...menu] = b.split(': '); return [`${a}: ${place}`, menu.join(': ')] })
+  const meals: [string, string, PDish[]][] = day.steps.length
+    ? day.steps.filter((s) => s.meal).map((s) => [s.text, s.note ?? '', s.dishes ?? []])
+    : day.meals.map(([a, b]) => { const [place, ...menu] = b.split(': '); return [`${a}: ${place}`, menu.join(': '), []] })
   if (!meals.length) return null
   return (
     <section className="overflow-hidden rounded-2xl border border-slate-200 bg-white">
@@ -137,12 +137,14 @@ function MenuDay({ day, labels: L, date }: { day: PDay; labels: Record<string, s
         <span className="shrink-0 text-sm text-slate-500">{date}</span>
       </p>
       <ul className="divide-y divide-slate-100">
-        {meals.map(([what, menu], i) => (
+        {meals.map(([what, menu, dishes], i) => (
           <li key={i} className="flex gap-3 px-4 py-2.5">
             <Utensils size={16} className="mt-1 shrink-0 text-sky-600" />
             <span className="min-w-0 flex-1">
               <span className="block font-medium text-slate-900">{what}</span>
-              <span className={cn('block text-sm', menu ? 'text-slate-600' : 'italic text-slate-400')}>{menu || L.no_menu}</span>
+              {dishes.length > 0
+                ? <DishList dishes={dishes} words={{ plates: L.plates, portions: L.portions, per_plate: L.per_plate }} />
+                : <span className={cn('block text-sm', menu ? 'text-slate-600' : 'italic text-slate-400')}>{menu || L.no_menu}</span>}
             </span>
           </li>
         ))}

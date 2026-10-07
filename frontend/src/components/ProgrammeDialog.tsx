@@ -23,10 +23,12 @@ export interface ProgrammeRequest {
   title: string; start_date: string | null; days: DayFields[]; lang: Lang
   include: Record<(typeof PARTS)[number], boolean>; translate: boolean
   only_days: number[] | null      // the days to put in the file; null = all
+  people?: number | null
 }
 
-export function ProgrammeDialog({ title, startDate, days, onClose }: {
+export function ProgrammeDialog({ title, startDate, days, people, onClose }: {
   title: string; startDate?: string | null; days: DayFields[]; onClose: () => void
+  people?: number | null           // the group: each dish's plates (portions)
 }) {
   const ws = useWorkspace()!
   const { t, lang: appLang } = useI18n()
@@ -51,7 +53,7 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
     return { ...d, schedule: withEnds(items, (x) => stepUsual(x, d, byId, services.data ?? [])) }
   })
   const body: ProgrammeRequest = {
-    title, start_date: startDate ?? null, days: shown, lang, include, translate,
+    title, start_date: startDate ?? null, days: shown, lang, include, translate, people: people || null,
     only_days: skip.size ? days.map((_, i) => i + 1).filter((n) => !skip.has(n)) : null,
   }
 

@@ -13,7 +13,7 @@ import { fmt, today, weekday } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { MoneyTab } from './FieldMoney'
-import { ICON, type PDay, type PStep } from './ProgrammePrint'
+import { ICON, type PDay, type PDish, type PStep } from './ProgrammePrint'
 
 interface Place { name: string; address: string; city: string; phone: string; menu: string | null; dishes: string[] }
 interface FieldDay {
@@ -199,9 +199,28 @@ export function FieldPage() {
 
 /** The day hour by hour, as in the programme file: each drive with its time and km and a route button,
  * each place with a map button, and under each meal what was ordered (plates and prices). */
-export function Timeline({ day, orders, words }: { day: PDay; orders: MealOrder[]; words?: { route: string; map: string } }) {
+/** "4 plates · 1 plate for 4" / "13 portions": how much of a dish, in the page's words. */
+export type PortionWords = { plates: string; portions: string; per_plate: string }
+export const portionText = (x: { plates: number | null; per_plate: number }, w: PortionWords) =>
+  [x.plates != null && (x.per_plate > 1 ? w.plates : w.portions).replace('{n}', String(x.plates)),
+    x.per_plate > 1 && w.per_plate.replace('{n}', String(x.per_plate))].filter(Boolean).join(' · ')
+
+export function DishList({ dishes, words }: { dishes: PDish[]; words: PortionWords }) {
+  return (
+    <span className="mt-1 block rounded-lg bg-amber-50 px-2.5 py-1.5 text-sm text-slate-800">
+      {dishes.map((x) => (
+        <span key={x.name} className="flex gap-2 py-0.5">
+          <span className="min-w-0 flex-1">{x.name}</span>
+          <span className="shrink-0 tabular-nums text-slate-500">{portionText(x, words)}</span>
+        </span>
+      ))}
+    </span>
+  )
+}
+
+export function Timeline({ day, orders, words }: { day: PDay; orders: MealOrder[]; words?: { route: string; map: string } & PortionWords }) {
   const { t } = useI18n()
-  const w = words ?? { route: t('route'), map: t('fieldMap') }
+  const w = words ?? { route: t('route'), map: t('fieldMap'), plates: t('fieldPlates'), portions: t('fieldPortions'), per_plate: t('fieldPerPlate') }
   return (
     <ol className="overflow-hidden rounded-xl border border-slate-200" aria-label={t('dayProgramme')}>
       {(day.km || day.drive) && (
@@ -225,14 +244,14 @@ export function Timeline({ day, orders, words }: { day: PDay; orders: MealOrder[
               )}
             </div>
           )}
-          <Step s={s} order={s.meal ? orders.find((o) => o.meal === s.meal) : undefined} mapLabel={w.map} />
+          <Step s={s} order={s.meal ? orders.find((o) => o.meal === s.meal) : undefined} mapLabel={w.map} words={w} />
         </li>
       ))}
     </ol>
   )
 }
 
-function Step({ s, order, mapLabel }: { s: PStep; order?: MealOrder; mapLabel: string }) {
+function Step({ s, order, mapLabel, words }: { s: PStep; order?: MealOrder; mapLabel: string; words: PortionWords }) {
   const { t } = useI18n()
   const Icon = ICON[s.kind ?? ''] ?? MapPin
   const money = (n: number | null) => (n == null ? '' : `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${order?.currency ?? ''}`.trim())
@@ -250,7 +269,7 @@ function Step({ s, order, mapLabel }: { s: PStep; order?: MealOrder; mapLabel: s
             {order.dishes.map((x) => (
               <span key={x.name} className="flex gap-2 py-0.5">
                 <span className="min-w-0 flex-1">{x.name}</span>
-                {order.shared && <span className="shrink-0 tabular-nums text-slate-500">{t('fieldPlates', { n: x.plates })}</span>}
+                <span className="shrink-0 tabular-nums text-slate-500">{portionText(x, words)}</span>
                 {x.price != null && <span className="shrink-0 tabular-nums text-slate-600">{money(x.price)}</span>}
               </span>
             ))}
@@ -264,7 +283,8 @@ function Step({ s, order, mapLabel }: { s: PStep; order?: MealOrder; mapLabel: s
               </span>
             )}
           </span>
-        ) : s.note ? <span className="mt-0.5 block text-sm italic text-slate-500">{s.note}</span> : null}
+        ) : s.dishes?.length ? <DishList dishes={s.dishes} words={words} />
+          : s.note ? <span className="mt-0.5 block text-sm italic text-slate-500">{s.note}</span> : null}
       </span>
       <span className="flex shrink-0 flex-col gap-1.5">
         {s.map && (

@@ -203,7 +203,8 @@ def _timeline(db: Session, ws: Workspace, t: Tour, mine: set[int], lang: str) ->
     days = sorted(t.days, key=lambda d: d.day_number)
     body = programme.ProgrammeIn(title=t.code, start_date=t.start_date, lang=lang if lang in ("en", "ka") else "en", translate=False,
                                  days=[DayFields.model_validate(d, from_attributes=True) for d in days],
-                                 only_days=[i + 1 for i, d in enumerate(days) if d.day_number in mine])
+                                 only_days=[i + 1 for i, d in enumerate(days) if d.day_number in mine],
+                                 people=finance.group_size(t), plate_share=t.plate_share)
     try:
         return programme.build(db, ws, body, fill=True).days
     except Exception:          # noqa: BLE001 - the page still shows the places without the timeline
