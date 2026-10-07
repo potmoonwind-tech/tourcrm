@@ -5,7 +5,7 @@
  * opened and scrolled to. Big tap targets, readable in a bus.
  */
 import { useQuery } from '@tanstack/react-query'
-import { BedDouble, Car, ChevronDown, MapPin, Phone as PhoneIcon, Plane, Ticket, Users, Utensils } from 'lucide-react'
+import { BedDouble, Car, ChevronDown, MapPin, Navigation, Phone as PhoneIcon, Plane, Ticket, Users, Utensils } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../lib/api'
@@ -13,6 +13,7 @@ import { fmt, today, weekday } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn } from '../lib/utils'
 import { MoneyTab } from './FieldMoney'
+import { ICON, type PDay, type PStep } from './ProgrammePrint'
 
 interface Place { name: string; address: string; city: string; phone: string; menu: string | null; dishes: string[] }
 interface FieldDay {
@@ -25,6 +26,12 @@ interface FieldView {
   agency: string; office_phone: string; team: { role: string; name: string; phone: string; days: string }[]; tour_code: string; start_date: string; end_date: string; role: string; person: string
   changes?: { id: string; day: number | null; text: string; at: string }[]
   days: FieldDay[]; pax: number | null; group: { name: string; room: string; phone: string; notes: string }[] | null
+  timeline?: PDay[]; meals?: MealOrder[]
+}
+/** What was ordered at a meal (guides): the menu, each dish with its plates and price, the total. */
+interface MealOrder {
+  day: number; meal: string; menu_name: string | null; people: number; price_pp: number | null; currency: string | null; total: number | null
+  tourists_pay: boolean; shared: boolean; dishes: { name: string; price: number | null; per_plate: number; plates: number }[]
 }
 
 const mapUrl = (p: Place) =>
@@ -33,7 +40,7 @@ const mapUrl = (p: Place) =>
 export function FieldPage() {
   const { token } = useParams()
   const { t, lang, setLang } = useI18n()
-  const page = useQuery({ queryKey: ['field', token], queryFn: () => api<FieldView>(`/field/${token}`), retry: false })
+  const page = useQuery({ queryKey: ['field', token, lang], queryFn: () => api<FieldView>(`/field/${token}?lang=${lang === 'ka' ? 'ka' : 'en'}`), retry: false, placeholderData: (x) => x })
   const [tab, setTab] = useState<'days' | 'group' | 'money'>('days')
   const now = today()
   const todayDay = page.data?.days.find((d) => d.date === now)?.number
@@ -127,7 +134,13 @@ export function FieldPage() {
                 </button>
                 {isOpen && (
                   <div className="space-y-2 border-t border-slate-100 p-3">
-                    {(d.schedule?.length ?? 0) > 0 && (
+                    {(() => {
+                      const day = v.timeline?.find((x) => x.number === d.number)
+                      return day && day.steps.length > 0
+                        ? <Timeline day={day} orders={(v.meals ?? []).filter((m) => m.day === d.number)} />
+                        : null
+                    })()}
+                    {!v.timeline?.find((x) => x.number === d.number)?.steps.length && (d.schedule?.length ?? 0) > 0 && (
                       <ol className="divide-y divide-slate-200 rounded-xl bg-slate-50 px-3 text-base" aria-label={t('dayProgramme')}>
                         {d.schedule!.map((x) => (
                           <li key={x.id} className="flex gap-3 py-2">
@@ -179,6 +192,81 @@ export function FieldPage() {
             {v.group!.length === 0 && <li className="flex items-center gap-2 px-4 py-6 text-sm text-slate-500"><Users size={16} />{t('fieldNoNames', { n: v.pax ?? 0 })}</li>}
           </ul>
         </main>
+      )}
+    </div>
+  )
+}
+
+/** The day hour by hour, as in the programme file: each drive with its time and km and a route button,
+ * each place with a map button, and under each meal what was ordered (plates and prices). */
+function Timeline({ day, orders }: { day: PDay; orders: MealOrder[] }) {
+  const { t } = useI18n()
+  return (
+    <ol className="overflow-hidden rounded-xl border border-slate-200" aria-label={t('dayProgramme')}>
+      {(day.km || day.drive) && (
+        <li className="flex items-center gap-2 bg-sky-50 px-3 py-2 text-sm text-slate-700">
+          <Car size={15} className="text-slate-500" />{[day.km && `${day.km} km`, day.drive].filter(Boolean).join(' · ')}
+        </li>
+      )}
+      {day.steps.map((s, i) => (
+        <li key={i} className="border-t border-slate-100 first:border-t-0">
+          {s.drive && (s.drive.km || s.drive.drive) && (
+            <div className="flex items-center gap-3 bg-slate-50 px-3 py-1.5 text-sm text-slate-600">
+              <span className="w-14 shrink-0 tabular-nums leading-tight">{s.drive.depart}
+                {s.drive.arrive && <span className="block">–{s.drive.arrive}</span>}</span>
+              <span className="min-w-0 flex-1">↓ {[s.drive.km && `${s.drive.km} km`, s.drive.drive].filter(Boolean).join(' · ')}</span>
+              {s.drive.map && (
+                <a href={s.drive.map} target="_blank" rel="noopener noreferrer" aria-label={t('route')}
+                  className="flex h-9 items-center gap-1 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-700 active:bg-slate-100">
+                  <Navigation size={14} />{t('route')}
+                </a>
+              )}
+            </div>
+          )}
+          <Step s={s} order={s.meal ? orders.find((o) => o.meal === s.meal) : undefined} />
+        </li>
+      ))}
+    </ol>
+  )
+}
+
+function Step({ s, order }: { s: PStep; order?: MealOrder }) {
+  const { t } = useI18n()
+  const Icon = ICON[s.kind ?? ''] ?? MapPin
+  const money = (n: number | null) => (n == null ? '' : `${n.toLocaleString(undefined, { maximumFractionDigits: 2 })} ${order?.currency ?? ''}`.trim())
+  return (
+    <div className="flex items-start gap-3 px-3 py-2.5">
+      <span className="w-14 shrink-0 font-bold tabular-nums text-slate-900">{s.time || '—'}
+        {s.end && <span className="block text-sm font-normal text-slate-500">–{s.end}</span>}</span>
+      <span className="min-w-0 flex-1">
+        <span className="flex items-start gap-1.5 text-base text-slate-900"><Icon size={16} className="mt-1 shrink-0 text-sky-600" />{s.text}</span>
+        {order && (order.dishes.length > 0 || order.total != null) ? (
+          <span className="mt-1.5 block rounded-lg bg-amber-50 px-2.5 py-2 text-sm text-slate-800">
+            <span className="block text-xs font-semibold uppercase tracking-wide text-amber-800">
+              {t('fieldOrdered')}{order.menu_name ? ` · ${order.menu_name}` : ''} · {t('peopleTotal', { n: order.people })}
+            </span>
+            {order.dishes.map((x) => (
+              <span key={x.name} className="flex gap-2 py-0.5">
+                <span className="min-w-0 flex-1">{x.name}</span>
+                {order.shared && <span className="shrink-0 tabular-nums text-slate-500">{t('fieldPlates', { n: x.plates })}</span>}
+                {x.price != null && <span className="shrink-0 tabular-nums text-slate-600">{money(x.price)}</span>}
+              </span>
+            ))}
+            {(order.total != null || order.price_pp != null) && (
+              <span className="mt-1 block border-t border-amber-200 pt-1 tabular-nums">
+                {order.price_pp != null && !order.shared
+                  ? <span className="text-slate-600">{money(order.price_pp)} × {order.people} = </span>
+                  : <span className="text-slate-600">{t('total')}: </span>}
+                {order.total != null && <b className="whitespace-nowrap">{money(order.total)}</b>}
+                {order.tourists_pay && <span className="block text-xs text-slate-500">{t('mealTourists')}</span>}
+              </span>
+            )}
+          </span>
+        ) : s.note ? <span className="mt-0.5 block text-sm italic text-slate-500">{s.note}</span> : null}
+      </span>
+      {s.map && (
+        <a href={s.map} target="_blank" rel="noopener noreferrer" aria-label={t('fieldMap')}
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-600 text-white active:bg-brand-700"><MapPin size={16} /></a>
       )}
     </div>
   )

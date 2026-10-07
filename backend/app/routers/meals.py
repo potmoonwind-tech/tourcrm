@@ -83,8 +83,11 @@ def tour_meals(tour_id: str, ctx: WorkspaceCtx = Depends(office), db: Session = 
                            selectinload(Tour.staff).selectinload(StaffAssignment.vendor), selectinload(Tour.participants)))
     if not t:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tour not found")
-    money = ctx.can("operations", "finance", "sales")    # menu prices
-    share_all = ctx.workspace.plate_share or 1
+    return meals_of(t, ctx.workspace.plate_share or 1, money=ctx.can("operations", "finance", "sales"))    # menu prices
+
+
+def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
+    """Every meal of the tour: restaurant, menu, dishes and plates, people, price and total."""
     pax = group_size(t) or 0
     rows: list[MealRow] = []
     totals: dict[str, Decimal] = defaultdict(Decimal)

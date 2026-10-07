@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { BedDouble, Car, Coffee, Flag, MapPin, Plane, Printer, Sun, Ticket, Utensils, type LucideIcon } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { PROGRAMME_KEY, type ProgrammeRequest } from '../components/ProgrammeDialog'
 import { Button, FullPageSpinner } from '../components/ui'
@@ -8,19 +8,19 @@ import { api } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { useI18n } from '../lib/i18n'
 
-interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string; kind?: string }
-interface PLeg { start: string; end: string; km: number | null; drive: string; depart?: string; arrive?: string }
+export interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string; kind?: string; meal?: string; map?: string }
+export interface PLeg { start: string; end: string; km: number | null; drive: string; depart?: string; arrive?: string; map?: string }
 
 // One small icon per kind of step, so the day reads at a glance.
-const ICON: Record<string, LucideIcon> = {
+export const ICON: Record<string, LucideIcon> = {
   breakfast: Coffee, meal: Utensils, visit: MapPin, checkin: BedDouble, checkout: BedDouble, flight: Plane, free: Sun, arrive: Flag,
 }
-const span = (a?: string, b?: string) => (a && b ? `${a}–${b}` : a ?? '')
-interface PDay {
+export const span = (a?: string, b?: string) => (a && b ? `${a}–${b}` : a ?? '')
+export interface PDay {
   number: number; date: string | null; title: string; route: string[]; km: number | null; drive: string; legs: PLeg[]; hotel: string
   meals: [string, string][]; activities: string[]; steps: PStep[]; flights: string[]; border: string; notes: string
 }
-interface Programme { title: string; subtitle: string; agency: string; lang: string; labels: Record<string, string>; days: PDay[]; total_km: number; warnings: string[] }
+export interface Programme { title: string; subtitle: string; agency: string; lang: string; labels: Record<string, string>; days: PDay[]; total_km: number; warnings: string[] }
 
 const readRequest = (key: string): ProgrammeRequest | null => {
   for (const store of [sessionStorage, localStorage]) {
@@ -52,14 +52,20 @@ export function ProgrammePrintPage() {
   if (!req) return <p className="p-8 text-slate-600">{t('programmeExpired')}</p>
   if (!p.data) return <FullPageSpinner />
   const d = p.data
+  return <ProgrammeDoc d={d} toolbar={<Button onClick={() => window.print()}><Printer size={16} />{t('printPdf')}</Button>} />
+}
+
+
+
+/** The programme as a document: day cards, one timeline per day (each drive with its time), a map for
+ * each place. The print page prints it; the shared link shows it on any phone or computer. */
+export function ProgrammeDoc({ d, toolbar }: { d: Programme; toolbar?: ReactNode }) {
   const L = d.labels
   const date = (s: string | null) => (s ? new Date(`${s}T00:00:00`).toLocaleDateString(d.lang === 'zh' ? 'zh-CN' : d.lang === 'ka' ? 'ka-GE' : 'en-GB', { weekday: 'short', day: 'numeric', month: 'long' }) : '')
   return (
     <div lang={d.lang} className="min-h-screen bg-slate-100 py-8 print:bg-white print:py-0">
-      <div className="mx-auto mb-4 flex max-w-[210mm] justify-end px-4 print:hidden">
-        <Button onClick={() => window.print()}><Printer size={16} />{t('printPdf')}</Button>
-      </div>
-      <article className="mx-auto max-w-[210mm] bg-white p-12 text-[13px] leading-relaxed text-slate-800 shadow print:max-w-none print:p-0 print:shadow-none">
+      <div className="mx-auto mb-4 flex max-w-[210mm] justify-end gap-2 px-4 print:hidden">{toolbar}</div>
+      <article className="mx-auto max-w-[210mm] bg-white p-5 text-[13px] sm:p-12 leading-relaxed text-slate-800 shadow print:max-w-none print:p-0 print:shadow-none">
         <p className="text-sm font-semibold uppercase tracking-widest text-slate-400">{d.agency}</p>
         <h1 className="mt-1 text-3xl font-bold text-slate-900">{d.title}</h1>
         <p className="mt-1 text-slate-500">{d.subtitle}</p>
@@ -97,15 +103,18 @@ export function ProgrammePrintPage() {
                           {/* The drive that leads here, with its own time: the day as one timeline. */}
                           {hop && (
                             <div className="my-0.5 flex items-center gap-3 rounded bg-slate-50 py-0.5 text-xs text-slate-500">
-                              <span className="w-24 shrink-0 pl-1 tabular-nums">{span(s.drive!.depart, s.drive!.arrive)}</span>
+                              <span className="w-[5.5rem] shrink-0 pl-1 tabular-nums sm:w-24">{span(s.drive!.depart, s.drive!.arrive)}</span>
                               <Car size={13} className="shrink-0" aria-hidden />
                               <span>↓ {hop}</span>
+                              {s.drive!.map && <a href={s.drive!.map} target="_blank" rel="noopener noreferrer" className="ml-auto pr-2 text-sky-700 no-underline hover:underline print:hidden">{L.route}</a>}
                             </div>
                           )}
                           <div className="flex items-start gap-3 py-1">
-                            <span className="w-24 shrink-0 pl-1 font-semibold tabular-nums text-slate-700">{span(s.time, s.end)}</span>
+                            <span className="w-[5.5rem] shrink-0 pl-1 font-semibold tabular-nums text-slate-700 sm:w-24">{span(s.time, s.end)}</span>
                             <Icon size={14} className="mt-[3px] shrink-0 text-sky-600" aria-hidden />
-                            <span className="text-slate-900">{s.text}
+                            <span className="text-slate-900">{s.map
+                              ? <a href={s.map} target="_blank" rel="noopener noreferrer" className="text-sky-800 no-underline hover:underline print:text-slate-900">{s.text}</a>
+                              : s.text}
                               {s.note && <span className="block text-xs italic text-slate-500">{s.note}</span>}</span>
                           </div>
                         </li>

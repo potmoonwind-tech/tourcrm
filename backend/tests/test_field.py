@@ -1,7 +1,17 @@
 """Phone pages for guides and drivers: a private link per person per tour."""
 from datetime import date, timedelta
 
+import pytest
+
+from app import programme
+
 from .test_tours import agency, mk, seed_route
+
+
+@pytest.fixture(autouse=True)
+def no_map(monkeypatch):
+    """No real map in tests (the guide's timeline asks it for the drives)."""
+    monkeypatch.setattr(programme.geo, "legs", lambda db, cities, **kw: [])
 
 
 def tour_with_staff(c, base, start=None):
@@ -102,3 +112,22 @@ def test_breakfast_at_the_hotel_is_where_the_group_slept(make_client):
     assert row["prev_hotel"]["id"] == slept["id"]
     [first] = c.get(f"{base}/day/{tour['days'][0]['date']}").json()
     assert first["prev_hotel"] is None
+
+
+def test_the_guide_gets_the_timeline_and_the_orders(make_client):
+    c, base, _ = agency(make_client)
+    t, url, g, d = tour_with_staff(c, base)
+    gp = c.get(f"/api/field/{mk(c, f'{url}/staff/{g['id']}/field-link', {})['token']}").json()
+    # The days had no programme of their own: the guide still gets the day plan's, with times.
+    assert [x["number"] for x in gp["timeline"]] == [1, 2, 3]
+    day2 = gp["timeline"][1]["steps"]
+    breakfast = next(s for s in day2 if s["kind"] == "breakfast")
+    assert (breakfast["time"], breakfast["end"]) == ("08:00", "08:30")
+    assert "Rustaveli" in breakfast["map"] and breakfast["map"].startswith("https://www.google.com/maps/")
+    assert all(m["day"] in (1, 2, 3) for m in gp["meals"])
+    # In Georgian, the fixed words too.
+    ka = c.get(f"/api/field/{mk(c, f'{url}/staff/{g['id']}/field-link', {})['token']}?lang=ka").json()
+    assert ka["timeline"][0]["title"].startswith("დღე 1")
+    # A driver: the timeline of his days, no orders and prices.
+    dp = c.get(f"/api/field/{mk(c, f'{url}/staff/{d['id']}/field-link', {})['token']}").json()
+    assert [x["number"] for x in dp["timeline"]] == [2, 3] and dp["meals"] == []

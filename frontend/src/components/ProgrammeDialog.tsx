@@ -3,7 +3,7 @@
  * not), in English, Georgian or Chinese, as PDF (the print page), Word or Excel. Distances, driving times and
  * places are in it; prices and team details are not.
  */
-import { Download, FileSpreadsheet, FileText, Printer } from 'lucide-react'
+import { Copy, Download, FileSpreadsheet, FileText, Link2, MessageCircle, Printer } from 'lucide-react'
 import { useState } from 'react'
 import type { DayFields } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
@@ -12,7 +12,7 @@ import { useI18n, type TKey } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
 import { Dialog, toast } from './overlay'
-import { Button, ErrorText, SegmentedControl } from './ui'
+import { Button, ErrorText, Input, SegmentedControl } from './ui'
 
 type Lang = 'en' | 'ka' | 'zh'
 type Format = 'pdf' | 'docx' | 'xlsx'
@@ -38,6 +38,7 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
   const [skip, setSkip] = useState<Set<number>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  const [shared, setShared] = useState('')      // the link anyone can open, once made
   // A day without its own programme gets the suggested one - what the day plan shows (times, sights,
   // meals, the hotel), so the file has the same programme and the drives between its destinations.
   const services = useServiceList()
@@ -57,6 +58,22 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
   const warn = (w: string | null) => {
     if (w?.includes('no_ai_key')) toast('programmeNoAiKey', 'error')
     else if (w?.includes('ai_failed')) toast('programmeAiFailed', 'error')
+  }
+  // A link anyone can open: the same programme (times, distances, a map for each place) on a phone or computer.
+  const share = async () => {
+    setError(null)
+    setBusy(true)
+    try {
+      const res = await fetch(`/api${wsPath(ws.id, '/programme/share')}`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      })
+      if (!res.ok) throw new Error(res.statusText || String(res.status))
+      setShared(`${window.location.origin}/p/${((await res.json()) as { token: string }).token}`)
+    } catch (e) {
+      setError(e)
+    } finally {
+      setBusy(false)
+    }
   }
   const download = async () => {
     setError(null)
@@ -95,6 +112,7 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
     <Dialog title={t('programmeDownload')} onClose={onClose}
       footer={<div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>{t('cancel')}</Button>
+        <Button variant="secondary" onClick={share} disabled={busy || !days.length || services.isLoading}><Link2 size={16} />{t('shareLink')}</Button>
         <Button onClick={download} disabled={busy || !days.length || services.isLoading}>
           {format === 'pdf' ? <Printer size={16} /> : <Download size={16} />}{busy ? t('programmeMaking') : t('download')}
         </Button>
@@ -151,6 +169,20 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
           <input type="checkbox" className="mt-0.5 h-4 w-4 accent-brand-600" checked={translate} onChange={(e) => setTranslate(e.target.checked)} />
           <span>{t('programmeTranslate')}<span className="block text-xs text-slate-500">{t('programmeTranslateHelp')}</span></span>
         </label>
+        {shared && (
+          <div ref={(el) => el?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })} className="space-y-2 rounded-lg border border-brand-200 bg-brand-50/50 p-3">
+            <p className="text-sm text-slate-700">{t('shareLinkHelp')}</p>
+            <div className="flex gap-2">
+              <Input readOnly value={shared} onFocus={(e) => e.target.select()} className="font-mono text-xs" aria-label={t('shareLink')} />
+              <Button type="button" variant="secondary" onClick={() => void navigator.clipboard?.writeText(shared).then(() => toast('copied'))}><Copy size={15} />{t('copy')}</Button>
+            </div>
+            <div className="flex flex-wrap gap-2 text-sm">
+              <a href={`https://wa.me/?text=${encodeURIComponent(`${title}: ${shared}`)}`} target="_blank" rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 font-medium text-white hover:bg-emerald-700"><MessageCircle size={15} />WhatsApp</a>
+              <a href={shared} target="_blank" rel="noopener noreferrer" className="inline-flex items-center px-2 py-2 font-medium text-brand-700 hover:underline">{t('phoneLinkPreview')}</a>
+            </div>
+          </div>
+        )}
         <ErrorText error={error} />
       </div>
     </Dialog>

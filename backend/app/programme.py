@@ -8,12 +8,15 @@ kept (TextTranslation), so a text is paid for once.
 """
 import hashlib
 import json
+import math
 import re
+import uuid
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 Day = date      # the type, for a field that is itself called "date"
 from decimal import Decimal
+from urllib.parse import quote
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -22,7 +25,7 @@ from sqlalchemy.orm import Session
 from . import dishes as dish_util, geo
 from .config import settings
 from .models import Service, TextTranslation, Vendor, Workspace
-from .schemas import DayFields
+from .schemas import DayFields, ScheduleItem
 
 LANGS = ("en", "ka", "zh")
 LANG_NAME = {"en": "English", "ka": "Georgian", "zh": "Simplified Chinese"}
@@ -97,6 +100,8 @@ class PStep(BaseModel):
     drive: "PLeg | None" = None      # the drive that leads to this step (km, time), shown just before it
     note: str = ""                   # under it: a meal's menu ("Khinkali, Mtsvadi, Salad")
     kind: str = ""                   # breakfast, meal, visit, checkin, flight, free, arrive (the day's town)…
+    meal: str = ""                   # breakfast / lunch / dinner: the meal this step is (its order, on the guide's page)
+    map: str = ""                    # the place on Google Maps
 
 
 class PLeg(BaseModel):
@@ -106,6 +111,7 @@ class PLeg(BaseModel):
     km: int | None = None
     drive: str = ""
     minutes: int = 0                 # coach minutes (rounded to 5)
+    map: str = ""                    # the road on Google Maps (from → to)
     depart: str = ""                 # when the drive starts and ends: "08:30" → "10:00"
     arrive: str = ""
 
@@ -326,6 +332,125 @@ def _drive(minutes: int, factor: Decimal, L: dict[str, str]) -> str:
     return " ".join(x for x in (f"{h} {L['h']}" if h else "", f"{r} {L['min']}" if r else "") if x)
 
 
+def _place_of(x, d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], services: dict[str, Service]) -> str:
+    """What the map should look for at a step that is a hotel, restaurant or activity place: its name and
+    address ("Imereti Family Kitchen, Kutaisi") - more precise than the town. Breakfast at the hotel is
+    where the group slept."""
+    r = x.ref or ""
+    vid = None
+    if r == "breakfast":
+        vid = (prev.hotel_id if prev else None) if d.breakfast_mode == "hotel" else d.breakfast_id if d.breakfast_mode != "own" else None
+    elif r == "hotel":
+        vid = d.hotel_id
+    elif r in ("lunch", "dinner"):
+        vid = None if (d.lunch_mode if r == "lunch" else d.dinner_mode) == "own" else d.lunch_id if r == "lunch" else d.dinner_id
+    elif r.startswith("extra:"):
+        slot = next((e for e in d.extras if e.id == r[6:]), None)
+        s = services.get(slot.service_id) if slot else None
+        vid = s.vendor_id if s else None
+    v = vendors.get(vid or "")
+    return ", ".join(p for p in (v.name, v.address or v.city) if p) if v else ""
+
+
+def map_search(where: str) -> str:
+    return f"https://www.google.com/maps/search/?api=1&query={quote(where)}" if where else ""
+
+
+def map_route(a: str, b: str) -> str:
+    return f"https://www.google.com/maps/dir/?api=1&origin={quote(a)}&destination={quote(b)}&travelmode=driving" if a and b else ""
+
+
+# --- the suggested programme (the day plan's `suggest` and `withEnds`, DayProgramme.tsx) ----------------------
+
+USUAL_LEN = {"breakfast": 30, "meal": 45, "visit": 60, "transfer": 30, "free": 60, "checkin": 30, "checkout": 15, "flight": 0, "other": 30}
+
+
+def _item(**kw) -> ScheduleItem:
+    return ScheduleItem(id=uuid.uuid4().hex[:12], **kw)
+
+
+def suggest(d: DayFields, index: int, last: bool, services: dict[str, Service], factor: float = 1.25) -> list[ScheduleItem]:
+    """A day without its own programme gets what the day plan suggests: breakfast at 08:00, leave at 09:00
+    and drive to each stop (an hour there), lunch after 12:30, the hotel on arrival, dinner at 19:30."""
+    out: list[ScheduleItem] = []
+    hm = lambda t: f"{min(t, 23 * 60 + 45) // 60:02d}:{min(t, 23 * 60 + 45) % 60:02d}"
+    for k, f in enumerate(d.flights):
+        if f.direction == "arrival":
+            out.append(_item(kind="flight", time=f.time, ref=f"flight:{k}", place=f.airport))
+    bmode = d.breakfast_mode or "hotel"
+    if bmode != "own" and (index > 0 or (bmode != "hotel" and d.breakfast_id)):
+        out.append(_item(kind="breakfast", time="08:00", ref="breakfast"))
+    places = [*d.stops, d.city]
+    legs = list(d.drive_minutes)
+    timed = 0 < len(legs) <= len(places)
+
+    def drive_to(p: int) -> int:
+        k = p - (len(places) - len(legs))
+        return int(round(legs[k] * factor / 15) * 15) if timed and k >= 0 else 0
+
+    at = 9 * 60 if timed else 9 * 60 + 30
+    lunched = False
+
+    def lunch() -> None:
+        nonlocal at, lunched
+        if lunched:
+            return
+        lunched = True
+        time = hm(max(13 * 60, at))
+        if d.lunch_mode == "own":
+            out.append(_item(kind="free", time=time, ref="lunch"))
+        elif d.lunch_id:
+            out.append(_item(kind="meal", time=time, ref="lunch"))
+        else:
+            return
+        at = max(13 * 60, at) + 90
+
+    for i, stop in enumerate(d.stops):
+        at += drive_to(i)
+        if at >= (12 * 60 + 30 if timed else 13 * 60):
+            lunch()
+        out.append(_item(kind="visit", time=hm(at), title=stop, place=stop))
+        at += 60
+    seen: set[str] = set()
+    for e in d.extras:
+        s = services.get(e.service_id)
+        if s and s.category not in ("transport", "guide", "meal") and s.vendor_id not in seen:
+            seen.add(s.vendor_id)                 # one visit per place
+            out.append(_item(kind="visit", ref=f"extra:{e.id}"))
+    if timed:
+        if at >= 12 * 60:
+            lunch()
+        at += drive_to(len(places) - 1)
+    lunch()
+    checkin = max(14 * 60, math.ceil(at / 15) * 15) if timed else max(18 * 60, at)
+    if d.hotel_id and not last:
+        out.append(_item(kind="checkin", time=hm(checkin), ref="hotel"))
+    dinner = hm(max(19 * 60 + 30, checkin + 90))
+    if d.dinner_mode == "own":
+        out.append(_item(kind="free", time=dinner, ref="dinner"))
+    elif d.dinner_id:
+        out.append(_item(kind="meal", time=dinner, ref="dinner"))
+    for k, f in enumerate(d.flights):
+        if f.direction == "departure":
+            out.append(_item(kind="flight", time=f.time, ref=f"flight:{k}", place=f.airport))
+    return out
+
+
+def with_ends(d: DayFields, items: list[ScheduleItem], vendors: dict[str, Vendor], services: dict[str, Service]) -> list[ScheduleItem]:
+    """Each timed step with its end: its activity's length, its place's usual visit, else the kind's."""
+    def usual(x: ScheduleItem) -> int:
+        if (x.ref or "").startswith("extra:"):
+            slot = next((e for e in d.extras if e.id == x.ref[6:]), None)
+            s = services.get(slot.service_id) if slot else None
+            if s:
+                v = vendors.get(s.vendor_id)
+                return s.minutes or (v.visit_minutes if v else None) or USUAL_LEN[x.kind]
+        sight = _sight(x.title, vendors) if x.kind == "visit" and not x.ref else None
+        return (sight.visit_minutes if sight else None) or USUAL_LEN[x.kind]
+    return [x.model_copy(update={"end": _clock(_hm(x.time) + usual(x))})
+            if x.time and not x.end and x.kind in ("breakfast", "meal", "visit", "free", "other") else x for x in items]
+
+
 @dataclass
 class _Ctx:
     vendors: dict[str, Vendor]
@@ -337,13 +462,20 @@ class _Ctx:
         return v.name if v else ""
 
 
-def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
+def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) -> ProgrammeOut:
+    """`fill`: a day without its own programme gets the suggested one (the guide's page; the office's
+    dialog sends it filled already)."""
     lang = body.lang if body.lang in LANGS else "en"
     L = LABELS[lang]
     inc = body.include
     vendors = {v.id: v for v in db.scalars(select(Vendor).where(Vendor.workspace_id == ws.id))}
     sids = {e.service_id for d in body.days for e in d.extras}
     services = {s.id: s for s in db.scalars(select(Service).join(Vendor).where(Vendor.workspace_id == ws.id, Service.id.in_(sids)))} if sids else {}
+    if fill:
+        f = float(ws.drive_factor or Decimal("1.25"))
+        body = body.model_copy(update={"days": [
+            d if d.schedule else d.model_copy(update={"schedule": with_ends(d, suggest(d, i, i == len(body.days) - 1, services, f), vendors, services)})
+            for i, d in enumerate(body.days)]})
     # The menus of the day's meal places: the chosen set menu, else the place's usual one (its lunch /
     # dinner / breakfast price) - its dishes go under the restaurant.
     meal_places = {x for d in body.days for x in (d.breakfast_id, d.lunch_id, d.dinner_id) if x}
@@ -373,12 +505,15 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
         stops, leg_km, leg_min = route, list(d.drive_km), list(d.drive_minutes)
         # With a day programme: destination to destination in its order (last night's town, each sight,
         # restaurant and the hotel) - the drives the day plan shows.
-        path = _day_path(d, prev, vendors, i == len(body.days) - 1, lang) if inc.distance and d.schedule else []
+        path = _day_path(d, prev, vendors, i == len(body.days) - 1, lang) if d.schedule else []
+        where_of = {step: q for q, _, step in path if step}       # each step's place, for its map button
+        wheres = list(stops)                 # where the map looks for each place of `stops`
         ends: list[str | None] = []          # the step each drive leads to (None: the day's town)
-        if len(path) >= 2:
+        if inc.distance and len(path) >= 2:
             got = _map_legs(db, ws, [q for q, _, _ in path])
             if got:
                 stops, (leg_km, leg_min) = [T(label) for _, label, _ in path], got
+                wheres = [q for q, _, _ in path]
                 ends = [step for _, _, step in path][1:]
         # Not saved on the day: the map's answer for the same road - what the day plan shows.
         if inc.distance and len(stops) >= 2 and len(leg_km) != len(stops) - 1:
@@ -395,7 +530,8 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
             for j, (a, b) in enumerate(zip(stops, stops[1:])):
                 mins = leg_min[j] if j < len(leg_min) else 0
                 coach = int(round(mins * float(factor) / 5) * 5) if mins else 0
-                p.legs.append(PLeg(start=a, end=b, km=leg_km[j] or None, drive=_drive(mins, factor, L) if mins else "", minutes=coach))
+                p.legs.append(PLeg(start=a, end=b, km=leg_km[j] or None, drive=_drive(mins, factor, L) if mins else "", minutes=coach,
+                                   map=map_route(wheres[j], wheres[j + 1]) if j + 1 < len(wheres) else ""))
         last = i == len(body.days) - 1
         if inc.hotels:
             p.hotel = T(c.name(d.hotel_id)) or ("" if not last else "")
@@ -434,9 +570,12 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
                 if text:
                     meal = x.ref if x.ref in ("lunch", "dinner") else "breakfast" if x.ref == "breakfast" and d.breakfast_mode in ("included", "tourists") else ""
                     p.steps.append(PStep(time=x.time, end=x.end, text=text, drive=to_step.get(x.id), kind=x.kind,
+                                         meal=x.ref if x.ref in ("breakfast", "lunch", "dinner") and x.kind != "free" else "",
+                                         map=map_search(_place_of(x, d, prev, vendors, services) or where_of.get(x.id, "")),
                                          note=dishes(d, meal) if meal and inc.meals else ""))
             if to_step:
-                p.steps += [PStep(text=g.end, drive=g, kind="arrive") for e, g in zip(ends, p.legs) if e is None]
+                p.steps += [PStep(text=g.end, drive=g, kind="arrive", map=map_search(wheres[j + 1]))
+                            for j, (e, g) in enumerate(zip(ends, p.legs)) if e is None]
                 p.legs = []
                 _time_the_drives(p.steps)
         in_timeline = {x.ref for x in d.schedule} if inc.schedule else set()
@@ -460,7 +599,7 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
     t = lambda s: tr.get(s, s)
     for p in days:
         p.route = [t(x) for x in p.route]
-        p.legs = [PLeg(start=t(g.start), end=t(g.end), km=g.km, drive=g.drive) for g in p.legs]
+        p.legs = [g.model_copy(update={"start": t(g.start), "end": t(g.end)}) for g in p.legs]
         p.hotel = t(p.hotel)
         p.meals = [(a, t(b) if b in tr else _tr_inside(b, tr)) for a, b in p.meals]
         p.activities = [_tr_inside(a, tr) for a in p.activities]

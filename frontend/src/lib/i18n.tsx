@@ -2771,6 +2771,11 @@ const en = {
   durMin: "{n} min",
   durH: "{h} h",
   durHM: "{h} h {m} min",
+  shareLink: "Share link",
+  shareLinkHelp: "Anyone with this link can open the programme on a phone or computer: the same as the file, with times, distances and a map for each place.",
+  shareLinkDead: "This link doesn't work any more. Ask the agency for a new one.",
+  fieldOrdered: "Ordered",
+  fieldPlates: "{n} plates",
 }
 
 type Dict = typeof en
@@ -5538,6 +5543,11 @@ const ka: Dict = {
   durMin: "{n} წთ",
   durH: "{h} სთ",
   durHM: "{h} სთ {m} წთ",
+  shareLink: "ბმულის გაზიარება",
+  shareLinkHelp: "ამ ბმულით ნებისმიერს შეუძლია პროგრამის ნახვა ტელეფონზე ან კომპიუტერზე: იგივე, რაც ფაილში — დრო, მანძილი და რუკა თითოეული ადგილისთვის.",
+  shareLinkDead: "ეს ბმული აღარ მუშაობს. სთხოვეთ სააგენტოს ახალი.",
+  fieldOrdered: "შეკვეთილია",
+  fieldPlates: "{n} თეფში",
 }
 
 export type Lang = 'en' | 'ka'

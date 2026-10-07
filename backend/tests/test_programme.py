@@ -86,7 +86,8 @@ def test_programme_by_day_in_chinese_translated_once(make_client, translator):
     assert p["labels"]["breakfast"] == "早餐" and p["warnings"] == []
     d1, d2, d3 = p["days"]
     assert d1["title"].startswith("第1天") and d1["hotel"] == "ZH:Rooms Hotel" and d1["date"] == "2026-11-01"
-    assert d1["steps"][0] == {"time": "15:00", "end": "17:00", "text": "ZH:Old Tbilisi walk", "drive": None, "note": "", "kind": "visit"}
+    assert {k: d1["steps"][0][k] for k in ("time", "end", "text", "drive", "note", "kind")} == {
+        "time": "15:00", "end": "17:00", "text": "ZH:Old Tbilisi walk", "drive": None, "note": "", "kind": "visit"}
     assert d1["steps"][1]["text"] == "晚餐: ZH:Barbarestan"
     # Day 2: the road through its places, km and the coach time (×1.25: 120 min → 2 h 30 min).
     assert d2["route"] == ["ZH:Tbilisi", "ZH:Mtskheta", "ZH:Ananuri", "ZH:Kazbegi"]
@@ -282,3 +283,15 @@ def test_each_drive_has_its_own_time(make_client, monkeypatch):
     assert (gori["drive"]["depart"], gori["drive"]["arrive"], gori["drive"]["minutes"]) == ("08:30", "11:00", 90)
     assert gori["kind"] == "visit" and arrive["kind"] == "arrive" and arrive["text"] == "Kutaisi"
     assert (arrive["drive"]["depart"], arrive["drive"]["arrive"], arrive["time"]) == ("12:30", "14:00", "14:00")
+
+
+def test_a_link_anyone_can_open(make_client):
+    c, base, _ = agency(make_client)
+    days = [{"city": "Tbilisi", "schedule": [{"id": "a", "kind": "visit", "time": "10:00", "end": "11:00", "title": "Narikala"}]}]
+    x = c.post(f"{base}/programme/share", json={"title": "Georgia", "days": days, "lang": "en", "translate": False}).json()
+    c.cookies.clear()                                       # anyone: no login
+    p = c.get(f"/api/shared/programme/{x['token']}").json()
+    assert p["title"] == "Georgia" and p["days"][0]["steps"][0]["text"] == "Narikala"
+    assert "Narikala" in p["days"][0]["steps"][0]["map"]
+    assert c.get("/api/shared/programme/made-up").status_code == 404
+

@@ -79,6 +79,7 @@ app.include_router(assistant.router)
 app.include_router(hotel_change.router)
 app.include_router(staff_change.router)
 app.include_router(programme.router)
+app.include_router(programme.public)
 
 
 @app.get("/health")

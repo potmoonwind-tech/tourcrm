@@ -7,6 +7,7 @@ import { applyTheme, applyView } from './lib/theme'
 import { LoginPage, SignupPage } from './pages/Auth'
 import { ClientsPage, VendorsPage } from './pages/Catalog'
 import { FieldPage } from './pages/Field'
+import { ProgrammeSharedPage } from './pages/ProgrammeShared'
 import { SeriesPage } from './pages/SeriesPage'
 import { DashboardPage } from './pages/Home'
 import { DayViewPage } from './pages/DayView'
@@ -102,6 +103,7 @@ export default function App() {
       <Route path="/invite/:token" element={<InviteRoute />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/f/:token" element={<FieldPage />} />
+      <Route path="/p/:token" element={<ProgrammeSharedPage />} />
       <Route element={<RequireAuth />}>
         <Route path="/" element={<Home />} />
         <Route path="/new-workspace" element={<NewWorkspacePage />} />

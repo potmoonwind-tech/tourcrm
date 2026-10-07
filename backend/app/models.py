@@ -995,6 +995,23 @@ class FieldLink(Base):
     acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class ProgrammeShare(Base):
+    """A programme shared by link (/p/<token>): anyone with it sees the programme as it was made - the
+    request is kept and built again on each visit (no prices or team details are in a programme)."""
+    __tablename__ = "programme_shares"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    token: Mapped[str] = mapped_column(String(64), unique=True)
+    title: Mapped[str] = mapped_column(String(200), default="")
+    body: Mapped[dict] = mapped_column(JSON)
+    created_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    views: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
 class FieldExpense(Base):
     """Money a guide reports from the phone page (app/routers/field.py): something they paid
     ("expense", with a receipt photo) or extra pay for extra work ("extra"). The office approves:

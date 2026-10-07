@@ -19,12 +19,13 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .. import finance, ratelimit, storage
+from .. import finance, programme, ratelimit, storage
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_jobs, require_role
 from ..models import (COST_CATEGORIES, FieldExpense, FieldLink, Service, StaffAssignment, Tour, TourChange, TourCost, TourDay,
                       Vendor, VendorPayment, Workspace, utcnow)
-from ..schemas import _currency
+from ..schemas import DayFields, _currency
+from .meals import MealRow, meals_of
 from ..scoping import get_owned
 
 router = APIRouter(tags=["field"])
@@ -150,6 +151,10 @@ class FieldView(BaseModel):
     pax: int | None = None              # guides only
     group: list[GroupMember] | None = None
     changes: list[dict] = []            # since their last "Got it"
+    # The day by day timeline, as the programme file has it: times, each drive with its time and km,
+    # a map for each place. And what was ordered at each meal (dishes, plates, price) - guides only.
+    timeline: list[programme.PDay] = []
+    meals: list[MealRow] = []
 
 
 def _place(v: Vendor | None, menu: Service | None = None) -> Place | None:
@@ -194,8 +199,19 @@ def _open(db: Session, token: str, request: Request, writes: bool = False) -> tu
     return x, s
 
 
+def _timeline(db: Session, ws: Workspace, t: Tour, mine: set[int], lang: str) -> list[programme.PDay]:
+    days = sorted(t.days, key=lambda d: d.day_number)
+    body = programme.ProgrammeIn(title=t.code, start_date=t.start_date, lang=lang if lang in ("en", "ka") else "en", translate=False,
+                                 days=[DayFields.model_validate(d, from_attributes=True) for d in days],
+                                 only_days=[i + 1 for i, d in enumerate(days) if d.day_number in mine])
+    try:
+        return programme.build(db, ws, body, fill=True).days
+    except Exception:          # noqa: BLE001 - the page still shows the places without the timeline
+        return []
+
+
 @router.get("/api/field/{token}", response_model=FieldView)
-def field_page(token: str, request: Request, db: Session = Depends(get_db)):
+def field_page(token: str, request: Request, lang: str = "en", db: Session = Depends(get_db)):
     x, s = _open(db, token, request)
     t = db.scalar(select(Tour).where(Tour.id == x.tour_id).options(
         selectinload(Tour.days).options(selectinload(TourDay.hotel), selectinload(TourDay.lunch), selectinload(TourDay.dinner)),
@@ -233,10 +249,12 @@ def field_page(token: str, request: Request, db: Session = Depends(get_db)):
     group = [GroupMember(name=p.full_name, room=" ".join(x for x in (p.room_type, p.room_group) if x), phone=p.phone, notes=p.notes)
              for p in sorted(t.participants, key=lambda p: (p.position, p.full_name))] if guide else None
     ws = db.get(Workspace, t.workspace_id)
+    meals = [m for m in meals_of(t, ws.plate_share or 1, money=True).rows if m.day in mine] if guide else []
     return FieldView(agency=ws.name, office_phone=ws.phone, team=team, tour_code=t.code, start_date=t.start_date, end_date=t.end_date,
                      role=s.role, person=s.vendor.name, days=out_days,
                      pax=(len(t.participants) or t.pax) if guide else None, group=group,
-                     changes=[c.model_dump(mode="json") for c in _unseen(db, x, s)])
+                     changes=[c.model_dump(mode="json") for c in _unseen(db, x, s)],
+                     timeline=_timeline(db, ws, t, mine, lang), meals=meals)
 
 
 # --- guide money: cash advance, expenses with receipts, extra pay -----------------------------------

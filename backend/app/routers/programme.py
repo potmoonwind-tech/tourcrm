@@ -1,13 +1,56 @@
 """Download a tour's or route's programme - from what is on screen, saved or not."""
-from fastapi import APIRouter, Depends, Response
+import secrets
+from datetime import datetime
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from pydantic import BaseModel
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from .. import programme, programme_files
+from .. import programme, programme_files, ratelimit
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
+from ..models import ProgrammeShare, Workspace, utcnow
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["programme"])
+public = APIRouter(tags=["programme"])
 office = require_role("staff")
+
+
+class ShareOut(BaseModel):
+    id: str
+    token: str
+    created_at: datetime
+
+
+@router.post("/programme/share", response_model=ShareOut)
+def share(body: programme.ProgrammeIn, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
+    """A link anyone can open (/p/<token>): the programme as made here, on any phone or computer."""
+    x = ProgrammeShare(workspace_id=ctx.workspace.id, token=secrets.token_urlsafe(18), title=body.title[:200],
+                       body=body.model_dump(mode="json"), created_by_id=ctx.user.id)
+    db.add(x)
+    db.commit()
+    return ShareOut(id=x.id, token=x.token, created_at=x.created_at)
+
+
+@router.delete("/programme/share/{share_id}", status_code=204)
+def unshare(share_id: str, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
+    x = db.scalar(select(ProgrammeShare).where(ProgrammeShare.id == share_id, ProgrammeShare.workspace_id == ctx.workspace.id))
+    if not x:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Not found")
+    x.revoked_at = utcnow()
+    db.commit()
+
+
+@public.get("/api/shared/programme/{token}", response_model=programme.ProgrammeOut)
+def shared(token: str, request: Request, db: Session = Depends(get_db)):
+    ratelimit.hit("programme-share", ratelimit.client_ip(request), limit=120, per_seconds=600)
+    x = db.scalar(select(ProgrammeShare).where(ProgrammeShare.token == token[:64]))
+    if not x or x.revoked_at:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "This link doesn't work any more")
+    x.views, x.last_seen_at = (x.views or 0) + 1, utcnow()
+    db.commit()
+    return programme.build(db, db.get(Workspace, x.workspace_id), programme.ProgrammeIn.model_validate(x.body))
 
 
 @router.post("/programme", response_model=programme.ProgrammeOut)
