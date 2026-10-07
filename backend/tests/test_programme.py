@@ -345,12 +345,13 @@ def test_plates_for_the_group_table_and_the_staff_table(make_client):
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
     step = p["days"][0]["steps"][0]
     # 19 with 1 tour leader: the group table 18, the staff table leader + guide + driver = 3.
-    assert step["tables"] == [{"who": "group", "people": 18}, {"who": "staff", "people": 3}]
+    assert step["tables"] == [{"who": "group", "people": 18, "roles": []},
+                              {"who": "staff", "people": 3, "roles": ["tour leader", "guide", "driver"]}]
     khinkali, soup = step["dishes"]
     assert (khinkali["plates_at"], khinkali["plates"]) == ([4, 1], 5)        # 18 at 1 per 5 -> 4; 3 -> 1
     assert (soup["plates_at"], soup["plates"]) == ([18, 3], 21)
     # Without the staff table: everyone at one table, 19 + guide + driver.
     c.patch(url, json={"staff_table": False})
     q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
-    assert q["days"][0]["steps"][0]["tables"] == [{"who": "all", "people": 21}]
+    assert q["days"][0]["steps"][0]["tables"] == [{"who": "all", "people": 21, "roles": ["guide", "driver"]}]
     assert q["days"][0]["steps"][0]["dishes"][0]["plates_at"] == [5]

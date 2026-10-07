@@ -180,7 +180,7 @@ function MenuDay({ day, labels: L, date, isToday }: { day: PDay; labels: Record<
                       <tr className="text-xs text-slate-500">
                         <th className="px-4 py-1.5 text-left font-normal" />
                         {tables.map((x) => (
-                          <th key={x.who} className="w-20 px-2 py-1.5 text-right font-semibold" title={x.who === 'staff' ? L.table_staff_who : undefined}>
+                          <th key={x.who} className="w-20 px-2 py-1.5 text-right font-semibold" title={x.roles?.join(', ') || undefined}>
                             {x.who === 'staff' ? L.table_staff : L.table_group}<span className="block font-normal">{L.people.replace('{n}', String(x.people))}</span>
                           </th>
                         ))}
@@ -206,7 +206,8 @@ function MenuDay({ day, labels: L, date, isToday }: { day: PDay; labels: Record<
                   </tbody>
                 </table>
               ) : <p className="px-4 pb-3 pt-1 text-sm italic text-slate-400">{L.no_menu}</p>}
-              {split && s.dishes?.length ? <p className="border-t border-slate-100 px-4 py-1.5 text-xs text-slate-500">{L.table_staff}: {L.table_staff_who}</p> : null}
+              {split && s.dishes?.length && tables[1].roles?.length
+                ? <p className="border-t border-slate-100 px-4 py-1.5 text-xs text-slate-500">{L.table_staff}: {tables[1].roles.join(', ')}</p> : null}
               {s.dishes?.length && !split ? <div className="h-1" /> : null}
             </article>
           )
