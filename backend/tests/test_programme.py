@@ -28,6 +28,21 @@ class FakeTranslator:
         return SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps([f"{lang}:{x}" for x in items], ensure_ascii=False))])
 
 
+def docx_text(content: bytes) -> str:
+    """The Word file as text, in reading order: paragraphs, and a timeline table row as "time  what"."""
+    def text(el):
+        return "".join(t.text or "" for t in el.iter() if t.tag.endswith("}t"))
+    out = []
+    for block in Document(io.BytesIO(content)).element.body.iterchildren():
+        if block.tag.endswith("}p"):
+            out.append(text(block))
+        elif block.tag.endswith("}tbl"):
+            for tr in (x for x in block.iter() if x.tag.endswith("}tr")):
+                cells = [c for c in tr if c.tag.endswith("}tc")]
+                out.append("  ".join("\n".join(text(p) for p in c if p.tag.endswith("}p")) for c in cells).strip())
+    return "\n".join(out)
+
+
 @pytest.fixture(autouse=True)
 def no_map(monkeypatch):
     """No real map in tests: a day without saved km stays without (one test gives its own map)."""
@@ -71,7 +86,7 @@ def test_programme_by_day_in_chinese_translated_once(make_client, translator):
     assert p["labels"]["breakfast"] == "早餐" and p["warnings"] == []
     d1, d2, d3 = p["days"]
     assert d1["title"].startswith("第1天") and d1["hotel"] == "ZH:Rooms Hotel" and d1["date"] == "2026-11-01"
-    assert d1["steps"][0] == {"time": "15:00", "end": "17:00", "text": "ZH:Old Tbilisi walk", "drive": None, "note": ""}
+    assert d1["steps"][0] == {"time": "15:00", "end": "17:00", "text": "ZH:Old Tbilisi walk", "drive": None, "note": "", "kind": "visit"}
     assert d1["steps"][1]["text"] == "晚餐: ZH:Barbarestan"
     # Day 2: the road through its places, km and the coach time (×1.25: 120 min → 2 h 30 min).
     assert d2["route"] == ["ZH:Tbilisi", "ZH:Mtskheta", "ZH:Ananuri", "ZH:Kazbegi"]
@@ -95,11 +110,14 @@ def test_georgian_texts_stay_and_files_download(make_client, translator):
     assert p["days"][1]["route"][0] == "თბილისი"
     r = c.post(f"{base}/programme.docx", json={"title": "Test", "days": days, "lang": "en"})
     assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
-    text = "\n".join(x.text for x in Document(io.BytesIO(r.content)).paragraphs)
+    text = docx_text(r.content)
     assert "Day 2" in text and "Overnight: Rooms Hotel" in text and "Distance: 160 km" in text
     x = c.post(f"{base}/programme.xlsx", json={"title": "Test", "days": days, "lang": "en"})
     ws = load_workbook(io.BytesIO(x.content)).active
-    assert ws["A1"].value == "Test" and ws["B7"].value.endswith("Kazbegi")
+    rows = [[c.value for c in r] for r in ws.iter_rows(min_row=6)]
+    assert ws["A1"].value == "Test" and rows[0][0].startswith("Day 1")              # a coloured row for each day
+    assert [None, "15:00–17:00", "Old Tbilisi walk", None] in rows                 # one row per step
+    assert any(r[0] and r[0].startswith("Day 2") and r[3] == "Distance: 160 km · Driving: 2 h 30 min" for r in rows)
 
 
 def test_without_an_ai_key_texts_stay_as_written(make_client, monkeypatch):
@@ -118,7 +136,7 @@ def test_place_to_place_km_and_only_some_days(make_client, translator):
     assert [(g["start"], g["end"], g["km"]) for g in legs] == [("Tbilisi", "Mtskheta", 25), ("Mtskheta", "Ananuri", 45), ("Ananuri", "Kazbegi", 90)]
     assert legs[0]["drive"] == "40 min"          # 30 min by car x 1.25, to 5 minutes
     assert p["days"][0]["meals"][0] == ["Breakfast", "Rooms Hotel"]     # day 1 left out, its hotel still counts
-    text = "\n".join(x.text for x in Document(io.BytesIO(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en"}).content)).paragraphs)
+    text = docx_text(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en"}).content)
     assert "Mtskheta \u2192 Ananuri \u00b7 45 km" in text
 
 
@@ -136,7 +154,7 @@ def test_distance_from_the_map_when_the_day_has_none_saved(make_client, monkeypa
     d2 = p["days"][1]
     assert asked == [["Tbilisi", "Gori", "Kutaisi"]]
     assert d2["km"] == 200 and d2["drive"] == "3 h 20 min" and len(d2["legs"]) == 2 and p["total_km"] == 200
-    assert d2["legs"][0] == {"start": "Tbilisi", "end": "Gori", "km": 100, "drive": "1 h 40 min"}
+    assert {k: d2["legs"][0][k] for k in ("start", "end", "km", "drive")} == {"start": "Tbilisi", "end": "Gori", "km": 100, "drive": "1 h 40 min"}
 
 
 def test_distance_between_the_destinations_of_the_day_programme(make_client, monkeypatch):
@@ -175,12 +193,13 @@ def test_one_timeline_drive_before_each_place(make_client, monkeypatch):
     assert d2["legs"] == []                                   # no separate list: it's in the timeline
     assert [(s["text"], s["drive"] and s["drive"]["km"]) for s in d2["steps"]] == [
         ("Jvari Monastery", 10), ("Ananuri", 20), ("Gudauri", 30)]
-    assert d2["steps"][0]["drive"]["drive"] == "40 min" and d2["steps"][2]["time"] == ""
+    assert d2["steps"][0]["drive"]["drive"] == "40 min" and d2["steps"][2]["time"] == "12:40"     # arrives after the drive
     # Without the timed programme the place-to-place list stays.
     q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "include": {"schedule": False}}).json()
     assert q["days"][1]["steps"] == [] and len(q["days"][1]["legs"]) == 3
-    text = "\n".join(x.text for x in Document(io.BytesIO(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en", "translate": False}).content)).paragraphs)
-    assert "\u2193  10 km \u00b7 40 min\n10:00\u201311:00  Jvari Monastery" in text
+    text = docx_text(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en", "translate": False}).content)
+    assert "09:20\u201310:00  \u2193 10 km \u00b7 40 min\n10:00\u201311:00  Jvari Monastery" in text
+    assert "11:00\u201312:00  \u2193 20 km \u00b7 40 min\n12:00  Ananuri" in text
 
 
 def test_flights_in_the_timeline_with_the_airports_name(make_client, monkeypatch):
@@ -246,5 +265,20 @@ def test_the_menu_under_the_restaurant(make_client):
     assert ["Lunch", "Barbarestan"] in d["meals"]            # the timeline has the menu: not twice
     q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "include": {"schedule": False}}).json()
     assert ["Lunch", "Barbarestan: Lobio, Mchadi"] in q["days"][0]["meals"] and ["Dinner", "Barbarestan: Khinkali, Mtsvadi"] in q["days"][0]["meals"]
-    text = "\n".join(x.text for x in Document(io.BytesIO(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en", "translate": False}).content)).paragraphs)
+    text = docx_text(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en", "translate": False}).content)
     assert "13:00  Lunch: Barbarestan\nLobio, Mchadi" in text
+
+
+def test_each_drive_has_its_own_time(make_client, monkeypatch):
+    monkeypatch.setattr(programme.geo, "legs", lambda db, cities, **kw: [{"from": None, "to": cities[0], "km": 0, "minutes": 0}] + [
+        {"from": a, "to": b, "km": 86, "minutes": 72} for a, b in zip(cities, cities[1:])])
+    c, base, _ = agency(make_client)
+    days = [{"city": "Tbilisi"}, {"city": "Kutaisi", "schedule": [
+        {"id": "b", "kind": "breakfast", "time": "08:00", "end": "08:30", "ref": "breakfast"},
+        {"id": "g", "kind": "visit", "time": "11:00", "end": "12:30", "title": "Gori"}]}, {"city": "Tbilisi"}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    gori, arrive = p["days"][1]["steps"][-2:]
+    # From when breakfast ends to when Gori starts (the drive itself is 72 car minutes x 1.25 = 90).
+    assert (gori["drive"]["depart"], gori["drive"]["arrive"], gori["drive"]["minutes"]) == ("08:30", "11:00", 90)
+    assert gori["kind"] == "visit" and arrive["kind"] == "arrive" and arrive["text"] == "Kutaisi"
+    assert (arrive["drive"]["depart"], arrive["drive"]["arrive"], arrive["time"]) == ("12:30", "14:00", "14:00")

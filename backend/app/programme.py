@@ -96,6 +96,7 @@ class PStep(BaseModel):
     text: str
     drive: "PLeg | None" = None      # the drive that leads to this step (km, time), shown just before it
     note: str = ""                   # under it: a meal's menu ("Khinkali, Mtsvadi, Salad")
+    kind: str = ""                   # breakfast, meal, visit, checkin, flight, free, arrive (the day's town)…
 
 
 class PLeg(BaseModel):
@@ -104,6 +105,9 @@ class PLeg(BaseModel):
     end: str
     km: int | None = None
     drive: str = ""
+    minutes: int = 0                 # coach minutes (rounded to 5)
+    depart: str = ""                 # when the drive starts and ends: "08:30" → "10:00"
+    arrive: str = ""
 
 
 PStep.model_rebuild()
@@ -201,6 +205,33 @@ def translate(db: Session, ws: Workspace, texts: set[str], lang: str, warnings: 
 
 
 # --- building ------------------------------------------------------------------------------------------
+
+def _hm(t: str) -> int:
+    h, m = t.split(":")
+    return int(h) * 60 + int(m)
+
+
+def _clock(n: int) -> str:
+    n = max(0, min(n, 23 * 60 + 55))
+    return f"{n // 60:02d}:{n % 60:02d}"
+
+
+def _time_the_drives(steps: list[PStep]) -> None:
+    """Each drive's own time window: from when the stop before it ends to when the next one starts
+    ("13:45–18:00 ↓ 218 km · 7 h"). Without one of the two ends, the coach time fills it in; the drive
+    to the day's town at the end gives that arrival its time."""
+    prev_end = ""
+    for s in steps:
+        g = s.drive
+        if g:
+            depart = prev_end or (_clock(_hm(s.time) - g.minutes) if s.time and g.minutes else "")
+            arrive = s.time or (_clock(_hm(prev_end) + g.minutes) if prev_end and g.minutes else "")
+            if depart and arrive and _hm(arrive) >= _hm(depart):
+                g.depart, g.arrive = depart, arrive
+            if s.kind == "arrive" and g.arrive:
+                s.time = g.arrive
+        prev_end = s.end or s.time or prev_end
+
 
 def _sight(title: str, vendors: dict[str, Vendor]) -> Vendor | None:
     """The catalogue's sight a visit is called after ("Garni" is "Garni Temple" when it's the only one)."""
@@ -363,7 +394,8 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
         if inc.distance and len(stops) >= 2 and len(leg_km) == len(stops) - 1:
             for j, (a, b) in enumerate(zip(stops, stops[1:])):
                 mins = leg_min[j] if j < len(leg_min) else 0
-                p.legs.append(PLeg(start=a, end=b, km=leg_km[j] or None, drive=_drive(mins, factor, L) if mins else ""))
+                coach = int(round(mins * float(factor) / 5) * 5) if mins else 0
+                p.legs.append(PLeg(start=a, end=b, km=leg_km[j] or None, drive=_drive(mins, factor, L) if mins else "", minutes=coach))
         last = i == len(body.days) - 1
         if inc.hotels:
             p.hotel = T(c.name(d.hotel_id)) or ("" if not last else "")
@@ -401,11 +433,12 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
                 text = _step_text(x, d, prev, c, L, lang)
                 if text:
                     meal = x.ref if x.ref in ("lunch", "dinner") else "breakfast" if x.ref == "breakfast" and d.breakfast_mode in ("included", "tourists") else ""
-                    p.steps.append(PStep(time=x.time, end=x.end, text=text, drive=to_step.get(x.id),
+                    p.steps.append(PStep(time=x.time, end=x.end, text=text, drive=to_step.get(x.id), kind=x.kind,
                                          note=dishes(d, meal) if meal and inc.meals else ""))
             if to_step:
-                p.steps += [PStep(text=g.end, drive=g) for e, g in zip(ends, p.legs) if e is None]
+                p.steps += [PStep(text=g.end, drive=g, kind="arrive") for e, g in zip(ends, p.legs) if e is None]
                 p.legs = []
+                _time_the_drives(p.steps)
         in_timeline = {x.ref for x in d.schedule} if inc.schedule else set()
         for k, f in enumerate(d.flights):
             if f"flight:{k}" not in in_timeline:
@@ -431,8 +464,8 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
         p.hotel = t(p.hotel)
         p.meals = [(a, t(b) if b in tr else _tr_inside(b, tr)) for a, b in p.meals]
         p.activities = [_tr_inside(a, tr) for a in p.activities]
-        p.steps = [PStep(time=s.time, end=s.end, text=_tr_inside(s.text, tr), note=_tr_inside(s.note, tr) if s.note else "",
-                         drive=PLeg(start=t(s.drive.start), end=t(s.drive.end), km=s.drive.km, drive=s.drive.drive) if s.drive else None)
+        p.steps = [s.model_copy(update={"text": _tr_inside(s.text, tr), "note": _tr_inside(s.note, tr) if s.note else "",
+                                        "drive": s.drive.model_copy(update={"start": t(s.drive.start), "end": t(s.drive.end)}) if s.drive else None})
                    for s in p.steps]
         p.border, p.notes = t(p.border), t(p.notes)
         p.title = f"{L['day'].format(n=p.number)} · {' → '.join(p.route)}" if p.route else L["day"].format(n=p.number)

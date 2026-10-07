@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { BedDouble, Car, Plane, Printer, Ticket, Utensils } from 'lucide-react'
+import { BedDouble, Car, Coffee, Flag, MapPin, Plane, Printer, Sun, Ticket, Utensils, type LucideIcon } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router-dom'
 import { PROGRAMME_KEY, type ProgrammeRequest } from '../components/ProgrammeDialog'
@@ -8,8 +8,14 @@ import { api } from '../lib/api'
 import { wsPath } from '../lib/data'
 import { useI18n } from '../lib/i18n'
 
-interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string }
-interface PLeg { start: string; end: string; km: number | null; drive: string }
+interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string; kind?: string }
+interface PLeg { start: string; end: string; km: number | null; drive: string; depart?: string; arrive?: string }
+
+// One small icon per kind of step, so the day reads at a glance.
+const ICON: Record<string, LucideIcon> = {
+  breakfast: Coffee, meal: Utensils, visit: MapPin, checkin: BedDouble, checkout: BedDouble, flight: Plane, free: Sun, arrive: Flag,
+}
+const span = (a?: string, b?: string) => (a && b ? `${a}–${b}` : a ?? '')
 interface PDay {
   number: number; date: string | null; title: string; route: string[]; km: number | null; drive: string; legs: PLeg[]; hotel: string
   meals: [string, string][]; activities: string[]; steps: PStep[]; flights: string[]; border: string; notes: string
@@ -57,59 +63,69 @@ export function ProgrammePrintPage() {
         <p className="text-sm font-semibold uppercase tracking-widest text-slate-400">{d.agency}</p>
         <h1 className="mt-1 text-3xl font-bold text-slate-900">{d.title}</h1>
         <p className="mt-1 text-slate-500">{d.subtitle}</p>
-        <div className="mt-8 space-y-6">
+        <div className="mt-8 space-y-5">
           {d.days.map((day) => (
-            <section key={day.number} className="break-inside-avoid border-l-4 border-sky-500 pl-5">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-4">
-                <h2 className="text-lg font-bold text-slate-900">{day.title}</h2>
-                {day.date && <span className="text-sm text-slate-500">{date(day.date)}</span>}
+            <section key={day.number} className="break-inside-avoid overflow-hidden rounded-lg border border-slate-200 print:rounded-none">
+              {/* The day's heading: which day, the date, and the road in one line. */}
+              <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-0.5 bg-sky-50 px-5 py-2.5">
+                <h2 className="text-base font-bold text-slate-900">{day.title}</h2>
+                <span className="text-sm text-slate-600">{date(day.date)}</span>
+                {(day.km || day.drive) && (
+                  <p className="flex w-full items-center gap-1.5 text-xs text-slate-500">
+                    <Car size={13} aria-hidden />
+                    {[day.km && `${L.distance}: ${day.km} ${L.km}`, day.drive && `${L.driving}: ${day.drive}`].filter(Boolean).join(' · ')}
+                  </p>
+                )}
+              </header>
+              <div className="px-5 py-3">
+                {day.flights.map((f) => <p key={f} className="flex items-center gap-2 py-0.5"><Plane size={14} className="text-slate-500" aria-hidden />{f}</p>)}
+                {/* Without a timed programme: place to place. */}
+                {day.steps.length === 0 && day.legs.length > 1 && (
+                  <ul className="space-y-0.5 text-xs text-slate-500">
+                    {day.legs.map((g, i) => (
+                      <li key={i}>{g.start} → {g.end}{g.km ? ` · ${g.km} ${L.km}` : ''}{g.drive ? ` · ${g.drive}` : ''}</li>
+                    ))}
+                  </ul>
+                )}
+                {day.steps.length > 0 && (
+                  <ol>
+                    {day.steps.map((s, i) => {
+                      const Icon = ICON[s.kind ?? ''] ?? MapPin
+                      const hop = s.drive && [s.drive.km && `${s.drive.km} ${L.km}`, s.drive.drive].filter(Boolean).join(' · ')
+                      return (
+                        <li key={i}>
+                          {/* The drive that leads here, with its own time: the day as one timeline. */}
+                          {hop && (
+                            <div className="my-0.5 flex items-center gap-3 rounded bg-slate-50 py-0.5 text-xs text-slate-500">
+                              <span className="w-24 shrink-0 pl-1 tabular-nums">{span(s.drive!.depart, s.drive!.arrive)}</span>
+                              <Car size={13} className="shrink-0" aria-hidden />
+                              <span>↓ {hop}</span>
+                            </div>
+                          )}
+                          <div className="flex items-start gap-3 py-1">
+                            <span className="w-24 shrink-0 pl-1 font-semibold tabular-nums text-slate-700">{span(s.time, s.end)}</span>
+                            <Icon size={14} className="mt-[3px] shrink-0 text-sky-600" aria-hidden />
+                            <span className="text-slate-900">{s.text}
+                              {s.note && <span className="block text-xs italic text-slate-500">{s.note}</span>}</span>
+                          </div>
+                        </li>
+                      )
+                    })}
+                  </ol>
+                )}
+                {/* What's included, at the end of the day. */}
+                {(day.meals.length > 0 || day.activities.length > 0 || day.border || day.hotel) && (
+                  <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 border-t border-slate-100 pt-2 text-xs">
+                    {day.meals.length > 0 && <><dt className="font-semibold text-slate-500">{L.meals}</dt>
+                      <dd>{day.steps.length ? day.meals.map(([a]) => a).join(', ') : day.meals.map(([a, b]) => `${a} – ${b}`).join('; ')}</dd></>}
+                    {day.activities.length > 0 && <><dt className="font-semibold text-slate-500"><Ticket size={12} className="mr-1 inline" aria-hidden />{L.activities}</dt>
+                      <dd>{day.activities.join(', ')}</dd></>}
+                    {day.border && <><dt className="font-semibold text-slate-500">{L.border}</dt><dd>{day.border}</dd></>}
+                    {day.hotel && <><dt className="font-semibold text-slate-500">{L.overnight}</dt><dd className="font-medium text-slate-800">{day.hotel}</dd></>}
+                  </dl>
+                )}
+                {day.notes && <p className="mt-2 text-xs italic text-slate-600">{day.notes}</p>}
               </div>
-              {(day.km || day.drive) && (
-                <p className="mt-0.5 flex items-center gap-1.5 text-sm text-slate-500">
-                  <Car size={14} aria-hidden />
-                  {[day.km && `${L.distance}: ${day.km} ${L.km}`, day.drive && `${L.driving}: ${day.drive}`].filter(Boolean).join(' · ')}
-                </p>
-              )}
-              {day.legs.length > 1 && (
-                <ul className="mt-1 space-y-0.5 pl-5 text-xs text-slate-500">
-                  {day.legs.map((g, i) => (
-                    <li key={i}>{g.start} → {g.end}{g.km ? ` · ${g.km} ${L.km}` : ''}{g.drive ? ` · ${g.drive}` : ''}</li>
-                  ))}
-                </ul>
-              )}
-              {day.flights.map((f) => <p key={f} className="mt-1 flex items-center gap-1.5 text-sm"><Plane size={14} aria-hidden />{f}</p>)}
-              {day.steps.length > 0 && (
-                <ul className="mt-2 space-y-0.5">
-                  {day.steps.map((s, i) => (
-                    <li key={i}>
-                      {/* The drive that leads here, just before the place: one timeline. */}
-                      {s.drive && (s.drive.km || s.drive.drive) && (
-                        <span className="my-0.5 flex items-center gap-1.5 pl-[6.75rem] text-xs text-slate-500">
-                          <Car size={12} aria-hidden />{[s.drive.km && `${s.drive.km} ${L.km}`, s.drive.drive].filter(Boolean).join(' · ')}
-                        </span>
-                      )}
-                      <span className="flex gap-3">
-                        <span className="w-24 shrink-0 tabular-nums text-slate-500">{s.time}{s.end && `–${s.end}`}</span>
-                        <span>{s.text}{s.note && <span className="block text-xs italic text-slate-500">{s.note}</span>}</span>
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-              {day.activities.length > 0 && (
-                <p className="mt-2 flex gap-1.5"><Ticket size={14} className="mt-1 shrink-0 text-pink-600" aria-hidden />
-                  <span><b>{L.activities}:</b> {day.activities.join(', ')}</span></p>
-              )}
-              {day.meals.length > 0 && (
-                <p className="mt-1 flex gap-1.5"><Utensils size={14} className="mt-1 shrink-0 text-emerald-600" aria-hidden />
-                  <span><b>{L.meals}:</b> {day.meals.map(([a, b]) => `${a} – ${b}`).join('; ')}</span></p>
-              )}
-              {day.border && <p className="mt-1"><b>{L.border}:</b> {day.border}</p>}
-              {day.hotel && (
-                <p className="mt-1 flex gap-1.5"><BedDouble size={14} className="mt-1 shrink-0 text-sky-600" aria-hidden />
-                  <span><b>{L.overnight}:</b> {day.hotel}</span></p>
-              )}
-              {day.notes && <p className="mt-1 italic text-slate-600">{day.notes}</p>}
             </section>
           ))}
         </div>
