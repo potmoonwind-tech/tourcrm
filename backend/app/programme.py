@@ -48,6 +48,29 @@ LABELS: dict[str, dict[str, str]] = {
 }
 
 
+# The region's airports by code, in each language (a code not here stays as typed: "Istanbul", "IST").
+AIRPORTS: dict[str, dict[str, str]] = {
+    "TBS": {"en": "Tbilisi International Airport", "ka": "თბილისის საერთაშორისო აეროპორტი", "zh": "第比利斯国际机场"},
+    "KUT": {"en": "Kutaisi International Airport", "ka": "ქუთაისის საერთაშორისო აეროპორტი", "zh": "库塔伊西国际机场"},
+    "BUS": {"en": "Batumi International Airport", "ka": "ბათუმის საერთაშორისო აეროპორტი", "zh": "巴统国际机场"},
+    "EVN": {"en": "Zvartnots International Airport (Yerevan)", "ka": "ზვართნოცის საერთაშორისო აეროპორტი (ერევანი)", "zh": "兹瓦尔特诺茨国际机场（埃里温）"},
+    "GYD": {"en": "Heydar Aliyev International Airport (Baku)", "ka": "ჰეიდარ ალიევის საერთაშორისო აეროპორტი (ბაქო)", "zh": "盖达尔·阿利耶夫国际机场（巴库）"},
+}
+
+
+def airport(code: str, lang: str = "en") -> str:
+    names = AIRPORTS.get((code or "").strip().upper())
+    return names.get(lang, names["en"]) if names else (code or "").strip()
+
+
+def _flight_line(f, lang: str, L: dict[str, str]) -> str:
+    """ "Arrival TK 384 (Istanbul) · Tbilisi International Airport" - the time is the step's own."""
+    word = L["arrival"] if f.direction == "arrival" else L["departure"]
+    head = " ".join(x for x in (word, f.number, f"({f.other})" if f.other else "") if x)
+    where = airport(f.airport, lang)
+    return f"{head} \u00b7 {where}" if where else head
+
+
 class Include(BaseModel):
     distance: bool = True
     hotels: bool = True
@@ -191,7 +214,7 @@ def _sight(title: str, vendors: dict[str, Vendor]) -> Vendor | None:
     return starts[0] if len(starts) == 1 else None
 
 
-def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], last: bool) -> list[tuple[str, str, str | None]]:
+def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], last: bool, lang: str = "en") -> list[tuple[str, str, str | None]]:
     """The day's destinations in its programme's order, as (where the map should look, name to show, the
     step it is - None for last night's town and the day's town at the end):
     last night's town, each visit, restaurant and the hotel, then the day's town when there's no
@@ -208,7 +231,11 @@ def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], 
         push((slept.address if slept else "") or prev.city, prev.city or (slept.name if slept else ""))
     for x in d.schedule:
         r = x.ref or ""
-        if r == "hotel":
+        if r.startswith("flight:"):
+            f = d.flights[int(r[7:])] if r[7:].isdigit() and int(r[7:]) < len(d.flights) else None
+            if f and f.airport:
+                push(airport(f.airport), airport(f.airport, lang), x.id)
+        elif r == "hotel":
             h = vendors.get(d.hotel_id or "")
             push((h.address if h else "") or d.city, h.name if h else d.city, x.id)
         elif r == "breakfast":
@@ -229,8 +256,9 @@ def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], 
             else:
                 sight = _sight(x.title, vendors)
                 push((sight.address if sight else "") or x.place or x.title, x.title or x.place, x.id)
-    if last or not any(x.ref == "hotel" for x in d.schedule):
-        push(d.city, d.city)
+    leaving = any((x.ref or "").startswith("flight:") and pts and pts[-1][2] == x.id for x in d.schedule)
+    if not leaving and (last or not any(x.ref == "hotel" for x in d.schedule)):
+        push(d.city, d.city)        # where the day ends, unless it ends at the airport
     return pts
 
 
@@ -283,7 +311,7 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
         stops, leg_km, leg_min = route, list(d.drive_km), list(d.drive_minutes)
         # With a day programme: destination to destination in its order (last night's town, each sight,
         # restaurant and the hotel) - the drives the day plan shows.
-        path = _day_path(d, prev, vendors, i == len(body.days) - 1) if inc.distance and d.schedule else []
+        path = _day_path(d, prev, vendors, i == len(body.days) - 1, lang) if inc.distance and d.schedule else []
         ends: list[str | None] = []          # the step each drive leads to (None: the day's town)
         if len(path) >= 2:
             got = _map_legs(db, ws, [q for q, _, _ in path])
@@ -336,15 +364,18 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
             # the end. The separate place-to-place list is then not needed.
             to_step = {e: g for e, g in zip(ends, p.legs) if e} if ends and len(ends) == len(p.legs) else {}
             for x in d.schedule:
-                text = _step_text(x, d, prev, c, L)
+                text = _step_text(x, d, prev, c, L, lang)
                 if text:
                     p.steps.append(PStep(time=x.time, end=x.end, text=text, drive=to_step.get(x.id)))
             if to_step:
                 p.steps += [PStep(text=g.end, drive=g) for e, g in zip(ends, p.legs) if e is None]
                 p.legs = []
-        for f in d.flights:
-            word = L["arrival"] if f.direction == "arrival" else L["departure"]
-            p.flights.append(" ".join(x for x in (word, f.number, f.time, f.airport) if x))
+        in_timeline = {x.ref for x in d.schedule} if inc.schedule else set()
+        for k, f in enumerate(d.flights):
+            if f"flight:{k}" not in in_timeline:
+                if f.other:
+                    T(f.other)
+                p.flights.append(" ".join(x for x in (f.time, _flight_line(f, lang, L)) if x))
         if d.border_crossing:
             p.border = T(d.border_crossing)
         if inc.notes and d.notes.strip():
@@ -389,10 +420,16 @@ def _tr_inside(text: str, tr: dict[str, str]) -> str:
     return re.sub("|".join(re.escape(k) for k in keys), lambda m: tr[m.group(0)], text)
 
 
-def _step_text(x, d: DayFields, prev: DayFields | None, c: _Ctx, L: dict[str, str]) -> str:
+def _step_text(x, d: DayFields, prev: DayFields | None, c: _Ctx, L: dict[str, str], lang: str = "en") -> str:
     """One programme line, as the day programme shows it."""
     r = x.ref or ""
     T = lambda s: (c.texts.add(s), s)[1] if s else s
+    if r.startswith("flight:"):
+        k = r[7:]
+        f = d.flights[int(k)] if k.isdigit() and int(k) < len(d.flights) else None
+        if f and f.other:
+            T(f.other)
+        return _flight_line(f, lang, L) if f else ""
     if not r:
         text = x.title or x.place
         return T(text) if text else (L["free"] if x.kind == "free" else "")

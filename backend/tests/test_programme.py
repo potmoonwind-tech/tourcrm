@@ -181,3 +181,29 @@ def test_one_timeline_drive_before_each_place(make_client, monkeypatch):
     assert q["days"][1]["steps"] == [] and len(q["days"][1]["legs"]) == 3
     text = "\n".join(x.text for x in Document(io.BytesIO(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en", "translate": False}).content)).paragraphs)
     assert "\u2193  10 km \u00b7 40 min\n10:00\u201311:00  Jvari Monastery" in text
+
+
+def test_flights_in_the_timeline_with_the_airports_name(make_client, monkeypatch):
+    asked = []
+    def fake_legs(db, cities, **kw):
+        asked.append(list(cities))
+        return [{"from": None, "to": cities[0], "km": 0, "minutes": 0}] + [
+            {"from": a, "to": b, "km": 18, "minutes": 24} for a, b in zip(cities, cities[1:])]
+    monkeypatch.setattr(programme.geo, "legs", fake_legs)
+    c, base, _ = agency(make_client)
+    hotel = mk(c, f"{base}/vendors", {"name": "Rooms Hotel", "type": "hotel", "city": "Tbilisi", "address": "Kostava 14, Tbilisi"})
+    days = [
+        {"city": "Tbilisi", "hotel_id": hotel["id"], "flights": [{"direction": "arrival", "number": "TK 384", "time": "10:30", "airport": "tbs", "other": "Istanbul"}],
+         "schedule": [{"id": "f", "kind": "flight", "time": "10:30", "ref": "flight:0"}, {"id": "h", "kind": "checkin", "time": "14:00", "ref": "hotel"}]},
+        {"city": "Tbilisi", "flights": [{"direction": "departure", "number": "TK 385", "time": "17:00", "airport": "TBS"}],
+         "schedule": [{"id": "g", "kind": "flight", "time": "17:00", "ref": "flight:0"}]},
+    ]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    d1, d2 = p["days"]
+    assert d1["steps"][0]["text"] == "Arrival TK384 (Istanbul) \u00b7 Tbilisi International Airport" and d1["steps"][0]["time"] == "10:30"
+    assert d1["steps"][1]["drive"]["start"] == "Tbilisi International Airport" and d1["steps"][1]["drive"]["km"] == 18
+    assert d1["flights"] == []                                  # in the timeline, not twice
+    assert ["Tbilisi International Airport", "Kostava 14, Tbilisi"] in asked
+    assert d2["steps"][-1]["text"].startswith("Departure TK385") and d2["steps"][-1]["drive"]["end"] == "Tbilisi International Airport"
+    z = c.post(f"{base}/programme", json={"days": days, "lang": "zh", "translate": False, "include": {"schedule": False}}).json()
+    assert z["days"][0]["flights"] == ["10:30 \u62b5\u8fbe TK384 (Istanbul) \u00b7 \u7b2c\u6bd4\u5229\u65af\u56fd\u9645\u673a\u573a"]
