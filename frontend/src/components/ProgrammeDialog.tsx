@@ -6,8 +6,8 @@
 import { Download, FileSpreadsheet, FileText, Printer } from 'lucide-react'
 import { useState } from 'react'
 import type { DayFields } from '../lib/api'
-import { useServiceList, wsPath } from '../lib/data'
-import { suggest } from './DayProgramme'
+import { useServiceList, useVendors, wsPath } from '../lib/data'
+import { stepUsual, suggest, withEnds } from './DayProgramme'
 import { useI18n, type TKey } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
@@ -42,8 +42,13 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
   // meals, the hotel), so the file has the same programme and the drives between its destinations.
   const services = useServiceList()
   const factor = ws.drive_factor ?? 1.25
-  const shown = days.map((d, i) => (d.schedule?.length ? d
-    : { ...d, schedule: suggest(d, i, i === days.length - 1, services.data ?? [], factor) }))
+  const vendors = useVendors()
+  const byId = new Map((vendors.data ?? []).map((v) => [v.id, v]))
+  const shown = days.map((d, i) => {
+    const items = d.schedule?.length ? d.schedule : suggest(d, i, i === days.length - 1, services.data ?? [], factor)
+    // Every step with its end time (its own length, the activity's, or the usual one), like the day plan.
+    return { ...d, schedule: withEnds(items, (x) => stepUsual(x, d, byId, services.data ?? [])) }
+  })
   const body: ProgrammeRequest = {
     title, start_date: startDate ?? null, days: shown, lang, include, translate,
     only_days: skip.size ? days.map((_, i) => i + 1).filter((n) => !skip.has(n)) : null,

@@ -6,6 +6,7 @@ import {
   type Dish, type RateKind, type Service, type ServiceCategory, type ServiceUnit, type Vendor,
 } from '../lib/api'
 import { wsPath } from '../lib/data'
+import { lengthLabel } from '../lib/dates'
 import { nextMenuName } from '../lib/menus'
 import { useI18n } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
@@ -16,10 +17,11 @@ import { Button, ErrorText, Input, Select } from './ui'
 
 // Inputs hold text; the draft converts to numbers on save.
 interface RateDraft { id?: string; valid_from: string; valid_to: string; min_pax: string; max_pax: string; price: string; currency: string; notes: string }
-interface ServiceDraft { id?: string; code: RateKind | ''; name: string; category: ServiceCategory; unit: ServiceUnit; notes: string; dishes: Dish[]; is_active: boolean; rates: RateDraft[] }
+interface ServiceDraft { id?: string; code: RateKind | ''; name: string; category: ServiceCategory; unit: ServiceUnit; notes: string; dishes: Dish[]; is_active: boolean; rates: RateDraft[]; minutes?: number | null }
 
 const toDraft = (s: Service): ServiceDraft => ({
   id: s.id, code: s.code ?? '', name: s.name, category: s.category, unit: s.unit, notes: s.notes, dishes: s.dishes ?? [], is_active: s.is_active,
+  minutes: s.minutes ?? null,
   rates: s.rates.map((r) => ({
     id: r.id, valid_from: r.valid_from ?? '', valid_to: r.valid_to ?? '', min_pax: r.min_pax?.toString() ?? '',
     max_pax: r.max_pax?.toString() ?? '', price: r.price.toFixed(2), currency: r.currency, notes: r.notes,
@@ -174,6 +176,16 @@ export function ServicesEditor({ vendor, standalone, onDirtyChange, autoStart, s
                       ))}
                     </span>
                   )}
+                </label>
+              )}
+              {(s.category === 'activity' || s.category === 'ticket' || vendor.type === 'activity') && s.category !== 'meal' && (
+                // How long it takes: the day programme gives the activity this time (else the place's usual visit).
+                <label className="min-w-28 flex-1 space-y-1">
+                  <span className="block text-xs font-medium text-slate-500">{t('takesTime')}</span>
+                  <Select value={s.minutes ?? ''} onChange={(e) => setSvc(i, { minutes: e.target.value ? Number(e.target.value) : null })}>
+                    <option value="">{t('takesUsual')}</option>
+                    {[15, 30, 45, 60, 90, 120, 150, 180, 240, 300, 360].map((m) => <option key={m} value={m}>{lengthLabel(m, t)}</option>)}
+                  </Select>
                 </label>
               )}
               {!s.code && (

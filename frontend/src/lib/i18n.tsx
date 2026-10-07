@@ -2766,6 +2766,11 @@ const en = {
   programmeDays: "Days in the file",
   programmeDaysHelp: "Tap a day to leave it out (its number and date stay the same on the others).",
   menuNoDishes: "No dishes listed for this menu - add them in the Catalogue to see them here",
+  takesTime: "Takes",
+  takesUsual: "Usual",
+  durMin: "{n} min",
+  durH: "{h} h",
+  durHM: "{h} h {m} min",
 }
 
 type Dict = typeof en
@@ -5528,6 +5533,11 @@ const ka: Dict = {
   programmeDays: "დღეები ფაილში",
   programmeDaysHelp: "დააჭირეთ დღეს, რომ ამოიღოთ (დანარჩენებს ნომერი და თარიღი არ ეცვლებათ).",
   menuNoDishes: "ამ მენიუს კერძები არ აქვს - დაამატეთ კატალოგში, რომ აქ გამოჩნდეს",
+  takesTime: "გრძელდება",
+  takesUsual: "ჩვეული",
+  durMin: "{n} წთ",
+  durH: "{h} სთ",
+  durHM: "{h} სთ {m} წთ",
 }
 
 export type Lang = 'en' | 'ka'

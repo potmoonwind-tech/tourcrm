@@ -106,3 +106,17 @@ def test_route_fill_prices_by_season(make_client):
     assert float(fill(on_date="2026-07-01")["nights"][0]["price_dbl"]) == 95
     assert float(fill(on_date="2026-03-01", pax=35)["nights"][0]["price_dbl"]) == 70
     assert float(fill(on_date="2026-07-01", pax=35)["nights"][0]["price_dbl"]) == 95
+
+
+def test_an_activity_keeps_how_long_it_takes(make_client):
+    c, base, _ = agency(make_client)
+    ktw = mk(c, f"{base}/vendors", {"name": "KTW", "type": "activity"})
+    saved = c.put(f"{base}/vendors/{ktw['id']}/services", json=[
+        {"name": "Wine tasting", "category": "activity", "unit": "person", "minutes": 60, "rates": [{"price": "40", "currency": "GEL"}]},
+        {"name": "Bread baking", "category": "activity", "unit": "person", "minutes": 120, "rates": [{"price": "30", "currency": "GEL"}]},
+        {"name": "Churchkhela", "category": "activity", "unit": "person", "rates": [{"price": "20", "currency": "GEL"}]}]).json()
+    assert {s["name"]: s["minutes"] for s in saved} == {"Wine tasting": 60, "Bread baking": 120, "Churchkhela": None}
+    brief = {s["name"]: s["minutes"] for s in c.get(f"{base}/services").json() if s["vendor"]["id"] == ktw["id"]}
+    assert brief == {"Wine tasting": 60, "Bread baking": 120, "Churchkhela": None}
+    assert c.put(f"{base}/vendors/{ktw['id']}/services", json=[
+        {"name": "x", "category": "activity", "unit": "person", "minutes": 2000, "rates": []}]).status_code == 422

@@ -483,6 +483,8 @@ class Service(Base):
     # A set menu's dishes ("Khinkali", "Mtsvadi"), so the same food isn't served twice in a day.
     dishes: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     is_active: Mapped[bool] = mapped_column(default=True)
+    # How long it takes (a wine tasting 60, bread baking 120): the day programme gives it this time.
+    minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     vendor: Mapped[Vendor] = relationship(back_populates="services")
     rates: Mapped[list["ServiceRate"]] = relationship(

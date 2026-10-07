@@ -675,6 +675,7 @@ export function hours(min: number): string {
  */
 function RecalcTimes({ days, byId, onChange }: { days: DayFields[]; byId: Map<string, Vendor>; onChange: (d: DayFields[]) => void }) {
   const ws = useWorkspace()!
+  const services = useServiceList()
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
   const [release, setRelease] = useState(false)
@@ -687,7 +688,7 @@ function RecalcTimes({ days, byId, onChange }: { days: DayFields[]; byId: Map<st
     const factor = ws.drive_factor ?? 1.25
     const next = await Promise.all(days.map(async (d, i) => {
       const s = await relayDay(ws.id, d, i, i === days.length - 1, byId, i > 0 ? days[i - 1].city : undefined,
-        i > 0 ? days[i - 1].hotel_id : null, factor, release)
+        i > 0 ? days[i - 1].hotel_id : null, factor, release, services.data ?? [])
       return s ? { ...d, schedule: s } : d
     }))
     const changed = next.filter((d, i) => d !== days[i]).length

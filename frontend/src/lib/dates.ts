@@ -51,3 +51,10 @@ export function phase(start: string, end: string, on = today()): Phase {
   if (on > end) return 'finished'
   return 'running'
 }
+
+
+/** 45 → "45 min", 90 → "1 h 30 min", 120 → "2 h" (in the app's words). */
+export function lengthLabel(min: number, t: (k: 'durMin' | 'durH' | 'durHM', v?: Record<string, number>) => string): string {
+  const h = Math.floor(min / 60), m = min % 60
+  return h === 0 ? t('durMin', { n: m }) : m === 0 ? t('durH', { h }) : t('durHM', { h, m })
+}

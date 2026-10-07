@@ -60,6 +60,7 @@ class ServiceIn(BaseModel):
     notes: str = Field(default="", max_length=2000)
     dishes: list[Dish | str] = Field(default_factory=list, max_length=40)   # plain names still accepted
     is_active: bool = True
+    minutes: int | None = Field(default=None, ge=5, le=720)     # how long it takes (activities)
     rates: list[RateIn] = Field(default_factory=list, max_length=100)
 
     @field_validator("dishes")
@@ -89,6 +90,7 @@ class ServiceOut(BaseModel):
     notes: str
     dishes: list[Dish] = []
     is_active: bool
+    minutes: int | None = None
     rates: list[RateOut]
 
 
@@ -102,6 +104,7 @@ class ServiceBrief(BaseModel):
     vendor: VendorRef
     notes: str = ""
     dishes: list[Dish] = []   # a set menu's dishes (prices hidden for staff)
+    minutes: int | None = None   # how long it takes (activities)
 
 
 class CatalogRow(BaseModel):
@@ -114,7 +117,7 @@ class CatalogRow(BaseModel):
 
 def service_out(s: Service) -> ServiceOut:
     return ServiceOut(id=s.id, vendor_id=s.vendor_id, code=s.code, name=s.name, category=s.category, unit=s.unit,
-                      notes=s.notes, dishes=dishes.normalize(s.dishes), is_active=s.is_active,
+                      notes=s.notes, dishes=dishes.normalize(s.dishes), is_active=s.is_active, minutes=s.minutes,
                       rates=[RateOut(id=r.id, valid_from=r.valid_from, valid_to=r.valid_to, min_pax=r.min_pax,
                                      max_pax=r.max_pax, price=r.price, currency=r.currency, notes=r.notes) for r in s.rates])
 
@@ -159,8 +162,8 @@ def save_services(vendor_id: str, body: list[ServiceIn], ctx: WorkspaceCtx = Dep
     for s, svc in zip(body, matched):
         if svc is None:
             svc = Service(vendor_id=v.id)
-        svc.code, svc.name, svc.category, svc.unit, svc.notes, svc.dishes, svc.is_active = (
-            s.code, s.name, s.category, s.unit, s.notes, s.dishes, s.is_active)
+        svc.code, svc.name, svc.category, svc.unit, svc.notes, svc.dishes, svc.is_active, svc.minutes = (
+            s.code, s.name, s.category, s.unit, s.notes, s.dishes, s.is_active, s.minutes)
         old_rates = {r.id: r for r in svc.rates}
         new_rates = []
         for r in s.rates:
@@ -182,7 +185,7 @@ def save_services(vendor_id: str, body: list[ServiceIn], ctx: WorkspaceCtx = Dep
 def list_all_services(ctx: WorkspaceCtx = Depends(require_role("staff")), db: Session = Depends(get_db)):
     stmt = (select(Service).join(Vendor).where(Vendor.workspace_id == ctx.workspace.id, Service.is_active.is_(True))
             .options(selectinload(Service.vendor)).order_by(Vendor.name, Service.category, Service.name))
-    return [ServiceBrief(id=s.id, code=s.code, name=s.name, category=s.category, unit=s.unit, notes=s.notes,
+    return [ServiceBrief(id=s.id, code=s.code, name=s.name, category=s.category, unit=s.unit, notes=s.notes, minutes=s.minutes,
                          dishes=[{**d, "price": None} for d in dishes.normalize(s.dishes)],
                          vendor=VendorRef.model_validate(s.vendor)) for s in db.scalars(stmt)]
 

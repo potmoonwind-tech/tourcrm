@@ -239,6 +239,7 @@ export interface ServiceRate {
 export interface Service {
   id?: string; vendor_id?: string; code: RateKind | null; name: string; category: ServiceCategory; unit: ServiceUnit
   notes: string; dishes?: Dish[]; is_active: boolean; rates: ServiceRate[]
+  minutes?: number | null    // how long it takes (an activity): the day programme gives it this time
 }
 /** A dish on a set menu: the price of one plate (one portion) in the menu's currency (optional), and how many
  * people share one plate (null = the tour's / agency's usual; 1 = everyone their own). */
@@ -247,6 +248,7 @@ export interface Dish { name: string; price: number | null; per_plate?: number |
 export interface ServiceBrief {
   id: string; code: RateKind | null; name: string; category: ServiceCategory; unit: ServiceUnit; vendor: VendorRef
   notes: string; dishes: Dish[]
+  minutes?: number | null    // how long it takes (an activity)
 }
 /** A tour's lunches and dinners, dish by dish (GET /tours/{id}/meals). */
 export interface MealDish { name: string; price: number | null; same_day: boolean; prev_day: boolean; per_plate?: number; plates?: number }

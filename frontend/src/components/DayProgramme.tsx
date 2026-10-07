@@ -238,7 +238,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
   const { before, after } = drivesFrom(path, legs, factor)
   // The times keep themselves right: each step starts when the one before ends, plus the drive. Times
   // typed by hand (pinned) and flights stay; lunch and dinner wait for their usual time.
-  const usual = (x: ScheduleItem) => sightOf(x, byId)?.visit_minutes
+  const usual = (x: ScheduleItem) => stepUsual(x, day, byId, services)
   const laid = (xs: ScheduleItem[]) => flow(xs, 0, before, 'full', xs.find((x) => x.time)?.time, usual)
   const items = laid(raw)
   const sig = (xs: ScheduleItem[]) => xs.map((x) => `${x.time}-${x.end}`).join(',')
@@ -602,8 +602,9 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
 
 interface StepIssue { text: string; fix?: string }   // fix: the start time that solves it
 export type DriveLeg = { from: string; to: string; km: number | null; minutes: number | null; via: string[]; skipped?: MapLeg['skipped'] }
+// The usual lengths: breakfast 30 min, lunch and dinner 45 (each step's own length can be chosen).
 const DEFAULT_LEN: Record<ScheduleKind, number> = {
-  breakfast: 45, meal: 60, visit: 60, transfer: 30, free: 60, checkin: 30, checkout: 15, flight: 0, other: 30,
+  breakfast: 30, meal: 45, visit: 60, transfer: 30, free: 60, checkin: 30, checkout: 15, flight: 0, other: 30,
 }
 const toMin = (s: string) => { const [h, m] = s.split(':').map(Number); return h * 60 + m }
 const hm = (n: number) => {
@@ -616,7 +617,7 @@ const hm = (n: number) => {
  * unless `release`, then they follow the day too (flights always keep theirs). null: nothing to change.
  */
 export async function relayDay(wsId: string, day: DayFields, index: number, last: boolean, byId: Map<string, Vendor>,
-  from: string | undefined, fromHotel: string | null | undefined, factor: number, release: boolean): Promise<ScheduleItem[] | null> {
+  from: string | undefined, fromHotel: string | null | undefined, factor: number, release: boolean, services: ServiceBrief[] = []): Promise<ScheduleItem[] | null> {
   const saved = day.schedule ?? []
   if (!saved.length) return null                     // never arranged: always worked out fresh
   const items = release ? saved.map((x) => (x.kind === 'flight' || !x.fixed ? x : { ...x, fixed: false })) : saved
@@ -630,16 +631,30 @@ export async function relayDay(wsId: string, day: DayFields, index: number, last
   }
   const { legs } = legsFor(path, answer, false)
   const { before } = drivesFrom(path, legs, factor)
-  const out = flow(items, 0, before, 'full', items.find((x) => x.time)?.time, (x) => sightOf(x, byId)?.visit_minutes)
+  const out = flow(items, 0, before, 'full', items.find((x) => x.time)?.time, (x) => stepUsual(x, day, byId, services))
   const sig = (xs: ScheduleItem[]) => xs.map((x) => `${x.time}-${x.end}-${x.fixed ? 1 : 0}`).join(',')
   return sig(out) === sig(saved) ? null : out
 }
 
-/** How long a step takes: its own end, else the usual for its kind (dinner 1 h 30). */
+/** How long a step takes: its own end, else the usual for it (the activity's or place's), else its kind's. */
 export const lengthOf = (x: ScheduleItem, usual?: (x: ScheduleItem) => number | null | undefined) => {
   const own = x.time && x.end ? minutesBetween(x.time, x.end) : 0
-  return own > 0 ? own : usual?.(x) || (x.ref === 'dinner' ? 90 : DEFAULT_LEN[x.kind])
+  return own > 0 ? own : usual?.(x) || DEFAULT_LEN[x.kind]
 }
+/** The usual length of a step: an activity of the day takes what the catalogue says it takes (else its
+ * place's usual visit); a visit to a catalogue sight, that sight's. */
+export const stepUsual = (x: ScheduleItem, day: DayFields, byId: Map<string, Vendor> | undefined, services: ServiceBrief[]) => {
+  if (x.ref?.startsWith('extra:')) {
+    const slot = day.extras.find((e) => e.id === x.ref!.slice(6))
+    const s = services.find((v) => v.id === slot?.service_id)
+    return s?.minutes || (s ? byId?.get(s.vendor.id)?.visit_minutes : undefined) || undefined
+  }
+  return sightOf(x, byId)?.visit_minutes
+}
+/** The day's steps with an end time each (time + its length), for printing: what the day plan shows. */
+export const withEnds = (items: ScheduleItem[], usual: (x: ScheduleItem) => number | null | undefined) =>
+  items.map((x) => (x.time && !x.end && ['breakfast', 'meal', 'visit', 'free', 'other'].includes(x.kind)
+    ? { ...x, end: hm(toMin(x.time) + lengthOf(x, usual)) } : x))
 /** The catalogue's sight (an activity, priced or free like Bodbe) a visit is at, by its name. */
 export const sightOf = (x: ScheduleItem, byId?: Map<string, Vendor>) => {
   if (x.ref || x.kind !== 'visit' || !x.title.trim() || !byId) return undefined
