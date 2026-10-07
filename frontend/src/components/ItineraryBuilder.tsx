@@ -876,13 +876,18 @@ function DistanceBar({ days, disabled, onChange, byId, back = 0 }: {
 }
 
 /** The set menu at a restaurant: its dishes shown under it (served twice today = red). */
+const SYSTEM_PRICES = new Set(['breakfast', 'lunch', 'dinner', 'staff_meal', 'staff_room', 'room_DBL', 'room_TWN', 'room_SGL', 'room_TRP', 'room_QUAD', 'day'])
+
 function MenuPick({ vendorId, value, menus, disabled, twice, onChange, onAddNew }: {
   vendorId: string | null; value: string | null; menus: ServiceBrief[]; disabled?: boolean; twice: Set<string>
   onChange: (id: string | null) => void; onAddNew?: () => void
 }) {
   const { t } = useI18n()
   if (!vendorId) return null
-  const options = menus.filter((m) => m.vendor.id === vendorId && m.category === 'meal' && !m.code)
+  // The place's menus: its set menus and its own priced meals ("per person", "per group", named ones) -
+  // not its system prices (breakfast / lunch / dinner / rooms), which are the "usual menu".
+  const options = menus.filter((m) => m.vendor.id === vendorId && !SYSTEM_PRICES.has(m.code ?? '')
+    && (m.category === 'meal' || (m.category === 'other' && (m.code === 'person' || m.code === 'group' || !m.code))))
   const chosen = options.find((m) => m.id === value)
   if (!options.length && !onAddNew) return null
   return (

@@ -111,10 +111,13 @@ export function ServicesEditor({ vendor, standalone, onDirtyChange, autoStart, s
     return d
   }
   const addService = () => {
-    const code = RATE_KINDS_FOR[vendor.type].find((k) => !used.has(k))
+    // A restaurant's next service, once it has its lunch and dinner prices, is a set menu - not a
+    // "per person" price picked by itself (which no menu list would show).
+    const menuNext = vendor.type === 'restaurant' && used.has('lunch') && used.has('dinner')
+    const code = menuNext ? undefined : RATE_KINDS_FOR[vendor.type].find((k) => !used.has(k))
     setRows([...rows, {
       code: code ?? '', name: code ? t(`rate_${code}`) : '', notes: '', dishes: [], is_active: true, rates: [blankRate()],
-      ...(code ? defaultsFor(code) : { unit: 'person', category: 'other' }),
+      ...(code ? defaultsFor(code) : { unit: 'person', category: menuNext ? 'meal' : 'other' }),
     }])
   }
   // Season / group-size prices are an extra: shown when used, or when asked for.
