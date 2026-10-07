@@ -6,7 +6,8 @@
 import { Download, FileSpreadsheet, FileText, Printer } from 'lucide-react'
 import { useState } from 'react'
 import type { DayFields } from '../lib/api'
-import { wsPath } from '../lib/data'
+import { useServiceList, wsPath } from '../lib/data'
+import { suggest } from './DayProgramme'
 import { useI18n, type TKey } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
@@ -37,8 +38,14 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
   const [skip, setSkip] = useState<Set<number>>(new Set())
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<unknown>(null)
+  // A day without its own programme gets the suggested one - what the day plan shows (times, sights,
+  // meals, the hotel), so the file has the same programme and the drives between its destinations.
+  const services = useServiceList()
+  const factor = ws.drive_factor ?? 1.25
+  const shown = days.map((d, i) => (d.schedule?.length ? d
+    : { ...d, schedule: suggest(d, i, i === days.length - 1, services.data ?? [], factor) }))
   const body: ProgrammeRequest = {
-    title, start_date: startDate ?? null, days, lang, include, translate,
+    title, start_date: startDate ?? null, days: shown, lang, include, translate,
     only_days: skip.size ? days.map((_, i) => i + 1).filter((n) => !skip.has(n)) : null,
   }
 
@@ -83,7 +90,7 @@ export function ProgrammeDialog({ title, startDate, days, onClose }: {
     <Dialog title={t('programmeDownload')} onClose={onClose}
       footer={<div className="flex justify-end gap-2">
         <Button variant="secondary" onClick={onClose}>{t('cancel')}</Button>
-        <Button onClick={download} disabled={busy || !days.length}>
+        <Button onClick={download} disabled={busy || !days.length || services.isLoading}>
           {format === 'pdf' ? <Printer size={16} /> : <Download size={16} />}{busy ? t('programmeMaking') : t('download')}
         </Button>
       </div>}>

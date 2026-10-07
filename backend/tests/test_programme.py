@@ -137,3 +137,26 @@ def test_distance_from_the_map_when_the_day_has_none_saved(make_client, monkeypa
     assert asked == [["Tbilisi", "Gori", "Kutaisi"]]
     assert d2["km"] == 200 and d2["drive"] == "3 h 20 min" and len(d2["legs"]) == 2 and p["total_km"] == 200
     assert d2["legs"][0] == {"start": "Tbilisi", "end": "Gori", "km": 100, "drive": "1 h 40 min"}
+
+
+def test_distance_between_the_destinations_of_the_day_programme(make_client, monkeypatch):
+    """With a timed programme the file shows each drive between its destinations, like the day plan."""
+    asked = []
+    def fake_legs(db, cities, **kw):
+        asked.append(list(cities))
+        return [{"from": None, "to": cities[0], "km": 0, "minutes": 0}] + [
+            {"from": a, "to": b, "km": 10 * (j + 1), "minutes": 12} for j, (a, b) in enumerate(zip(cities, cities[1:]))]
+    monkeypatch.setattr(programme.geo, "legs", fake_legs)
+    c, base, _ = agency(make_client)
+    lodge = mk(c, f"{base}/vendors", {"name": "Gudauri Lodge", "type": "hotel", "city": "Gudauri", "address": "Gudauri ski resort"})
+    jvari = mk(c, f"{base}/vendors", {"name": "Jvari Monastery", "type": "activity", "city": "Mtskheta", "address": "Jvari, Mtskheta"})
+    days = [{"city": "Tbilisi"}, {"city": "Gudauri", "hotel_id": lodge["id"], "schedule": [
+        {"id": "1", "kind": "visit", "time": "10:00", "title": "Jvari Monastery"},
+        {"id": "2", "kind": "visit", "time": "12:00", "title": "Ananuri"},
+        {"id": "3", "kind": "checkin", "time": "16:00", "ref": "hotel"}]}, {"city": "Tbilisi"}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    d2 = p["days"][1]
+    assert ["Tbilisi", "Jvari, Mtskheta", "Ananuri", "Gudauri ski resort"] in asked      # where the map looks
+    assert [(g["start"], g["end"], g["km"]) for g in d2["legs"]] == [
+        ("Tbilisi", "Jvari Monastery", 10), ("Jvari Monastery", "Ananuri", 20), ("Ananuri", "Gudauri Lodge", 30)]
+    assert d2["km"] == 60 and d2["title"] == "Day 2 \u00b7 Tbilisi \u2192 Gudauri"

@@ -174,6 +174,61 @@ def translate(db: Session, ws: Workspace, texts: set[str], lang: str, warnings: 
 
 # --- building ------------------------------------------------------------------------------------------
 
+def _sight(title: str, vendors: dict[str, Vendor]) -> Vendor | None:
+    """The catalogue's sight a visit is called after ("Garni" is "Garni Temple" when it's the only one)."""
+    n = title.strip().lower()
+    if not n:
+        return None
+    places = [v for v in vendors.values() if v.type in ("activity", "other")]
+    exact = next((v for v in places if v.name.strip().lower() == n), None)
+    if exact:
+        return exact
+    starts = [v for v in places if v.name.strip().lower().startswith(n)]
+    return starts[0] if len(starts) == 1 else None
+
+
+def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], last: bool) -> list[tuple[str, str]]:
+    """The day's destinations in its programme's order, as (where the map should look, name to show):
+    last night's town, each visit, restaurant and the hotel, then the day's town when there's no
+    check-in. The same place twice in a row is one stop (the day plan's pathOf)."""
+    pts: list[tuple[str, str]] = []
+
+    def push(where: str | None, label: str | None) -> None:
+        w = (where or "").strip()
+        if w and (not pts or pts[-1][0].lower() != w.lower()):
+            pts.append((w, (label or w).strip()))
+
+    if prev:
+        slept = vendors.get(prev.hotel_id or "")
+        push((slept.address if slept else "") or prev.city, prev.city or (slept.name if slept else ""))
+    for x in d.schedule:
+        r = x.ref or ""
+        if r == "hotel":
+            h = vendors.get(d.hotel_id or "")
+            push((h.address if h else "") or d.city, h.name if h else d.city)
+        elif r == "breakfast":
+            b = vendors.get(d.breakfast_id or "") if d.breakfast_mode in ("included", "tourists") else None
+            if b:
+                push(b.address or b.city, b.name)
+        elif r in ("lunch", "dinner"):
+            mode, vid = (d.lunch_mode, d.lunch_id) if r == "lunch" else (d.dinner_mode, d.dinner_id)
+            m = vendors.get(vid or "") if mode != "own" else None
+            if m:
+                push(m.address or m.city, m.name)
+        elif not r and x.kind == "visit":
+            at = None
+            if x.place and x.place.strip().lower() != x.title.strip().lower():
+                at = next((v for v in vendors.values() if v.name.strip().lower() == x.place.strip().lower()), None)
+            if at:
+                push(at.address or at.name, at.name)
+            else:
+                sight = _sight(x.title, vendors)
+                push((sight.address if sight else "") or x.place or x.title, x.title or x.place)
+    if last or not any(x.ref == "hotel" for x in d.schedule):
+        push(d.city, d.city)
+    return pts
+
+
 def _map_legs(db: Session, ws: Workspace, route: list[str]) -> tuple[list[int], list[int]] | None:
     """Road km and car minutes for each leg of a day, from the map (kept answers first, as the day plan
     asks). None when the map can't say - the programme then just has no distance for that day."""
@@ -209,8 +264,7 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
     lang = body.lang if body.lang in LANGS else "en"
     L = LABELS[lang]
     inc = body.include
-    ids = {x for d in body.days for x in (d.hotel_id, d.breakfast_id, d.lunch_id, d.dinner_id) if x}
-    vendors = {v.id: v for v in db.scalars(select(Vendor).where(Vendor.workspace_id == ws.id, Vendor.id.in_(ids)))} if ids else {}
+    vendors = {v.id: v for v in db.scalars(select(Vendor).where(Vendor.workspace_id == ws.id))}
     sids = {e.service_id for d in body.days for e in d.extras}
     services = {s.id: s for s in db.scalars(select(Service).join(Vendor).where(Vendor.workspace_id == ws.id, Service.id.in_(sids)))} if sids else {}
     c = _Ctx(vendors, services)
@@ -221,10 +275,17 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
         prev = body.days[i - 1] if i else None
         route = [T(x) for x in ([prev.city] if prev and prev.city and prev.city != d.city else []) + list(d.stops) + [d.city] if x]
         factor = ws.drive_factor or Decimal("1.25")
-        leg_km, leg_min = list(d.drive_km), list(d.drive_minutes)
+        stops, leg_km, leg_min = route, list(d.drive_km), list(d.drive_minutes)
+        # With a day programme: destination to destination in its order (last night's town, each sight,
+        # restaurant and the hotel) - the drives the day plan shows.
+        path = _day_path(d, prev, vendors, i == len(body.days) - 1) if inc.distance and d.schedule else []
+        if len(path) >= 2:
+            got = _map_legs(db, ws, [q for q, _ in path])
+            if got:
+                stops, (leg_km, leg_min) = [T(label) for _, label in path], got
         # Not saved on the day: the map's answer for the same road - what the day plan shows.
-        if inc.distance and len(route) >= 2 and len(leg_km) != len(route) - 1:
-            got = _map_legs(db, ws, route)
+        if inc.distance and len(stops) >= 2 and len(leg_km) != len(stops) - 1:
+            got = _map_legs(db, ws, stops)
             if got:
                 leg_km, leg_min = got
         km = d.km or (sum(leg_km) or None)
@@ -232,9 +293,9 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn) -> ProgrammeOut:
         drive = _drive(sum(leg_min), factor, L) if leg_min else ""
         p = PDay(number=i + 1, date=body.start_date + timedelta(days=i) if body.start_date else None,
                  title="", route=route, km=km if inc.distance else None, drive=drive if inc.distance else "")
-        # Place to place, every leg of the day (same order as the route).
-        if inc.distance and len(route) >= 2 and len(leg_km) == len(route) - 1:
-            for j, (a, b) in enumerate(zip(route, route[1:])):
+        # Place to place, every leg of the day (in order).
+        if inc.distance and len(stops) >= 2 and len(leg_km) == len(stops) - 1:
+            for j, (a, b) in enumerate(zip(stops, stops[1:])):
                 mins = leg_min[j] if j < len(leg_min) else 0
                 p.legs.append(PLeg(start=a, end=b, km=leg_km[j] or None, drive=_drive(mins, factor, L) if mins else ""))
         last = i == len(body.days) - 1
