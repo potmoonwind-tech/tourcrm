@@ -199,7 +199,7 @@ function StaffWeekWidget() {
                     <td key={d.date} className="px-1 py-2 text-center">
                       {d.tour_id
                         ? <Link to={`tours/${d.tour_id}?tab=staff`} title={d.also.length ? t('staffClash', { tours: [d.tour_code, ...d.also].join(', ') }) : undefined}
-                            className={cn('inline-block rounded px-1.5 py-0.5 font-mono text-[11px] font-semibold',
+                            className={cn('inline-block rounded-md px-1.5 py-0.5 font-mono text-[11px] font-semibold',
                               d.also.length ? 'bg-red-600 text-white' : COLOR[d.tour_color ?? 'slate'].soft)}>
                             {d.tour_code}{d.also.length > 0 && ` +${d.also.length}`}
                           </Link>

@@ -171,7 +171,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               {picked.kind === 'service' && (
                 <Button type="button" size="sm" variant="secondary" className="ml-auto shrink-0" onClick={() => placeEveryDay(picked)}>{t('addEveryDay')}</Button>
               )}
-              <button type="button" className={cn('rounded p-1 hover:bg-brand-100', picked.kind !== 'service' && 'ml-auto')} onClick={() => setPicked(null)} aria-label={t('done')} title={t('done')}><X size={14} /></button>
+              <button type="button" className={cn('rounded-md p-1 hover:bg-brand-100', picked.kind !== 'service' && 'ml-auto')} onClick={() => setPicked(null)} aria-label={t('done')} title={t('done')}><X size={14} /></button>
             </p>
           )}
           <div className="space-y-2">
@@ -304,7 +304,7 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
               <tr key={i} className="align-top">
                 <th scope="row" className="px-3 py-2 text-left font-normal">
                   <button type="button" onClick={() => onOpen(i)} title={t('openDay', { n: i + 1 })}
-                    className="flex items-center gap-1.5 rounded text-left hover:text-brand-700">
+                    className="flex items-center gap-1.5 rounded-md text-left hover:text-brand-700">
                     <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white', warn.length ? 'bg-amber-500' : 'bg-slate-800')}>{i + 1}</span>
                   </button>
                   {dates?.[i] && <span className="mt-0.5 block whitespace-nowrap text-xs text-slate-500">{fmt(dates[i], lang)}</span>}
@@ -531,7 +531,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
       <header className="flex flex-wrap items-center gap-2 rounded-t-xl border-b border-slate-100 bg-slate-50/70 px-3 py-2">
         {!disabled && (
           <button type="button" {...attributes} {...listeners} aria-label={t('dragToReorder')} title={t('dragToReorder')}
-            className="cursor-grab touch-none rounded p-1 text-slate-400 hover:bg-slate-100 active:cursor-grabbing"><GripVertical size={16} /></button>
+            className="cursor-grab touch-none rounded-md p-1 text-slate-400 hover:bg-slate-100 active:cursor-grabbing"><GripVertical size={16} /></button>
         )}
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold text-white"
           title={`${t('day')} ${index + 1}`}>{index + 1}</span>
@@ -548,7 +548,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             <Car size={14} className="shrink-0" />
             <input type="number" min={0} max={5000} disabled={disabled} value={day.km ?? ''} placeholder="—"
               onChange={(e) => onSet({ km: e.target.value === '' ? null : Math.max(0, Math.round(Number(e.target.value))) })}
-              className="h-7 w-16 rounded border border-transparent bg-transparent px-1 text-right tabular-nums hover:border-slate-300 focus:border-brand-600 focus:outline-none"
+              className="h-7 w-16 rounded-md border border-transparent bg-transparent px-1 text-right tabular-nums hover:border-slate-300 focus:border-brand-600 focus:outline-none"
               aria-label={t('kmDriven')} />
             km
           </label>
@@ -557,7 +557,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           const drive = (day.drive_minutes ?? []).reduce((x, m) => x + m, 0) * factor
           return (
             <Tooltip label={t('driveDayTip', { h: hours(drive) })}>
-              <span tabIndex={0} className={cn('rounded px-1.5 py-0.5 text-xs tabular-nums', drive > 9 * 60 ? 'bg-amber-100 font-medium text-amber-900' : 'text-slate-600')}>
+              <span tabIndex={0} className={cn('rounded-md px-1.5 py-0.5 text-xs tabular-nums', drive > 9 * 60 ? 'bg-amber-100 font-medium text-amber-900' : 'text-slate-600')}>
                 ≈ {hours(drive)} {t('driveShort')}
               </span>
             </Tooltip>
@@ -592,7 +592,8 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             onAddNew={canCreate ? () => onNewVendor('hotel', (v) => onSet({ hotel_id: v.id, city: day.city || v.city })) : undefined} />
           {!last && (show || (day.staff_stay ?? 'none') !== 'none') && <StaffStayPick day={day} vendors={vendors} disabled={disabled} onSet={onSet} />}
         </SlotBox>
-        {(show || (day.breakfast_mode ?? 'hotel') !== 'hotel') && <SlotBox day={index} slot="breakfast" label={t('breakfast')} icon={<Coffee size={14} />} dragging={dragging} picked={picked} state={breakfastState}
+        {/* Breakfast is always shown: usually last night's hotel, named - one glance confirms it. */}
+        {<SlotBox day={index} slot="breakfast" label={t('breakfast')} icon={<Coffee size={14} />} dragging={dragging} picked={picked} state={breakfastState}
           onTap={(item) => onPlace('breakfast', item)}
           aside={<BreakfastModePick value={day.breakfast_mode ?? 'hotel'} disabled={disabled}
             onChange={(m) => onSet(m === 'hotel' || m === 'own' ? { breakfast_mode: m, breakfast_id: null, breakfast_menu_id: null } : { breakfast_mode: m })} />}>
@@ -887,7 +888,7 @@ function BusBack({ days, value, onChange, disabled }: {
             {!disabled && (
               <Tooltip label={t('busBackRemove')}>
                 <button type="button" onClick={() => onChange(null)} aria-label={t('busBackRemove')}
-                  className="ml-auto rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={16} /></button>
+                  className="ml-auto rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={16} /></button>
               </Tooltip>
             )}
           </>
@@ -1066,7 +1067,7 @@ function MenuPick({ meal, vendorId, value, menus, disabled, twice, onChange, onA
 function IconBtn({ title, onClick, danger, children }: { title: string; onClick: () => void; danger?: boolean; children: ReactNode }) {
   return (
     <button type="button" title={title} aria-label={title} onClick={onClick}
-      className={cn('rounded p-1.5 text-slate-400 hover:bg-slate-100', danger ? 'hover:text-red-600' : 'hover:text-slate-700')}>{children}</button>
+      className={cn('rounded-md p-1.5 text-slate-400 hover:bg-slate-100', danger ? 'hover:text-red-600' : 'hover:text-slate-700')}>{children}</button>
   )
 }
 
@@ -1094,10 +1095,10 @@ function Stops({ stops, disabled, onChange, own }: { stops: string[]; disabled?:
       {!disabled && (adding ? (
         <PlaceInput autoFocus value={text} own={own} onChange={setText} onBlur={() => add()} maxLength={100} onPicked={(p) => add(p.name)}
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); add() } if (e.key === 'Escape') { setText(''); setAdding(false) } }}
-          placeholder={t('stopPh')} aria-label={t('addStop')} className="h-7 w-44 rounded border border-slate-300 px-2 text-xs focus:border-brand-600 focus:outline-none" />
+          placeholder={t('stopPh')} aria-label={t('addStop')} className="h-7 w-44 rounded-md border border-slate-300 px-2 text-xs focus:border-brand-600 focus:outline-none" />
       ) : (
         <button type="button" onClick={() => setAdding(true)} title={t('addStopHelp')}
-          className="rounded px-1.5 py-1 font-medium text-slate-500 hover:bg-slate-100 hover:text-brand-700">+ {t('addStop')}</button>
+          className="rounded-md px-1.5 py-1 font-medium text-slate-500 hover:bg-slate-100 hover:text-brand-700">+ {t('addStop')}</button>
       ))}
     </span>
   )
@@ -1117,7 +1118,7 @@ function StaffStayPick({ day, vendors, disabled, onSet }: {
       <label className="flex items-center gap-2 text-xs text-slate-600">
         <span className="shrink-0">{t('staffStay')}:</span>
         <select disabled={disabled} value={stay} onChange={(e) => onSet({ staff_stay: e.target.value as DayStaffStay, ...(e.target.value === 'own' ? {} : { staff_hotel_id: null }) })}
-          className="min-w-0 flex-1 rounded border border-slate-200 bg-white px-1.5 py-1 text-xs">
+          className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs">
           {STAFF_STAYS.map((v) => <option key={v} value={v}>{t(`dayStaffStay_${v}`)}</option>)}
         </select>
       </label>
@@ -1139,7 +1140,7 @@ function BreakfastModePick({ value, disabled, onChange }: { value: BreakfastMode
   return (
     <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as BreakfastMode)} aria-label={t('breakfastWhere')}
       title={t('breakfastWhere')}
-      className={cn('rounded border-0 bg-transparent py-0 pl-1 pr-5 text-[11px] font-medium focus:ring-1 focus:ring-brand-500',
+      className={cn('rounded-md border-0 bg-transparent py-0 pl-1 pr-5 text-[11px] font-medium focus:ring-1 focus:ring-brand-500',
         value === 'hotel' ? 'text-slate-500' : value === 'tourists' ? 'text-amber-700' : value === 'own' ? 'text-slate-400' : 'text-brand-700')}>
       <option value="hotel">{t('breakfastAtHotel')}</option>
       <option value="included">{t('breakfastElsewhere')}</option>
@@ -1155,7 +1156,7 @@ function MealModePick({ value, disabled, onChange }: { value: MealMode; disabled
   return (
     <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as MealMode)} aria-label={t('mealWhoPays')}
       title={t('mealWhoPays')}
-      className={cn('rounded border-0 bg-transparent py-0 pl-1 pr-5 text-[11px] font-medium focus:ring-1 focus:ring-brand-500',
+      className={cn('rounded-md border-0 bg-transparent py-0 pl-1 pr-5 text-[11px] font-medium focus:ring-1 focus:ring-brand-500',
         value === 'included' ? 'text-slate-500' : value === 'tourists' ? 'text-amber-700' : 'text-slate-400')}>
       <option value="included">{t('mealIncluded')}</option>
       <option value="tourists">{t('mealTourists')}</option>
@@ -1188,25 +1189,25 @@ function Flights({ flights, disabled, onChange }: { flights: Flight[]; disabled?
         <span className="inline-flex flex-wrap items-center gap-1 rounded-lg bg-slate-50 p-1 ring-1 ring-slate-200"
           onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); save() } if (e.key === 'Escape') setDraft(null) }}>
           <select value={draft.direction} onChange={(e) => setDraft({ ...draft, direction: e.target.value as Flight['direction'] })}
-            className="h-7 rounded border border-slate-300 px-1 text-xs" aria-label={t('flightDirection')}>
+            className="h-7 rounded-md border border-slate-300 px-1 text-xs" aria-label={t('flightDirection')}>
             <option value="arrival">{t('flightArrival')}</option>
             <option value="departure">{t('flightDeparture')}</option>
           </select>
           <input autoFocus value={draft.number} onChange={(e) => setDraft({ ...draft, number: e.target.value })} placeholder="CZ6040" maxLength={12}
-            className="h-7 w-20 rounded border border-slate-300 px-1.5 text-xs uppercase" aria-label={t('flightNumber')} />
+            className="h-7 w-20 rounded-md border border-slate-300 px-1.5 text-xs uppercase" aria-label={t('flightNumber')} />
           <input type="time" value={draft.time} onChange={(e) => setDraft({ ...draft, time: e.target.value })}
-            className="h-7 rounded border border-slate-300 px-1 text-xs" aria-label={t('flightTime')} />
+            className="h-7 rounded-md border border-slate-300 px-1 text-xs" aria-label={t('flightTime')} />
           <input value={draft.airport} onChange={(e) => setDraft({ ...draft, airport: e.target.value })} placeholder="TBS" maxLength={40}
-            className="h-7 w-14 rounded border border-slate-300 px-1.5 text-xs uppercase" aria-label={t('flightAirport')} />
+            className="h-7 w-14 rounded-md border border-slate-300 px-1.5 text-xs uppercase" aria-label={t('flightAirport')} />
           <input value={draft.other} onChange={(e) => setDraft({ ...draft, other: e.target.value })} maxLength={60}
             placeholder={draft.direction === 'arrival' ? t('flightFrom') : t('flightTo')}
-            className="h-7 w-24 rounded border border-slate-300 px-1.5 text-xs" aria-label={draft.direction === 'arrival' ? t('flightFrom') : t('flightTo')} />
-          <button type="button" onClick={save} className="rounded bg-brand-600 px-2 py-1 text-xs font-medium text-white">{t('add')}</button>
-          <button type="button" onClick={() => setDraft(null)} aria-label={t('cancel')} className="rounded p-1 text-slate-400 hover:text-slate-700"><X size={12} /></button>
+            className="h-7 w-24 rounded-md border border-slate-300 px-1.5 text-xs" aria-label={draft.direction === 'arrival' ? t('flightFrom') : t('flightTo')} />
+          <button type="button" onClick={save} className="rounded-md bg-brand-600 px-2 py-1 text-xs font-medium text-white">{t('add')}</button>
+          <button type="button" onClick={() => setDraft(null)} aria-label={t('cancel')} className="rounded-md p-1 text-slate-400 hover:text-slate-700"><X size={12} /></button>
         </span>
       ) : (
         <button type="button" onClick={() => setDraft(blank)} title={t('addFlightHelp')}
-          className="rounded px-1.5 py-1 font-medium text-slate-500 hover:bg-slate-100 hover:text-brand-700">+ {t('addFlight')}</button>
+          className="rounded-md px-1.5 py-1 font-medium text-slate-500 hover:bg-slate-100 hover:text-brand-700">+ {t('addFlight')}</button>
       ))}
     </span>
   )

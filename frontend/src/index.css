@@ -1,23 +1,27 @@
 @import "tailwindcss";
 
 /*
- * Design tokens: monday.com's Vibe design system (colours, type, radii, shadows),
- * mapped onto Tailwind's palette names so every screen uses them. See DESIGN.md.
+ * Design tokens: friendly and calm - warm greys, soft hairlines, rounder corners, two text weights - with
+ * monday Vibe's layout rules kept. Mapped onto Tailwind's palette names so every screen uses them. See DESIGN.md.
  */
 @theme {
   --font-sans: "Figtree", "Noto Sans Georgian", ui-sans-serif, system-ui, sans-serif;
+  /* Two weights carry the hierarchy: regular and medium. "semibold" reads as medium, "bold" as semibold -
+     calmer, nothing shouts. */
+  --font-weight-semibold: 500;
+  --font-weight-bold: 600;
 
   /* Primary (Vibe --primary-color #0073ea, hover #0060b9, selected #cce5ff) */
   /* The frame around pages (top bar, menu), Google Drive-like: a very light tint; the white page panel stands
      out by colour, without a border. Menu text dark, icons a step softer, the current page a soft pill. */
-  --color-app-bg: #f8fafd;
-  --color-search-bg: #e9eef6;
-  --color-search-hover: #dde3ea;
+  --color-app-bg: #faf9f6;
+  --color-search-bg: #efede8;
+  --color-search-hover: #e5e2db;
   --color-nav-active: #c2e7ff;
   --color-nav-active-text: #001d35;
-  --color-nav-text: #1f1f1f;
-  --color-nav-icon: #444746;
-  --color-nav-hover: #e9eef6;
+  --color-nav-text: #2c2c2a;
+  --color-nav-icon: #55544f;
+  --color-nav-hover: #efede8;
   --color-brand-50: #f0f7ff;
   --color-brand-100: #cce5ff;
   --color-brand-200: #99caff;
@@ -29,17 +33,18 @@
   --color-brand-800: #004d94;
   --color-brand-900: #003a70;
 
-  /* Neutrals (Vibe greys: text #323338, secondary #676879, borders #d0d4e4 / #c3c6d4, surfaces #f6f7fb) */
-  --color-slate-50: #f6f7fb;
-  --color-slate-100: #ecedf5;
-  --color-slate-200: #d0d4e4;
-  --color-slate-300: #c3c6d4;
-  --color-slate-400: #9699a6;
-  --color-slate-500: #676879;
-  --color-slate-600: #535768;
-  --color-slate-700: #424352;
-  --color-slate-800: #323338;
-  --color-slate-900: #1f2023;
+  /* Neutrals: warm greys (paper, not steel). Hairline borders #e6e3dc / controls #d6d3ca, secondary text
+     #6b6a64 (5.4:1 on white), body #2c2c2a, surfaces #f7f6f3. */
+  --color-slate-50: #f7f6f3;
+  --color-slate-100: #efede8;
+  --color-slate-200: #e6e3dc;
+  --color-slate-300: #d6d3ca;
+  --color-slate-400: #a19f97;
+  --color-slate-500: #6b6a64;
+  --color-slate-600: #55544f;
+  --color-slate-700: #444441;
+  --color-slate-800: #2c2c2a;
+  --color-slate-900: #1d1d1b;
 
   /* Status label colours (Vibe: done green, working orange, stuck red, bright blue, purple) */
   --color-emerald-500: #00c875;
@@ -53,12 +58,12 @@
   --color-sky-500: #579bfc;
   --color-violet-500: #a25ddc;
 
-  /* Radii: Vibe small 4px (controls), medium 8px (cards), big 16px (dialogs).
-     rounded / rounded-sm / rounded-md / rounded-lg are all the control radius, so no class can drift. */
-  --radius-sm: 4px;
-  --radius-md: 4px;
-  --radius-lg: 4px;
-  --radius-xl: 8px;
+  /* Radii: soft. Controls 8px (rounded-sm/md/lg are all the control radius, so no class can drift), cards
+     12px, dialogs 16px, chips and icon bubbles full. */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
   --radius-2xl: 16px;
 
   /* Shadows: Vibe xs / small / medium / large */
@@ -113,14 +118,14 @@
    and icons (8.6:1 and 5.6:1 on white instead of 5.5:1 and 2.8:1), borders that read as edges (3:1 and up),
    the smallest captions a size up, a thick focus outline, underlined links, and no motion. */
 :root[data-easy="on"] {
-  --color-slate-200: #a9adbd;
-  --color-slate-300: #7d8193;
-  --color-slate-400: #646778;
-  --color-slate-500: #4a4c5c;
-  --color-slate-600: #3a3c4a;
-  --color-slate-700: #2b2d38;
-  --color-slate-800: #1d1e23;
-  --color-slate-900: #111214;
+  --color-slate-200: #b0ada4;
+  --color-slate-300: #85837b;
+  --color-slate-400: #67665f;
+  --color-slate-500: #4b4a45;
+  --color-slate-600: #3b3a36;
+  --color-slate-700: #2c2c29;
+  --color-slate-800: #1e1e1c;
+  --color-slate-900: #121211;
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.35;
 }
@@ -140,7 +145,7 @@
 /* The page panel: no border (the frame's tint sets it apart), except when easier to see. */
 .app-panel { border-color: transparent; }
 :root[data-easy="on"] .app-panel { border-color: var(--color-slate-300); }
-:root[data-easy="on"] { --color-app-bg: #eef1f6; --color-nav-icon: #1f1f1f; }
+:root[data-easy="on"] { --color-app-bg: #f1efe9; --color-nav-icon: #1f1f1f; }
 
 /* Text size: everything grows together (text, spacing, buttons), like a careful zoom. */
 :root[data-text="large"] { font-size: 112.5%; }
@@ -196,7 +201,7 @@ body {
   :where(button, a, summary, [role="button"], [tabindex]:not([tabindex="-1"])):focus-visible {
     outline: 2px solid var(--color-brand-600);
     outline-offset: 2px;
-    border-radius: 4px;
+    border-radius: 8px;
   }
 }
 
@@ -224,7 +229,7 @@ body {
 /* Selects draw their own 16px chevron (the browser's differs per system and sits too close to the edge). */
 .select-chevron {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23676879' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%236b6a64' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 16px;

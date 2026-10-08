@@ -154,7 +154,7 @@ function Step({ op, label, value, strong, accent, children }: {
 
 function Candidate({ win, label, value }: { win: boolean; label: string; value: number }) {
   return (
-    <li className={cn('flex items-baseline justify-between gap-3 rounded px-2 py-1', win ? 'bg-emerald-50 font-semibold text-emerald-800' : 'text-slate-500')}>
+    <li className={cn('flex items-baseline justify-between gap-3 rounded-md px-2 py-1', win ? 'bg-emerald-50 font-semibold text-emerald-800' : 'text-slate-500')}>
       <span>{win ? '✓ ' : ''}{label}</span><span className="tabular-nums">{money(value)}</span>
     </li>
   )

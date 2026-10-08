@@ -120,7 +120,7 @@ export function FormulaText({ value, onChange, doc, sample, compact = false, pla
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-emerald-700">
           <Check size={16} />
           {same ? t('fxSame', { v: fmtNum(values[0].value) })
-            : values.map((v) => <span key={v.tourists} className="rounded bg-emerald-50 px-1.5 tabular-nums">{v.tourists}{leaders}: <b>{fmtNum(v.value)}</b></span>)}
+            : values.map((v) => <span key={v.tourists} className="rounded-md bg-emerald-50 px-1.5 tabular-nums">{v.tourists}{leaders}: <b>{fmtNum(v.value)}</b></span>)}
         </p>
       ) : (
         <div className="flex flex-wrap items-center gap-2 text-sm text-red-700">

@@ -19,7 +19,7 @@ export function PageHeader({ title, subtitle, action, section, crumbs }: {
           <ol className="flex flex-wrap items-center gap-1 text-sm text-slate-500">
             {crumbs.map((c) => (
               <li key={c.to} className="flex items-center gap-1">
-                <Link to={c.to} className="rounded hover:text-slate-800 hover:underline">{c.label}</Link>
+                <Link to={c.to} className="rounded-md hover:text-slate-800 hover:underline">{c.label}</Link>
                 <ChevronRight size={14} aria-hidden className="text-slate-400" />
               </li>
             ))}

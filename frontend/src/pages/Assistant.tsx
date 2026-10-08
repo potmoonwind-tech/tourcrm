@@ -159,7 +159,7 @@ function Conversation({ id, onDelete }: { id: string; onDelete: () => void }) {
           <span className="min-w-0 flex-1 truncate text-sm font-semibold">{v.title || t('newConversation')}</span>
           {v.files.length > 0 && <span className="text-xs text-slate-500">{t('nFiles', { n: v.files.length })}</span>}
           <button type="button" onClick={onDelete} disabled={running} title={t('deleteConversation')} aria-label={t('deleteConversation')}
-            className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600"><Trash2 size={15} /></button>
+            className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600"><Trash2 size={15} /></button>
         </div>
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
           {v.chat.length === 0 && <p className="py-8 text-center text-sm text-slate-500">{t('assistantFirstHint')}</p>}
@@ -224,7 +224,7 @@ function Line({ c }: { c: ChatLine }) {
       <div className={cn('max-w-[85%] rounded-2xl px-4 py-2.5 text-sm', mine ? 'bg-violet-600 text-white' : 'bg-slate-100 text-slate-800')}>
         {c.files && c.files.length > 0 && (
           <div className="mb-1.5 flex flex-wrap gap-1">
-            {c.files.map((f) => <span key={f} className={cn('rounded px-1.5 py-0.5 text-xs', mine ? 'bg-violet-500' : 'bg-white')}>{f}</span>)}
+            {c.files.map((f) => <span key={f} className={cn('rounded-md px-1.5 py-0.5 text-xs', mine ? 'bg-violet-500' : 'bg-white')}>{f}</span>)}
           </div>
         )}
         {c.text && <p className="whitespace-pre-wrap">{c.text}</p>}

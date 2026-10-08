@@ -444,7 +444,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
                   ))}
                   {ADDABLE.map((k) => (
                     <Button type="button" key={k} size="sm" variant="secondary" onClick={() => { save([...items, { id: newId(), kind: k, time: '', end: '', title: '', ref: null, place: '', notes: '' }]); setAdding(false) }}>
-                      <span className={cn('flex h-5 w-5 items-center justify-center rounded', KIND_STYLE[k])}>{ICON[k]}</span>{t(`prog_${k}` as TKey)}
+                      <span className={cn('flex h-5 w-5 items-center justify-center rounded-md', KIND_STYLE[k])}>{ICON[k]}</span>{t(`prog_${k}` as TKey)}
                     </Button>
                   ))}
                   <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>{t('cancel')}</Button>

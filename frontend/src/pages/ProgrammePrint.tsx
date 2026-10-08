@@ -105,7 +105,7 @@ export function ProgrammeDoc({ d, toolbar }: { d: Programme; toolbar?: ReactNode
                         <li key={i}>
                           {/* The drive that leads here, with its own time: the day as one timeline. */}
                           {hop && (
-                            <div className="my-0.5 flex items-center gap-3 rounded bg-slate-50 py-0.5 text-xs text-slate-500">
+                            <div className="my-0.5 flex items-center gap-3 rounded-md bg-slate-50 py-0.5 text-xs text-slate-500">
                               <span className="w-[5.5rem] shrink-0 pl-1 tabular-nums sm:w-24">{span(s.drive!.depart, s.drive!.arrive)}</span>
                               <Car size={13} className="shrink-0" aria-hidden />
                               <span>↓ {hop}</span>

@@ -206,7 +206,7 @@ function Blocks({ value, onChange, doc }: { value: string; onChange: (v: string)
       <div className="flex flex-wrap items-end gap-2">
         {(['+', '-', '*', '/', '(', ')'] as const).map((s) => (
           <button key={s} type="button" onClick={() => put([...toks, s])} aria-label={t(`blk_${s === '*' ? 'times' : s === '/' ? 'divide' : s === '+' ? 'plus' : s === '-' ? 'minus' : s === '(' ? 'open' : 'close'}` as TKey)}
-            className="flex h-10 w-10 items-center justify-center rounded border border-slate-300 bg-white text-lg font-semibold text-slate-700 hover:bg-slate-100">
+            className="flex h-10 w-10 items-center justify-center rounded-md border border-slate-300 bg-white text-lg font-semibold text-slate-700 hover:bg-slate-100">
             {s === '/' ? <Divide size={18} /> : SIGN[s]}
           </button>
         ))}
@@ -294,7 +294,7 @@ export function FormulaInput({ value, onChange, doc, sample, compact = false, pl
             <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-emerald-700">
               <Check size={16} />
               {same ? t('fxSame', { v: fmt(values[0].value) })
-                : values.map((x) => <span key={x.tourists} className="rounded bg-emerald-50 px-1.5 tabular-nums">{x.tourists}: <b>{fmt(x.value)}</b></span>)}
+                : values.map((x) => <span key={x.tourists} className="rounded-md bg-emerald-50 px-1.5 tabular-nums">{x.tourists}: <b>{fmt(x.value)}</b></span>)}
             </p>
           ) : (
             <p className="flex flex-wrap items-center gap-2 text-red-700"><AlertTriangle size={16} />{t(`fxErr_${r.error_code}` as TKey, r.error_params as Record<string, string | number>)}</p>

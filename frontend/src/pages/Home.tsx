@@ -160,7 +160,7 @@ function ShownRow({ w, onSize, onRemove }: { w: WidgetPick; onSize: (s: WidgetPi
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn('flex items-center gap-2 rounded-lg border bg-white px-2 py-2', isDragging ? 'z-10 border-brand-400 shadow-lg' : 'border-slate-200')}>
       <button type="button" {...attributes} {...listeners} aria-label={t('dragWidget')} title={t('dragWidget')}
-        className="cursor-grab touch-none rounded p-1 text-slate-400 hover:bg-slate-100 active:cursor-grabbing"><GripVertical size={16} /></button>
+        className="cursor-grab touch-none rounded-md p-1 text-slate-400 hover:bg-slate-100 active:cursor-grabbing"><GripVertical size={16} /></button>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{t(`w_${w.id}` as TKey)}</span>
         <span className="block truncate text-xs text-slate-500">{t(`wd_${w.id}` as TKey)}</span>
@@ -174,7 +174,7 @@ function ShownRow({ w, onSize, onRemove }: { w: WidgetPick; onSize: (s: WidgetPi
         ))}
       </div>
       <button type="button" onClick={onRemove} aria-label={t('removeWidget')} title={t('removeWidget')}
-        className="rounded p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><X size={15} /></button>
+        className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"><X size={15} /></button>
     </li>
   )
 }

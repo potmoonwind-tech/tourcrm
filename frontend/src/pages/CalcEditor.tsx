@@ -292,11 +292,11 @@ function SaveState({ state, onRetry, onHistory }: { state: 'saving' | 'saved' | 
       {state === 'saving' && <><Loader2 size={16} className="animate-spin" aria-hidden />{t('autosaveSaving')}</>}
       {state === 'held' && <><CloudOff size={16} aria-hidden />{t('autosaveHeld')}</>}
       {state === 'saved' && (
-        <button type="button" onClick={onHistory} className="inline-flex h-8 items-center gap-1.5 rounded px-2 hover:bg-slate-100 hover:text-slate-800">
+        <button type="button" onClick={onHistory} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 hover:bg-slate-100 hover:text-slate-800">
           <CheckIcon size={16} className="animate-check text-emerald-600" aria-hidden />{t('autosaveSaved')}<History size={14} aria-hidden /><span className="sr-only">· {t('history')}</span>
         </button>
       )}
-      {state === 'readonly' && <button type="button" onClick={onHistory} className="inline-flex h-8 items-center gap-1.5 rounded px-2 hover:bg-slate-100"><Eye size={16} aria-hidden />{t('autosaveViewOnly')} · {t('history')}</button>}
+      {state === 'readonly' && <button type="button" onClick={onHistory} className="inline-flex h-8 items-center gap-1.5 rounded-md px-2 hover:bg-slate-100"><Eye size={16} aria-hidden />{t('autosaveViewOnly')} · {t('history')}</button>}
       {state === 'failed' && <>
         <CloudOff size={16} aria-hidden />{t('autosaveFailed')}
         <Button size="sm" variant="secondary" onClick={onRetry}>{t('autosaveRetry')}</Button>
@@ -481,7 +481,7 @@ function UsePriceMenu({ doc, quoteId, result, ready }: { doc: QuoteDoc; quoteId:
   return (
     <>
       <Menu label={t('useThisPrice')}
-        triggerClassName="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100"
+        triggerClassName="inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100"
         trigger={<><CheckIcon size={16} />{t('useThisPrice')}<ChevronDown size={16} className="text-slate-500" /></>}
         items={[
           { label: t('useThisPriceSaveFirst'), icon: <AlertTriangle size={16} />, disabled: true, hidden: ready, onClick: () => {} },
@@ -514,7 +514,7 @@ function CalcFileCard({ quoteId, disabled }: { quoteId: string; disabled: boolea
         <p className="min-w-0 flex-1 text-sm text-slate-600">{t('sendCalcHelp')}</p>
         {disabled ? <Button variant="secondary" disabled title={t('downloadCalcSaveFirst')}><Download size={16} />{t('downloadCalc')}</Button> : (
           <a href={`/api${wsPath(ws.id, `/quotes/${quoteId}/calculation.xlsx?lang=${lang === 'ka' ? 'ka' : 'en'}&tourists=${n}`)}`} download
-            className="inline-flex h-10 items-center gap-2 rounded border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100">
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-slate-300 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-100">
             <Download size={16} />{t('downloadCalc')}
           </a>
         )}
@@ -586,7 +586,7 @@ function CreateTourModal({ doc, quoteId, result, onClose }: { doc: QuoteDoc; quo
         <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={f.with_invoice} disabled={!f.client_id} onChange={(e) => setF({ ...f, with_invoice: e.target.checked })} />{t('withInvoice')}</label>
         {tier && (
           <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm">
-            {inSeason && <span className="mr-1 rounded bg-amber-100 px-1.5 text-xs text-amber-900">{inSeason.name}</span>}
+            {inSeason && <span className="mr-1 rounded-md bg-amber-100 px-1.5 text-xs text-amber-900">{inSeason.name}</span>}
             {f.tourists} × {money(tier.price_dbl, doc.currency)}{f.singles > 0 && ` + ${f.singles} × ${money(tier.single_supplement, doc.currency)}`}
             {others.map((x) => ` + ${x.count} × ${money(x.price)} (${x.name})`).join('')}
             {' = '}<b>{money(f.tourists * tier.price_dbl + f.singles * tier.single_supplement + others.reduce((s, x) => s + x.count * x.price, 0), doc.currency)}</b>
@@ -697,7 +697,7 @@ function PriceListPreview({ quoteId, lang, dirty }: { quoteId: string; lang: str
             <p className="text-lg font-semibold">{d.title}</p>
             <p className="text-slate-500">{d.labels.currency?.replace('{currency}', d.currency)}</p>
           </div>
-          {d.errors.length > 0 && <p className="rounded bg-red-50 px-3 py-2 text-red-800">{t('fixErrorsForPrice')}</p>}
+          {d.errors.length > 0 && <p className="rounded-md bg-red-50 px-3 py-2 text-red-800">{t('fixErrorsForPrice')}</p>}
           {(d.sections ?? []).map((sec, i) => (
             <div key={i} className="overflow-x-auto">
               {sec.title && <p className="mb-1 font-semibold">{sec.title}</p>}

@@ -260,7 +260,7 @@ function ParticipantRow({ n, p, base, passportLimit, onChange, room, birthday, t
       <td className="px-1 py-1">{txt('notes')}</td>
       <td className="px-1">
         <button type="button" aria-label={t('delete')} title={t('delete')} onClick={() => void ask({ title: t('confirmDeleteParticipant'), danger: true }).then((ok) => ok && del.mutate())}
-          className="rounded p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
+          className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
       </td>
     </tr>
   )
@@ -339,7 +339,7 @@ export function StaffTab({ tour }: { tour: Tour }) {
               )}
               <Tooltip label={t('handOverTip')}><Button size="sm" variant="secondary" onClick={() => setHandFor(a)}><ArrowRightLeft size={14} aria-hidden />{t('handOverButton')}</Button></Tooltip>
               <button type="button" aria-label={t('delete')} title={t('delete')} onClick={() => void ask({ title: t('confirmRemoveStaff'), danger: true }).then((ok) => ok && remove.mutate(a.id))}
-                className="rounded p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
+                className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
             </li>
           ))}
         </ul>

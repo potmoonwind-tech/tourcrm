@@ -117,7 +117,7 @@ function Row({ r, first, prices }: { r: MealRow; first: boolean; prices: boolean
       <td className="px-2 py-2">
         <span className="font-medium">{r.vendor.name}</span>
         <span className={cn('block text-xs', r.menu_name ? 'text-slate-600' : 'text-amber-700')}>{r.menu_name ?? t('menuUsual')}</span>
-        {r.shared && <span className="mt-0.5 inline-block rounded bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-800">{t('mealShared')}</span>}
+        {r.shared && <span className="mt-0.5 inline-block rounded-md bg-brand-50 px-1.5 py-0.5 text-[11px] font-medium text-brand-800">{t('mealShared')}</span>}
       </td>
       <td className="px-2 py-2">
         <div className="flex flex-wrap gap-1">

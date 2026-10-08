@@ -31,7 +31,7 @@ export function ScaleEditor({ value, onChange, disabled, of }: {
           <span className="text-slate-500">% {of === 'price' ? t('scaleOfPrice') : t('scaleOfBooked')}</span>
           {!disabled && (
             <button type="button" onClick={() => onChange(rows.filter((_, j) => j !== i))} aria-label={t('delete')}
-              className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+              className="rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
           )}
         </div>
       ))}

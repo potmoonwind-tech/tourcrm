@@ -83,7 +83,7 @@ export function BillsModal({ tourId, payable, onClose, onChanged }: {
                       <Flag size={14} />{t('dispute')}
                     </Button>}
                 <button type="button" onClick={() => void ask({ title: t('confirmDelete'), danger: true }).then((ok) => ok && act.mutate({ path: `/bills/${b.id}`, method: 'DELETE' }))} aria-label={t('delete')}
-                  className="rounded p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                  className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
               </li>
             ))}
           </ul>

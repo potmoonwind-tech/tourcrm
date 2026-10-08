@@ -97,11 +97,11 @@ export function MoneyTab({ token, days }: { token: string; days: { number: numbe
               </span>
               <span className="text-right">
                 <span className="block font-semibold tabular-nums">{money(Number(e.amount), e.currency)}</span>
-                <span className={cn('inline-block rounded px-1.5 py-0.5 text-[11px] font-medium', TONE[STATUS_TONE[e.status]])}>{t(`fieldStatus_${e.status}` as TKey)}</span>
+                <span className={cn('inline-block rounded-md px-1.5 py-0.5 text-[11px] font-medium', TONE[STATUS_TONE[e.status]])}>{t(`fieldStatus_${e.status}` as TKey)}</span>
               </span>
               {e.status === 'pending' && (
                 <button type="button" aria-label={t('delete')} disabled={remove.isPending}
-                  onClick={() => window.confirm(t('fieldDeleteAsk')) && remove.mutate(e.id)} className="rounded p-2 text-slate-400 active:bg-slate-100"><Trash2 size={16} /></button>
+                  onClick={() => window.confirm(t('fieldDeleteAsk')) && remove.mutate(e.id)} className="rounded-md p-2 text-slate-400 active:bg-slate-100"><Trash2 size={16} /></button>
               )}
             </li>
           ))}

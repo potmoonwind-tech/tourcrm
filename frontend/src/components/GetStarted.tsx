@@ -83,7 +83,7 @@ export function GetStarted() {
           </div>
         </div>
         <button type="button" onClick={hide} title={t('gs_hide')} aria-label={t('gs_hide')}
-          className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={16} /></button>
+          className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600"><X size={16} /></button>
       </div>
       <ol className="divide-y divide-slate-100">
         {steps.map((x, i) => (

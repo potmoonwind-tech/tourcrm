@@ -88,7 +88,7 @@ export function GuideReports({ tour, onChanged }: { tour: Tour; onChanged: () =>
                 </span>
               ) : (
                 <button type="button" title={t('undoDecision')} aria-label={t('undoDecision')} disabled={reopen.isPending || !!tour.closed_at}
-                  onClick={() => reopen.mutate(x.id)} className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><RotateCcw size={15} /></button>
+                  onClick={() => reopen.mutate(x.id)} className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700"><RotateCcw size={15} /></button>
               )}
             </li>
           ))}

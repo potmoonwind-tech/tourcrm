@@ -138,7 +138,7 @@ export function BudgetPanel({ tour, onChanged }: { tour: Tour; onChanged: () => 
                 <td className="px-2 py-2 text-right">
                   {l.status === 'no_cost' && (
                     <button type="button" onClick={() => addCosts.mutate([l.id])} title={t('addPlannedCost')}
-                      className="rounded p-1 text-brand-600 hover:bg-brand-50"><Plus size={15} /></button>
+                      className="rounded-md p-1 text-brand-600 hover:bg-brand-50"><Plus size={15} /></button>
                   )}
                 </td>
               </tr>

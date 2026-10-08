@@ -57,7 +57,7 @@ export function GuideInfo({ languages, away, disabled, onChange }: {
                 className="h-8 min-w-32 flex-1 text-sm" aria-label={t('notes')} />
               {past(a) && <span className="text-xs text-slate-400">{t('pastPeriod')}</span>}
               {!disabled && <button type="button" aria-label={t('delete')} onClick={() => onChange({ unavailable: away.filter((_, j) => j !== i) })}
-                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><Trash2 size={14} /></button>}
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><Trash2 size={14} /></button>}
             </li>
           ))}
         </ul>

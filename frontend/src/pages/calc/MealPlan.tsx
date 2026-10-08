@@ -128,7 +128,7 @@ function MealsDialog({ doc, edit, onClose }: { doc: QuoteDoc; edit: EditFn<Quote
           <p className="text-sm text-slate-600">{current ? t('mealsRestaurantsBack') : t('nMealLines', { n: restaurants })}</p>
         ) : <>
           <Field label={t('mealsPerDay')} hint={t('mealsPerDayHint', { days: doc.days, n: doc.days * p.perDay })}>
-            <span className="inline-flex rounded border border-slate-300"><Stepper size="md" value={p.perDay} min={1} max={5} label={t('mealsPerDay')} onChange={(v) => set({ perDay: v })} /></span>
+            <span className="inline-flex rounded-md border border-slate-300"><Stepper size="md" value={p.perDay} min={1} max={5} label={t('mealsPerDay')} onChange={(v) => set({ perDay: v })} /></span>
           </Field>
 
           <fieldset>

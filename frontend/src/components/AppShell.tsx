@@ -162,7 +162,7 @@ function NavRow({ item, end, narrow, accent }: { item: NavItem; end?: boolean; n
     return (
       <div className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-slate-400">
         {item.icon}<span className="flex-1">{t(item.label)}</span>
-        <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase">{t('soon')}</span>
+        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase">{t('soon')}</span>
       </div>
     )
   }

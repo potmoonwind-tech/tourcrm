@@ -299,7 +299,7 @@ function PersonDrawer({ p, n, set, onDelete, onClose }: {
         <Field label={t('howManyPeople')} hint={group ? t('groupTypeHelp') : undefined}>
           {group ? <div className="flex h-10 items-center"><Badge tone="brand" className="h-7 px-2.5 text-sm">{n} · {t('theGroup')}</Badge></div> : (
             <div className="flex flex-wrap items-center gap-3">
-              <span className="inline-flex rounded border border-slate-300"><Stepper size="md" value={p.count ?? 0} min={0} max={99} label={t('howManyPeople')} onChange={(v) => set({ count: v })} /></span>
+              <span className="inline-flex rounded-md border border-slate-300"><Stepper size="md" value={p.count ?? 0} min={0} max={99} label={t('howManyPeople')} onChange={(v) => set({ count: v })} /></span>
               {p.role !== 'pay' && (
                 <span className="flex items-center gap-2 text-sm text-slate-700">
                   {t('orOnePer')}
@@ -467,7 +467,7 @@ function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, valu
               })}
               <div className="mt-auto w-full">
                 <Menu full label={day === null ? t('wholeTrip') : t('dayN', { n: day })}
-                  triggerClassName="flex h-8 w-full items-center justify-center gap-1 rounded text-sm font-medium text-slate-600 hover:bg-white hover:text-brand-700"
+                  triggerClassName="flex h-8 w-full items-center justify-center gap-1 rounded-md text-sm font-medium text-slate-600 hover:bg-white hover:text-brand-700"
                   trigger={<><Plus size={16} />{t('add')}</>}
                   items={[
                     ...ADD_KINDS.map((k) => ({ label: t(`qcat_${k.cat}` as TKey), icon: k.icon, onClick: () => add(day, k.cat, k.perPerson) })),
@@ -656,7 +656,7 @@ function UsesGrid({ doc, edit }: { doc: QuoteDoc; edit: Edit }) {
   const exceptions = rows.reduce((n, r) => n + people.filter((p) => usageOf(r.it, p) !== 'full' && WHO_ROLES[r.it.who]?.includes(p.role)).length, 0)
   const cell = (mode: UseMode | 'mixed', onPick: (m: UseMode) => void, label: string) => (
     <select value={mode} onChange={(e) => onPick(e.target.value as UseMode)} aria-label={label}
-      className={cn('select-chevron h-8 w-full cursor-pointer rounded border pl-2 pr-7 text-sm font-medium',
+      className={cn('select-chevron h-8 w-full cursor-pointer rounded-md border pl-2 pr-7 text-sm font-medium',
         mode === 'full' && 'border-sky-200 bg-sky-50 text-sky-800',
         mode === 'half' && 'border-sky-200 bg-white text-sky-700',
         mode === 'own' && 'border-amber-200 bg-amber-50 text-amber-800',
@@ -1027,7 +1027,7 @@ function PriceCard({ doc, n, setN, result, breakdown, season, setSeason }: {
               <div className="flex items-center gap-1.5 text-xs text-slate-500">
                 <span className="tabular-nums">{pct.toFixed(1)}%</span>
                 {(health === 'thin' || health === 'loss') && (
-                  <span className={cn('rounded px-1 font-semibold uppercase', health === 'thin' ? 'bg-amber-100 text-amber-900' : 'bg-red-100 text-red-800')}>
+                  <span className={cn('rounded-md px-1 font-semibold uppercase', health === 'thin' ? 'bg-amber-100 text-amber-900' : 'bg-red-100 text-red-800')}>
                     {t(health === 'thin' ? 'profitThin' : 'profitLoss')}
                   </span>
                 )}
@@ -1333,7 +1333,7 @@ function TransportCard({ doc, n, result, breakdown, edit, value }: {
                   const c = tp.fixed.find((f) => f.vehicle_id === v.id)?.count ?? 0
                   const put = (k: number) => set((p) => { p.fixed = [...p.fixed.filter((f) => f.vehicle_id !== v.id), ...(k > 0 ? [{ vehicle_id: v.id, count: k }] : [])] })
                   return (
-                    <span key={v.id} className={cn('inline-flex items-center gap-2 rounded border py-0.5 pl-0.5 pr-3', c ? 'border-brand-600 bg-brand-50' : 'border-slate-300')}>
+                    <span key={v.id} className={cn('inline-flex items-center gap-2 rounded-md border py-0.5 pl-0.5 pr-3', c ? 'border-brand-600 bg-brand-50' : 'border-slate-300')}>
                       <Stepper value={c} onChange={put} min={0} max={20} label={v.name} />
                       <span className="text-sm">{v.name}</span>
                     </span>

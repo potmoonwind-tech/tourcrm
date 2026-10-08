@@ -96,7 +96,7 @@ export function VendorSelect({ vendors, types, value, onChange, className, disab
         onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); openList() } }}
         aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? `${id}-list` : undefined}
         title={current ? [current.name, current.city].filter(Boolean).join(' · ') : undefined}
-        className={cn('flex h-10 w-full min-w-0 items-center gap-2 rounded border border-slate-300 bg-white px-3 text-left text-sm text-slate-800',
+        className={cn('flex h-10 w-full min-w-0 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-left text-sm text-slate-800',
           'hover:border-slate-800 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50 disabled:text-slate-500 disabled:hover:border-slate-300',
           className)}>
         {current ? <>

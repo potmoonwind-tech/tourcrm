@@ -351,7 +351,7 @@ function TaskTypesDialog({ onClose }: { onClose: () => void }) {
               ))}
             </div>
             <button type="button" onClick={() => setList(list.filter((_, j) => j !== i))} aria-label={t('delete')} title={t('delete')}
-              className="rounded p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600"><Trash2 size={15} /></button>
+              className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-red-600"><Trash2 size={15} /></button>
           </div>
         ))}
         <button type="button" onClick={() => setList([...list, { id: newTypeId(), name: '', color: COLORS[list.length % COLORS.length] }])}

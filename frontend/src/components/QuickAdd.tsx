@@ -119,10 +119,10 @@ export function DishesInput({ value, onChange, disabled, currency, onUseSum }: {
             <input type="number" min="0" step="0.01" disabled={disabled} value={d.price ?? ''} placeholder={t('price')}
               aria-label={t('dishPriceOf', { dish: d.name })} title={t('dishPriceHelp')}
               onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, price: e.target.value === '' ? null : Number(e.target.value) } : x)))}
-              className="h-5 w-16 rounded border border-amber-200 bg-white px-1 text-right tabular-nums" />
+              className="h-5 w-16 rounded-md border border-amber-200 bg-white px-1 text-right tabular-nums" />
             <select disabled={disabled} value={d.per_plate ?? ''} aria-label={t('dishShareOf', { dish: d.name })} title={t('dishShareHelp')}
               onChange={(e) => onChange(value.map((x, j) => (j === i ? { ...x, per_plate: e.target.value === '' ? null : Number(e.target.value) } : x)))}
-              className="h-5 rounded border border-amber-200 bg-white px-0.5 text-[11px]">
+              className="h-5 rounded-md border border-amber-200 bg-white px-0.5 text-[11px]">
               <option value="">{t('dishShareUsual')}</option>
               {[1, 2, 3, 4, 5, 6, 8].map((n) => <option key={n} value={n}>{n === 1 ? t('dishShareOwn') : `1/${n}`}</option>)}
             </select>

@@ -215,7 +215,7 @@ export function ServicesEditor({ vendor, standalone, onDirtyChange, autoStart, s
                 </>
               )}
               <button type="button" onClick={() => setRows(rows.filter((_, j) => j !== i))} aria-label={t('delete')} title={t('delete')}
-                className="ml-auto rounded p-2 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
+                className="ml-auto rounded-md p-2 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
             </div>
 
             {s.category === 'meal' && (
@@ -302,7 +302,7 @@ export function ServicesEditor({ vendor, standalone, onDirtyChange, autoStart, s
                       </td>
                       <td>
                         <button type="button" onClick={() => setSvc(i, { rates: s.rates.filter((_, j) => j !== k) })} aria-label={t('delete')}
-                          className="rounded p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                          className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                       </td>
                     </tr>
                   ))}

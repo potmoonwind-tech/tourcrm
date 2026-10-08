@@ -69,7 +69,7 @@ export function DayServices({ value, onChange, disabled, onAddNew }: {
               {!disabled && (
                 <Tooltip label={t('placeRemove')}>
                   <button type="button" onClick={() => drop(vid)} aria-label={t('placeRemoveOf', { name: vendor?.name ?? '' })}
-                    className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={14} /></button>
+                    className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={14} /></button>
                 </Tooltip>
               )}
             </div>
@@ -101,7 +101,7 @@ export function DayServices({ value, onChange, disabled, onAddNew }: {
               {list.length === 0 && <li className="py-1 text-xs text-slate-500">{t('placeNoPrices')}</li>}
               {!disabled && onAddNew && (
                 <li><button type="button" onClick={() => onAddNew(vid)}
-                  className="inline-flex h-7 items-center gap-1 rounded px-1 text-xs font-medium text-brand-700 hover:bg-brand-50">
+                  className="inline-flex h-7 items-center gap-1 rounded-md px-1 text-xs font-medium text-brand-700 hover:bg-brand-50">
                   <Plus size={12} />{t(list.length ? 'placeAddActivity' : 'placeAddFirst')}</button></li>
               )}
             </ul>
@@ -163,7 +163,7 @@ function Qty({ value, auto, unit, disabled, onChange }: {
       title={auto ? t('autoQtyHelp', { unit }) : t('setQtyHelp', { unit })} aria-label={t('quantity')}
       onChange={(e) => setText(e.target.value)}
       onBlur={() => { if (text !== shown) onChange(text && Number(text) > 0 ? text : null) }}
-      className={cn('h-6 w-14 shrink-0 rounded border bg-white px-1 text-right text-xs tabular-nums',
+      className={cn('h-6 w-14 shrink-0 rounded-md border bg-white px-1 text-right text-xs tabular-nums',
         !auto && !text ? 'border-amber-400' : 'border-slate-200')} />
   )
 }

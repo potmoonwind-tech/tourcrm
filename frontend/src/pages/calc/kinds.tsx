@@ -118,7 +118,7 @@ export function KindsDialog({ onClose }: { onClose: () => void }) {
             return (
               <li key={k.id} className="space-y-2 rounded-lg border border-slate-200 p-3">
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded text-white', COLORS[k.color] ?? COLORS.slate)}><Icon size={16} /></span>
+                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-white', COLORS[k.color] ?? COLORS.slate)}><Icon size={16} /></span>
                   <Input size="sm" value={k.name} onChange={(e) => set(i, { name: e.target.value })} className="min-w-0 flex-1" aria-label={t('name')} />
                   <IconButton size="sm" tone="danger" label={`${t('delete')}: ${k.name}`} onClick={() => setList((l) => l.filter((_, j) => j !== i))}><X size={16} /></IconButton>
                 </div>
@@ -138,7 +138,7 @@ export function KindsDialog({ onClose }: { onClose: () => void }) {
                 <div className="flex flex-wrap items-center gap-1 pl-10" role="radiogroup" aria-label={t('kindLook')}>
                   {Object.entries(ICONS).map(([name, Ic]) => (
                     <button key={name} type="button" role="radio" aria-checked={k.icon === name} aria-label={name} onClick={() => set(i, { icon: name })}
-                      className={cn('flex h-8 w-8 items-center justify-center rounded text-slate-600 hover:bg-slate-100', k.icon === name && 'bg-brand-100 text-brand-800')}>
+                      className={cn('flex h-8 w-8 items-center justify-center rounded-md text-slate-600 hover:bg-slate-100', k.icon === name && 'bg-brand-100 text-brand-800')}>
                       <Ic size={16} />
                     </button>
                   ))}

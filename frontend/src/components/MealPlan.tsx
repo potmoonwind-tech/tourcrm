@@ -131,7 +131,7 @@ export function MealPlan({ meal, day, dayNumber, menu, crew, disabled, twice, on
                   <td className="py-0.5">
                     <select disabled={disabled} value={per} aria-label={`${x.name}: ${t('mpShare')}`}
                       onChange={(e) => setDishes(dishes.map((y, j) => (j === i ? { ...y, per_plate: Number(e.target.value) } : y)))}
-                      className={cn('h-6 w-14 rounded border border-slate-200 bg-white px-1 text-xs tabular-nums', per > 1 && 'border-amber-300 bg-amber-50 text-amber-900')}>
+                      className={cn('h-6 w-14 rounded-md border border-slate-200 bg-white px-1 text-xs tabular-nums', per > 1 && 'border-amber-300 bg-amber-50 text-amber-900')}>
                       {SHARES.map((n) => <option key={n} value={n}>1 / {n}</option>)}
                     </select>
                   </td>
@@ -140,7 +140,7 @@ export function MealPlan({ meal, day, dayNumber, menu, crew, disabled, twice, on
                   {!disabled && (
                     <td className="py-1 text-right">
                       <button type="button" aria-label={`${t('delete')} ${x.name}`} onClick={() => setDishes(dishes.filter((_, j) => j !== i))}
-                        className="rounded p-0.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><X size={12} /></button>
+                        className="rounded-md p-0.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><X size={12} /></button>
                     </td>
                   )}
                 </tr>

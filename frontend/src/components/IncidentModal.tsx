@@ -157,7 +157,7 @@ export function IncidentModal({ tourId, incident, onClose, onChanged }: {
                   <Input className="h-9 text-right" type="number" step="0.01" min="0" required value={c.unit_price} onChange={(e) => setCost(i, { unit_price: e.target.value })} aria-label={t('unitPrice')} />
                   <Select className="h-9" value={c.currency} onChange={(e) => setCost(i, { currency: e.target.value })}>{CURRENCIES.map((x) => <option key={x}>{x}</option>)}</Select>
                   <button type="button" onClick={() => set({ costs: f.costs.filter((_, j) => j !== i) })} aria-label={t('delete')}
-                    className="justify-self-end rounded p-2 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
+                    className="justify-self-end rounded-md p-2 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
                 </div>
               ))}
               <div className="flex flex-wrap items-center gap-2">

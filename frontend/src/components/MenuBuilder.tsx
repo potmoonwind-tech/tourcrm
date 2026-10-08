@@ -173,16 +173,16 @@ function DishRow({ d, menus, onPut, onPrice, onName, onDelete }: {
     <div ref={setNodeRef} className={cn('rounded-lg border border-slate-200 bg-white', isDragging && 'opacity-40')}>
       <div className="flex items-center gap-1.5 px-1.5 py-1">
         <button type="button" {...listeners} {...attributes} aria-label={t('mbDrag', { name: d.name })}
-          className="cursor-grab touch-none rounded p-1 text-slate-400 hover:bg-slate-50 active:cursor-grabbing"><GripVertical size={14} /></button>
+          className="cursor-grab touch-none rounded-md p-1 text-slate-400 hover:bg-slate-50 active:cursor-grabbing"><GripVertical size={14} /></button>
         <input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== d.name && onName(name.trim())}
-          className="min-w-0 flex-1 rounded border border-transparent px-1 py-0.5 text-sm hover:border-slate-200 focus:border-brand-300 focus:outline-none" aria-label={t('mbDishName')} />
+          className="min-w-0 flex-1 rounded-md border border-transparent px-1 py-0.5 text-sm hover:border-slate-200 focus:border-brand-300 focus:outline-none" aria-label={t('mbDishName')} />
         <input value={price} inputMode="decimal" onChange={(e) => setPrice(e.target.value)} placeholder="—"
           onBlur={() => { const p = price.trim() === '' ? null : price.replace(',', '.'); if (p !== (d.price ?? null) && (p === null || !Number.isNaN(Number(p)))) onPrice(p) }}
-          className="w-16 rounded border border-slate-200 px-1.5 py-0.5 text-right text-sm tabular-nums focus:border-brand-300 focus:outline-none" aria-label={t('mbPrice')} />
+          className="w-16 rounded-md border border-slate-200 px-1.5 py-0.5 text-right text-sm tabular-nums focus:border-brand-300 focus:outline-none" aria-label={t('mbPrice')} />
         <span className="w-8 text-xs text-slate-400">{d.currency}</span>
         {/* Without dragging (a phone): "+ to a menu". */}
         <select value="" onChange={(e) => { if (e.target.value) onPut(e.target.value) }} aria-label={t('mbAddTo', { name: d.name })} title={t('mbAddTo', { name: d.name })}
-          className="h-6 w-7 cursor-pointer appearance-none rounded border border-slate-200 bg-white text-center text-sm font-semibold text-brand-700 hover:bg-brand-50">
+          className="h-6 w-7 cursor-pointer appearance-none rounded-md border border-slate-200 bg-white text-center text-sm font-semibold text-brand-700 hover:bg-brand-50">
           <option value="">+</option>
           {menus.map((m) => <option key={m.id} value={`menu:${m.id}`}>{m.name}</option>)}
           <option value="new:lunch">{t('mbNewLunchShort')}</option>
@@ -190,9 +190,9 @@ function DishRow({ d, menus, onPut, onPrice, onName, onDelete }: {
         </select>
         {d.history.length > 1 && (
           <button type="button" onClick={() => setHist(!hist)} title={t('mbHistory')} aria-label={t('mbHistory')}
-            className={cn('rounded p-1 text-slate-400 hover:bg-slate-50', hist && 'text-brand-700')}><History size={14} /></button>
+            className={cn('rounded-md p-1 text-slate-400 hover:bg-slate-50', hist && 'text-brand-700')}><History size={14} /></button>
         )}
-        <button type="button" onClick={onDelete} aria-label={`${t('delete')} ${d.name}`} className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"><X size={13} /></button>
+        <button type="button" onClick={onDelete} aria-label={`${t('delete')} ${d.name}`} className="rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"><X size={13} /></button>
       </div>
       {hist && (
         // The price over time, newest first.
@@ -245,9 +245,9 @@ function ReadPreview({ rows: start, busy, onAdd, onCancel }: {
             {rows.map((r, i) => (
               <tr key={i} className="border-t border-violet-100">
                 <td className="w-6 py-1"><input type="checkbox" className="size-4" checked={r.on} onChange={(e) => set(i, { on: e.target.checked })} aria-label={r.name} /></td>
-                <td className="py-1 pr-1"><input value={r.name} onChange={(e) => set(i, { name: e.target.value })} className="w-full rounded border border-slate-200 bg-white px-1 py-0.5" /></td>
-                <td className="w-28 py-1 pr-1"><input value={r.category} onChange={(e) => set(i, { category: e.target.value })} className="w-full rounded border border-slate-200 bg-white px-1 py-0.5" /></td>
-                <td className="w-16 py-1"><input value={r.price ?? ''} onChange={(e) => set(i, { price: e.target.value || null })} className="w-full rounded border border-slate-200 bg-white px-1 py-0.5 text-right tabular-nums" /></td>
+                <td className="py-1 pr-1"><input value={r.name} onChange={(e) => set(i, { name: e.target.value })} className="w-full rounded-md border border-slate-200 bg-white px-1 py-0.5" /></td>
+                <td className="w-28 py-1 pr-1"><input value={r.category} onChange={(e) => set(i, { category: e.target.value })} className="w-full rounded-md border border-slate-200 bg-white px-1 py-0.5" /></td>
+                <td className="w-16 py-1"><input value={r.price ?? ''} onChange={(e) => set(i, { price: e.target.value || null })} className="w-full rounded-md border border-slate-200 bg-white px-1 py-0.5 text-right tabular-nums" /></td>
               </tr>
             ))}
           </tbody>
@@ -278,19 +278,19 @@ function MenuCard({ m, share, currency, onDishes, onPrice, onName }: {
   return (
     <div ref={setNodeRef} className={cn('flex min-h-40 flex-col rounded-xl border bg-white p-2.5 transition-colors', isOver ? 'border-brand-400 bg-brand-50/60' : 'border-slate-200')}>
       <input value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== m.name && onName(name.trim())}
-        disabled={!!m.code} className="mb-1 rounded border border-transparent px-1 text-sm font-semibold text-slate-900 hover:border-slate-200 focus:border-brand-300 focus:outline-none disabled:bg-transparent" aria-label={t('mbMenuName')} />
+        disabled={!!m.code} className="mb-1 rounded-md border border-transparent px-1 text-sm font-semibold text-slate-900 hover:border-slate-200 focus:border-brand-300 focus:outline-none disabled:bg-transparent" aria-label={t('mbMenuName')} />
       <ul className="flex-1 divide-y divide-slate-100 text-sm">
         {dishes.map((d, i) => (
           <li key={`${d.name}-${i}`} className="flex items-center gap-1.5 py-1">
             <span className="min-w-0 flex-1 truncate">{d.name}</span>
             <select value={d.per_plate ?? share} aria-label={`${d.name}: ${t('mpShare')}`}
               onChange={(e) => onDishes(dishes.map((x, j) => (j === i ? { ...x, per_plate: Number(e.target.value) } : x)))}
-              className={cn('h-6 rounded border border-slate-200 px-1 text-xs tabular-nums', (d.per_plate ?? share) > 1 && 'border-amber-300 bg-amber-50 text-amber-900')}>
+              className={cn('h-6 rounded-md border border-slate-200 px-1 text-xs tabular-nums', (d.per_plate ?? share) > 1 && 'border-amber-300 bg-amber-50 text-amber-900')}>
               {SHARES.map((n) => <option key={n} value={n}>1 / {n}</option>)}
             </select>
             <span className="w-12 text-right text-xs tabular-nums text-slate-500">{d.price ?? '—'}</span>
             <button type="button" onClick={() => onDishes(dishes.filter((_, j) => j !== i))} aria-label={`${t('delete')} ${d.name}`}
-              className="rounded p-0.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><X size={12} /></button>
+              className="rounded-md p-0.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><X size={12} /></button>
           </li>
         ))}
         {!dishes.length && <li className="py-6 text-center text-xs text-slate-400">{t('mbDropHere')}</li>}

@@ -171,7 +171,7 @@ function NightRow({ id, i, n, hotels, showTrp, showQuad, staff, set, onOpen, onD
       </td>
       {staff > 0 && (
         <td className="px-1 py-1">
-          <button type="button" onClick={onOpen} className="w-full truncate rounded px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100">
+          <button type="button" onClick={onOpen} className="w-full truncate rounded-md px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-100">
             {t(`staffStay_${stay}` as TKey)}{paid}{n.staff_twin ? ` · ${t('staffTwin')}` : ''}
           </button>
         </td>

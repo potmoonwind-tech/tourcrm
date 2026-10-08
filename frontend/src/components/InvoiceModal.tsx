@@ -144,7 +144,7 @@ function DraftForm({ inv, fromTour, onClose, onSaved }: {
                 {money((Number(l.quantity) || 0) * (Number(l.unit_price) || 0))}
               </span>
               <button type="button" onClick={() => setLines(lines.filter((_, j) => j !== i))}
-                className="rounded p-2 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
+                className="rounded-md p-2 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
             </div>
           ))}
           <div className="flex items-center justify-between">
@@ -239,7 +239,7 @@ function IssuedView({ inv, onClose, onChanged, onOpen }: {
                   <span className="flex-1 text-slate-500">{p.amount < 0 && <b className="mr-1 text-violet-700">{t('refund')}</b>}{t(`method_${p.method}`)}{p.reference && ` · ${p.reference}`}</span>
                   <span className="font-semibold tabular-nums">{money(p.amount, inv.currency)}</span>
                   <button type="button" onClick={() => void ask({ title: t('confirmDelete'), danger: true }).then((ok) => ok && delPay.mutate(p.id))}
-                    className="rounded p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
+                    className="rounded-md p-1 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={14} /></button>
                 </li>
               ))}
             </ul>

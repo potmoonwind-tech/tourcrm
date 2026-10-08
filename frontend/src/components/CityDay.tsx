@@ -139,7 +139,7 @@ function Timeline({ group, all, clashed }: { group: DayViewRow[]; all: Slot[]; c
                   return (
                     <Tooltip key={s.item.id} label={text}>
                       <span tabIndex={0} aria-label={text}
-                        className={cn('absolute inset-y-1 flex items-center gap-1 overflow-hidden rounded px-1.5 text-xs font-medium leading-none whitespace-nowrap text-white',
+                        className={cn('absolute inset-y-1 flex items-center gap-1 overflow-hidden rounded-md px-1.5 text-xs font-medium leading-none whitespace-nowrap text-white',
                           clash ? `${BLOCK.clash} ring-2 ring-red-300` : BLOCK[blockKind(s.item.kind)])}
                         style={{ left: pos(s.start), width: `calc(${pos(s.end)} - ${pos(s.start)})` }}>
                         {clash && <AlertTriangle size={13} aria-hidden className="shrink-0" />}<span className="truncate">{s.name}</span>

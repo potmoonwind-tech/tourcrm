@@ -1,7 +1,8 @@
 # TourCRM design system
 
-Based on monday.com's **Vibe** design system: its colours, type, sizes and interaction patterns,
-implemented in our own Tailwind components (not the `@vibe/core` library).
+Friendly and calm: warm greys, soft hairlines, rounder corners, two text weights, round icon bubbles and
+chips - so a new person isn't scared off. Layout and interaction rules come from monday.com's **Vibe**
+(one primary, "⋯" menu, drawer vs dialog, status labels), implemented in our own Tailwind components.
 Tokens live in `frontend/src/index.css`; building blocks in `frontend/src/components/ui.tsx`,
 `components/overlay.tsx` and `components/tour.tsx`.
 
@@ -10,12 +11,14 @@ Tokens live in `frontend/src/index.css`; building blocks in `frontend/src/compon
 | | Value | Use |
 |---|---|---|
 | Primary | `#0073ea` (`brand-600`), hover `#0060b9`, selected `#cce5ff` | the one main action, links, selection |
-| Text | `#323338` (`slate-800`), secondary `#676879` (`slate-500`) | body, labels |
-| Borders | `#d0d4e4` layout (`slate-200`), `#c3c6d4` controls (`slate-300`) | cards, inputs |
-| Surfaces | page `#f6f7fb` (`slate-50`), cards white | |
+| Text | `#2c2c2a` (`slate-800`), secondary `#6b6a64` (`slate-500`) - warm greys | body, labels |
+| Borders | hairline `#e6e3dc` (`slate-200`), controls `#d6d3ca` (`slate-300`) | cards, inputs |
+| Surfaces | page `#f7f6f3` (`slate-50`), frame `#faf9f6`, cards white | |
 | Status | done `#00c875`, working `#fdab3d`, stuck `#e2445c`, blue `#579bfc`, purple `#a25ddc` | status labels only |
-| Font | Figtree (+ Noto Sans Georgian), 14px body | |
-| Radius | 4px controls, 8px cards, 16px dialogs | |
+| Font | Figtree (+ Noto Sans Georgian), 14px body; two weights: regular and medium (`font-semibold` is mapped to 500, `font-bold` to 600) | |
+| Radius | 8px controls (`rounded-md`; never bare `rounded`, which is Tailwind's fixed 4px), 12px cards (`rounded-xl`), 16px dialogs, full for chips and icon bubbles | |
+| Icon bubbles | a round soft-colour circle behind a kind's icon (coffee, bed, fork), one colour per kind | timelines, cards |
+| Chips | pill, `slate-100`; a value you can change shows "▾" ("30 min ▾"); adding is a dashed pill ("+ Visit") | small actions inside a card |
 | Controls | 40px tall (32px `size="sm"`) | |
 
 ## Where things open

@@ -99,7 +99,7 @@ export function ToursPage() {
                     <td className="px-4 py-3">
                       {/* The link makes the row reachable by keyboard and screen readers; the row click is for the mouse. */}
                       <Link to={r.id} onClick={(e) => e.stopPropagation()} aria-label={t('openTourCode', { code: r.code })}
-                        className="inline-block rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
+                        className="inline-block rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500">
                         <CodeChip code={r.code} color={r.color} />
                       </Link>
                     </td>
@@ -237,7 +237,7 @@ function NewTourModal({ onClose }: { onClose: () => void }) {
           <RoomsPicker value={form.rooms} pax={Number(form.pax) || 0} onChange={(rooms) => { setRoomsTouched(true); setForm((f) => ({ ...f, rooms })) }} />
         </div>
         <button type="button" onClick={() => setMore(!more)} aria-expanded={more}
-          className="inline-flex items-center gap-1 rounded text-sm font-medium text-brand-700 hover:underline">
+          className="inline-flex items-center gap-1 rounded-md text-sm font-medium text-brand-700 hover:underline">
           <ChevronDown size={16} className={cn('transition-transform', more && 'rotate-180')} aria-hidden />{t('moreOptions')}
           {!more && <span className="font-normal text-slate-500">· {t('newTourMoreHint')}</span>}
         </button>

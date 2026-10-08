@@ -169,7 +169,7 @@ function BookingCard({ tour, b, members, canEdit }: { tour: Tour; b: Booking; me
         <span>{t('whoBooks')}: {name(b.assignee_id ?? b.default_assignee_id) ?? t('nobodyYet')}</span>
         {b.reference && <span>{t('confirmationNo')}: <span className="font-medium text-slate-800">{b.reference}</span></span>}
         <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={`booking-${b.id}`}
-          className="ml-auto inline-flex h-7 items-center gap-1 rounded px-1.5 font-medium text-brand-700 hover:bg-brand-50">
+          className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-1.5 font-medium text-brand-700 hover:bg-brand-50">
           {t('bookingDetails')}<ChevronDown size={14} className={cn('transition-transform', open && 'rotate-180')} aria-hidden />
         </button>
       </div>

@@ -159,7 +159,7 @@ function RoomCard({ room, loose, onPut, onOut, onType, onDrop, onNote }: {
           {ROOM_TYPES.map((r) => <option key={r} value={r}>{t(`roomTypeName_${r}` as TKey)}</option>)}
         </Select>
         <span className={cn('ml-auto text-xs tabular-nums', n > cap ? 'font-medium text-red-700' : n < cap ? 'text-amber-700' : 'text-emerald-700')}>{n}/{cap}</span>
-        {n === 0 && <button type="button" onClick={onDrop} aria-label={t('delete')} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={14} /></button>}
+        {n === 0 && <button type="button" onClick={onDrop} aria-label={t('delete')} className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={14} /></button>}
       </div>
       {n > cap && <p className="mt-1 flex items-center gap-1 text-xs text-red-700"><AlertTriangle size={12} aria-hidden />{t('roomsTooManyIn', { n, cap })}</p>}
       <p className="mt-0.5 text-xs text-slate-500">{t(`bedsOf_${room.type}` as TKey)}</p>

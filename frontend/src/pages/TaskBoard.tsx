@@ -144,7 +144,7 @@ function TaskCard({ x, showWho, onOpen, onMove }: { x: TaskItem; showWho: boolea
         isDragging && 'border-dashed opacity-40')}>
       <div className="flex items-start gap-1.5">
         <button type="button" {...listeners} {...attributes} aria-label={t('dragTask', { name: title })} title={t('dragTaskTip')}
-          className="-ml-1 mt-0.5 flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded text-slate-400 hover:bg-slate-100 active:cursor-grabbing">
+          className="-ml-1 mt-0.5 flex h-6 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-slate-400 hover:bg-slate-100 active:cursor-grabbing">
           <GripVertical size={14} aria-hidden />
         </button>
         <button type="button" onClick={onOpen} className="min-w-0 flex-1 text-left">
@@ -239,7 +239,7 @@ export function TaskPanel({ x, queryKey, onClose }: { x: TaskItem; queryKey: unk
                 <li key={i} className="relative text-sm">
                   <span className="absolute -left-[1.4rem] top-1.5 h-2.5 w-2.5 rounded-full bg-brand-500 ring-2 ring-white" aria-hidden />
                   <p className="text-slate-800">{line(e)}</p>
-                  {e.note && <p className="mt-0.5 rounded bg-slate-50 px-2 py-1 text-slate-600">“{e.note}”</p>}
+                  {e.note && <p className="mt-0.5 rounded-md bg-slate-50 px-2 py-1 text-slate-600">“{e.note}”</p>}
                   <p className="text-xs text-slate-400">{when(e.at)}</p>
                 </li>
               ))}

@@ -166,7 +166,7 @@ export function ToastHost() {
           {t(x.key as Parameters<typeof t>[0])}
           {x.action && (
             <button type="button" onClick={() => { dropToast(x.id); x.action!.onClick() }}
-              className="ml-2 h-8 rounded px-3 font-semibold text-sky-300 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white">
+              className="ml-2 h-8 rounded-md px-3 font-semibold text-sky-300 hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-white">
               {x.action.label}
             </button>
           )}

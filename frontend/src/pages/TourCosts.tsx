@@ -147,7 +147,7 @@ export function CostsTab({ tour }: { tour: Tour }) {
                       {p.paid_by && <> · {t('paidByName', { name: p.paid_by.name })}</>}</span>
                     <span className="w-36 text-right font-semibold tabular-nums">{money(p.amount, p.currency)}</span>
                     <button type="button" onClick={() => void ask({ title: t('confirmDelete'), danger: true }).then((ok) => ok && delPayment.mutate(p.id))}
-                      className="rounded p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
+                      className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
                   </li>
                 ))}
               </ul>
@@ -206,9 +206,9 @@ function CostRow({ line, base, budgetLines, vatRate, onChange }: {
       </td>
       <td className="px-3 py-1.5 text-slate-600">
         {line.description}
-        {line.reason && <span className={cn('ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase',
+        {line.reason && <span className={cn('ml-2 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase',
           line.reason === 'incident' ? 'bg-rose-100 text-rose-800' : line.reason === 'bill_adjustment' ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800')}>{t(`reason_${line.reason}`)}</span>}
-        {line.auto && <span className={cn('ml-2 rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase',
+        {line.auto && <span className={cn('ml-2 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase',
           line.locked ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-500')}>{line.locked ? t('edited') : t('fromItinerary')}</span>}
       </td>
       <td className="px-1 py-1">
@@ -246,7 +246,7 @@ function CostRow({ line, base, budgetLines, vatRate, onChange }: {
       )}
       <td className="px-1">
         <button type="button" aria-label={t('delete')} title={t('delete')} onClick={() => void ask({ title: t('confirmDeleteCost'), danger: true }).then((ok) => ok && del.mutate())}
-          className="rounded p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
+          className="rounded-md p-1.5 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
       </td>
     </tr>
   )

@@ -37,9 +37,9 @@ export function ChangeRow({ c }: { c: Change }) {
       {c.action !== 'changed' && <span className="text-xs text-slate-400">{t(c.action)}</span>}
       {c.action === 'changed' && (c.before !== null || c.after !== null) && (
         <span className="flex items-center gap-1.5 font-mono text-xs">
-          <span className="rounded bg-red-50 px-1.5 text-red-700 line-through decoration-red-300">{value(c.before)}</span>
+          <span className="rounded-md bg-red-50 px-1.5 text-red-700 line-through decoration-red-300">{value(c.before)}</span>
           <ArrowRight size={12} className="text-slate-400" />
-          <span className="rounded bg-emerald-50 px-1.5 text-emerald-800">{value(c.after)}</span>
+          <span className="rounded-md bg-emerald-50 px-1.5 text-emerald-800">{value(c.after)}</span>
         </span>
       )}
       {c.action !== 'changed' && c.after && <span className="font-mono text-xs text-emerald-800">{value(c.after)}</span>}

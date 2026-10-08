@@ -443,7 +443,7 @@ function ExchangeRatesCard() {
             <Input type="number" step="0.000001" min="0" value={r.rate} onChange={(e) => setRow(i, { rate: e.target.value })} className="w-36 text-right" />
             <span className="w-12 text-sm font-medium">{ws.base_currency}</span>
             <button type="button" onClick={() => setRows(rows.filter((_, j) => j !== i))} aria-label={t('delete')} title={t('delete')}
-              className="rounded p-2 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
+              className="rounded-md p-2 text-slate-300 hover:bg-red-50 hover:text-red-600"><Trash2 size={15} /></button>
           </div>
         ))}
       </div>

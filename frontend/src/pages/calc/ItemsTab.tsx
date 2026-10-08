@@ -381,7 +381,7 @@ export function LineEditor({ doc, index, calc, sample, edit, onClose, onDuplicat
                 </>}
                 {money(tourPrice, doc.currency)}
                 {startPrice != null && startPrice !== tourPrice && (
-                  <span className={cn('ml-2 rounded px-1.5 text-xs', tourPrice > startPrice ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800')}>
+                  <span className={cn('ml-2 rounded-md px-1.5 text-xs', tourPrice > startPrice ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800')}>
                     {tourPrice > startPrice ? '+' : '−'}{money(Math.abs(tourPrice - startPrice))}
                   </span>
                 )}

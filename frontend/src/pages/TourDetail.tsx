@@ -149,7 +149,7 @@ function TourSummary({ tour, canEdit, onEdit }: { tour: Tour; canEdit: boolean; 
   const rooms = roomsText(parseRooms(tour.rooms ?? '')) || (tour.rooms ?? '').trim()
   // A missing fact: amber, and (when it can be edited) the way to fill it.
   const missing = (label: string, f: DetailField) => canEdit
-    ? <button type="button" onClick={() => onEdit(f)} className="rounded font-medium text-amber-700 underline decoration-amber-300 underline-offset-2 hover:text-amber-900">{label}</button>
+    ? <button type="button" onClick={() => onEdit(f)} className="rounded-md font-medium text-amber-700 underline decoration-amber-300 underline-offset-2 hover:text-amber-900">{label}</button>
     : <span className="font-medium text-amber-700">{label}</span>
   const facts: { label: string; value: ReactNode }[] = [
     { label: t('client'), value: tour.client_name ? <span className="font-medium text-slate-800">{tour.client_name}</span> : missing(t('factChoose'), 'client') },
