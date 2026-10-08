@@ -111,12 +111,15 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
                 {todo ? t('gridMissingN', { n: todo }) : <><Check size={12} aria-hidden />{t('gridReadyShort')}</>}
               </span>
             </span>
-            <ul className="flex-1 divide-y divide-slate-50 px-3 py-1 text-xs">
+            {/* Three columns for the whole card: the label column as wide as its longest label (Georgian
+                labels are longer), so nothing runs into the value and the rows stay aligned. */}
+            <ul className="grid flex-1 grid-cols-[auto_max-content_minmax(0,1fr)] content-start gap-x-1.5 px-3 py-1 text-xs">
               {ls.map((l, k) => (
-                <li key={k} className="flex items-start gap-1.5 py-1">
-                  <span className={cn('mt-0.5 shrink-0', l.state === 'ok' ? 'text-emerald-600' : l.state === 'todo' ? 'text-amber-600' : l.state === 'soft' ? 'text-sky-600' : 'text-slate-300')}>{l.icon}</span>
-                  <span className="w-16 shrink-0 text-slate-500">{l.label}</span>
-                  <span className="min-w-0 flex-1" title={l.sub ? `${l.text} · ${l.sub}` : l.text}>
+                <li key={k} className="contents">
+                  <span className={cn('py-1 pt-[0.3rem]', k > 0 && 'border-t border-slate-100',
+                    l.state === 'ok' ? 'text-emerald-600' : l.state === 'todo' ? 'text-amber-600' : l.state === 'soft' ? 'text-sky-600' : 'text-slate-300')}>{l.icon}</span>
+                  <span className={cn('whitespace-nowrap py-1 text-slate-500', k > 0 && 'border-t border-slate-100')}>{l.label}</span>
+                  <span className={cn('min-w-0 py-1', k > 0 && 'border-t border-slate-100')} title={l.sub ? `${l.text} · ${l.sub}` : l.text}>
                     <span className={cn('block truncate', l.state === 'todo' ? 'font-semibold text-amber-800' : l.state === 'none' ? 'text-slate-400' : 'text-slate-800')}>{l.text}</span>
                     {l.sub && <span className={cn('block truncate text-[11px]', l.state === 'soft' ? 'text-sky-700' : 'text-slate-500')}>{l.sub}</span>}
                   </span>
