@@ -30,9 +30,22 @@ from .schemas import DayFields, ScheduleItem
 LANGS = ("en", "ka", "zh")
 LANG_NAME = {"en": "English", "ka": "Georgian", "zh": "Simplified Chinese"}
 
+def tbd_town(d, meal: str) -> str:
+    """Where an included lunch or dinner with no place chosen yet will be - so a programme sent out says
+    "TBD · Yerevan" instead of leaving the meal out: the town marked for it, else lunch at the day's first stop
+    (on the way) or in its town, dinner in the night's town. Empty when the meal has a place or is the group's own."""
+    mode, vid = (d.lunch_mode, d.lunch_id) if meal == "lunch" else (d.dinner_mode, d.dinner_id)
+    if mode == "own" or vid:
+        return ""
+    marked = (getattr(d, "meal_tbd", None) or {}).get(meal)
+    if marked:
+        return marked
+    return ((d.stops or [""])[0] if meal == "lunch" else "") or d.city or ""
+
+
 LABELS: dict[str, dict[str, str]] = {
     "en": {"day": "Day {n}", "programme": "Programme", "route": "Route", "distance": "Distance", "driving": "Driving",
-           "overnight": "Overnight", "meals": "Meals", "breakfast": "Breakfast", "lunch": "Lunch", "tbd": "to be decided", "dinner": "Dinner",
+           "overnight": "Overnight", "meals": "Meals", "breakfast": "Breakfast", "lunch": "Lunch", "tbd": "TBD", "dinner": "Dinner",
            "activities": "Activities and tickets", "optional": "optional", "own": "own arrangements",
            "tourists": "paid on the spot", "at_hotel": "at the hotel", "arrival": "Arrival", "departure": "Departure",
            "border": "Border crossing", "notes": "Notes", "km": "km", "h": "h", "min": "min", "total": "Total distance",
@@ -440,7 +453,7 @@ def suggest(d: DayFields, index: int, last: bool, services: dict[str, Service], 
         time = hm(max(13 * 60, at))
         if d.lunch_mode == "own":
             out.append(_item(kind="free", time=time, ref="lunch"))
-        elif d.lunch_id or (d.meal_tbd or {}).get("lunch"):
+        elif d.lunch_id or tbd_town(d, "lunch"):
             out.append(_item(kind="meal", time=time, ref="lunch"))
         else:
             return
@@ -469,7 +482,7 @@ def suggest(d: DayFields, index: int, last: bool, services: dict[str, Service], 
     dinner = hm(max(19 * 60 + 30, checkin + 90))
     if d.dinner_mode == "own":
         out.append(_item(kind="free", time=dinner, ref="dinner"))
-    elif d.dinner_id or (d.meal_tbd or {}).get("dinner"):
+    elif d.dinner_id or tbd_town(d, "dinner"):
         out.append(_item(kind="meal", time=dinner, ref="dinner"))
     for k, f in enumerate(d.flights):
         if f.direction == "departure":
@@ -636,8 +649,8 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
                 elif vid:
                     menu = dishes(d, meal, summary=True)
                     p.meals.append((word, T(c.name(vid)) + (f" ({L['tourists']})" if mode == "tourists" else "") + (f": {menu}" if menu else "")))
-                elif (d.meal_tbd or {}).get(meal):
-                    p.meals.append((word, f"{L['tbd']} · {T(d.meal_tbd[meal])}"))
+                elif tbd_town(d, meal):
+                    p.meals.append((word, f"{L['tbd']} · {T(tbd_town(d, meal))}"))
         if inc.activities:
             for e in d.extras:
                 s = services.get(e.service_id)
@@ -747,8 +760,8 @@ def _step_text(x, d: DayFields, prev: DayFields | None, c: _Ctx, L: dict[str, st
         mode, vid = (d.lunch_mode, d.lunch_id) if r == "lunch" else (d.dinner_mode, d.dinner_id)
         if mode == "own":
             return f"{L[r]}: {L['own']}"
-        if not vid and (d.meal_tbd or {}).get(r):
-            return f"{L[r]}: {L['tbd']} · {T(d.meal_tbd[r])}"
+        if not vid and tbd_town(d, r):
+            return f"{L[r]}: {L['tbd']} · {T(tbd_town(d, r))}"
         return f"{L[r]}: {T(c.name(vid))}" if vid else ""
     if r.startswith("extra:"):
         slot = next((e for e in d.extras if e.id == r[6:]), None)

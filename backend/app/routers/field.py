@@ -171,7 +171,8 @@ def _place(v: Vendor | None, menu: Service | None = None, served: list | None = 
 
 def _tbd(d, meal: str) -> Place | None:
     """A meal whose place is still to be decided, in its town."""
-    town = (getattr(d, "meal_tbd", None) or {}).get(meal)
+    from ..programme import tbd_town
+    town = tbd_town(d, meal)
     return Place(name="TBD", address="", city=town, phone="") if town else None
 
 

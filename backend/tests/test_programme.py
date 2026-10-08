@@ -405,3 +405,12 @@ def test_a_tours_link_shows_the_tour_as_it_is_now(make_client):
     # The menu is chosen afterwards: the same link shows it, with its plates.
     c.patch(f"{url}/days/{days[0]['id']}", json={"city": "Tbilisi", "dinner_id": resto["id"], "dinner_menu_id": menu["id"]})
     assert [(d["name"], d["plates"]) for d in dinner()["dishes"]] == [("Khinkali", 2)]
+
+
+def test_a_meal_with_no_place_yet_is_sent_as_tbd_in_its_town(make_client):
+    c, base, _ = agency(make_client)
+    days = [{"city": "Yerevan", "stops": ["Garni"], "dinner_mode": "own"},           # lunch on the way: TBD at Garni
+            {"city": "Batumi", "meal_tbd": {"dinner": "Kobuleti"}}]                   # marked: that town
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    assert ["Lunch", "TBD · Garni"] in p["days"][0]["meals"] and ["Dinner", "own arrangements"] in p["days"][0]["meals"]
+    assert ["Lunch", "TBD · Batumi"] in p["days"][1]["meals"] and ["Dinner", "TBD · Kobuleti"] in p["days"][1]["meals"]
