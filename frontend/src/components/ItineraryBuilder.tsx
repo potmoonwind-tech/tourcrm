@@ -4,6 +4,7 @@
  * Every slot is also a normal dropdown, and on phones you tap a palette item and then
  * the slot ("tap to place"), so nothing depends on dragging.
  */
+import { DayGrid } from './DayGrid'
 import { MealPlan, type Crew } from './MealPlan'
 import {
   closestCenter, DndContext, DragOverlay, KeyboardSensor, pointerWithin, PointerSensor, rectIntersection, TouchSensor,
@@ -82,10 +83,10 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   const [dragging, setDragging] = useState<Item | null>(null)
   const [picked, setPicked] = useState<Item | null>(null)   // tap-to-place
   // The whole trip as rows (the quick way), or each day in full; remembered per browser.
-  const [view, setViewState] = useState<'overview' | 'days'>(() => {
-    try { return localStorage.getItem('itineraryView') === 'days' ? 'days' : 'overview' } catch { return 'overview' }
+  const [view, setViewState] = useState<'overview' | 'days' | 'check'>(() => {
+    try { const v = localStorage.getItem('itineraryView'); return v === 'days' || v === 'check' ? v : 'overview' } catch { return 'overview' }
   })
-  const setView = (v: 'overview' | 'days') => { setViewState(v); try { localStorage.setItem('itineraryView', v) } catch { /* private window */ } }
+  const setView = (v: 'overview' | 'days' | 'check') => { setViewState(v); try { localStorage.setItem('itineraryView', v) } catch { /* private window */ } }
   const [listOpen, setListOpen] = useState(false)   // the drag-and-drop list: on demand, so the days get the width
   const openDay = (i: number) => {
     setView('days')
@@ -168,7 +169,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView}
-                options={[['overview', t('viewOverview')], ['days', t('viewDays')]]} />
+                options={[['check', t('viewCheck')], ['overview', t('viewOverview')], ['days', t('viewDays')]]} />
               {view === 'days' && !disabled && (
                 <Button type="button" size="sm" variant={listOpen ? 'secondary' : 'tertiary'} aria-pressed={listOpen}
                   onClick={() => { setListOpen(!listOpen); setPicked(null) }}>
@@ -179,6 +180,10 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} />
           </div>
           {view === 'days' && <DayStrip days={days} dates={dates} />}
+          {view === 'check' && (
+            // Every day on one screen: what is done, what is missing, days side by side.
+            <DayGrid days={days} dates={dates} byId={byId} menus={services.data ?? []} alerts={alerts} crew={crew} onOpen={openDay} />
+          )}
           {view === 'overview' && (
             <Overview days={days} dates={dates} vendors={vs} menus={services.data ?? []} disabled={disabled} alerts={alerts}
               onSet={set} onSetMany={(patches) => onChange(days.map((d, j) => (patches[j] ? { ...d, ...patches[j] } : d)))} onOpen={openDay}
