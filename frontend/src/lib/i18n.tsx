@@ -2898,6 +2898,9 @@ const en = {
   hideChecklist: "Hide checklist",
   simpleView: "Simple view",
   buildProgress: "How far the tour is built",
+  slotTodo: "to do",
+  chooseHotel: "Choose a hotel…",
+  chooseRestaurant: "Choose a restaurant…",
 }
 
 type Dict = typeof en
@@ -5792,6 +5795,9 @@ const ka: Dict = {
   hideChecklist: "სიის დამალვა",
   simpleView: "მარტივი ხედი",
   buildProgress: "რამდენად არის ტური აწყობილი",
+  slotTodo: "გასაკეთებელია",
+  chooseHotel: "აირჩიეთ სასტუმრო…",
+  chooseRestaurant: "აირჩიეთ რესტორანი…",
 }
 
 export type Lang = 'en' | 'ka'

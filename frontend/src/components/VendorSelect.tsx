@@ -10,13 +10,14 @@ import { cn, townKey } from '../lib/utils'
  * apart by their icon; full names (never cut off in the list). A combobox for keyboards and screen
  * readers: ↑ ↓ move, Enter picks, Esc closes.
  */
-export function VendorSelect({ vendors, types, value, onChange, className, disabled, onAddNew, note, cities, only }: {
+export function VendorSelect({ vendors, types, value, onChange, className, disabled, onAddNew, note, cities, only, placeholder }: {
   vendors: Vendor[]; types: VendorType[]; value: string | null; onChange: (id: string | null) => void
   className?: string; disabled?: boolean
   onAddNew?: () => void   // "+ Add new…" (a quick-create dialog)
   note?: (v: Vendor) => string   // extra text after the name (languages, "not available")
   cities?: string[]       // the day's places: their suppliers are listed first
   only?: (v: Vendor) => boolean   // within the types, which ones fit (hotels that serve meals)
+  placeholder?: string    // what to do while empty ("Choose a hotel…"), else "—"
 }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
@@ -101,7 +102,7 @@ export function VendorSelect({ vendors, types, value, onChange, className, disab
         {current ? <>
           <span className="shrink-0 text-slate-500">{icon(current)}</span>
           <span className="min-w-0 flex-1 truncate">{current.name}{note?.(current) ?? ''}</span>
-        </> : <span className="min-w-0 flex-1 truncate text-slate-500">—</span>}
+        </> : <span className="min-w-0 flex-1 truncate text-slate-500">{placeholder ?? '—'}</span>}
         <ChevronDown size={16} className="shrink-0 text-slate-500" aria-hidden />
       </button>
       {open && rect && createPortal(

@@ -515,6 +515,12 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   const [details, setDetails] = useState(false)
   const show = !simple || details          // the less used parts of the day
   const [mealOpen, setMealOpen] = useState<Record<string, boolean>>({})
+  // What's done and what's missing in this day (the same rules as "Check" and "Next missing").
+  const mealState = (m: 'lunch' | 'dinner') => (mealDone(day, m) ? 'done' : 'todo') as 'done' | 'todo'
+  const hotelState = last ? undefined : day.hotel_id ? 'done' as const : 'todo' as const
+  const bm = day.breakfast_mode ?? 'hotel'
+  const breakfastState = bm === 'hotel' || bm === 'own' ? (index === 0 && bm === 'hotel' ? undefined : 'done' as const) : day.breakfast_id ? 'done' as const : 'todo' as const
+  const missing = [!day.city.trim(), hotelState === 'todo', mealState('lunch') === 'todo', mealState('dinner') === 'todo'].filter(Boolean).length
   // Meals: restaurants, and the hotels that serve them (a meal on their price list) — not every hotel.
   const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
   const eats = (v: Vendor) => v.type !== 'hotel' || serving.has(v.id)
@@ -558,6 +564,11 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           )
         })()}
         <div className="flex-1" />
+        {/* The day's verdict, in the words of "Check". */}
+        <span className={cn('flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
+          missing ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800')}>
+          {missing ? t('gridMissingN', { n: missing }) : <><Check size={12} aria-hidden />{t('gridReadyShort')}</>}
+        </span>
         {!disabled && (
           <span className="flex items-center gap-0.5">
             {!fixedLength && <IconBtn title={t('duplicateDay')} onClick={onDuplicate}><CopyPlus size={15} /></IconBtn>}
@@ -573,14 +584,15 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
       )}
       <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-4">
         <SlotBox day={index} slot="hotel" label={last ? t('lastDayNoHotel') : simple ? t('whereSleep') : t('hotel')} icon={<BedDouble size={14} />}
-          dragging={dragging} picked={picked} onTap={(item) => onPlace('hotel', item)}
+          dragging={dragging} picked={picked} onTap={(item) => onPlace('hotel', item)} state={hotelState}
           footer={!disabled && hotel && !last && <button type="button" onClick={onHotelNext} className="text-xs text-brand-700 hover:underline">{t('sameHotelNextNight')}</button>}>
           <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['hotel']} value={day.hotel_id} onChange={(v) => onSet({ hotel_id: v })}
+            placeholder={last ? undefined : t('chooseHotel')}
             cities={[day.city]}
             onAddNew={canCreate ? () => onNewVendor('hotel', (v) => onSet({ hotel_id: v.id, city: day.city || v.city })) : undefined} />
           {!last && (show || (day.staff_stay ?? 'none') !== 'none') && <StaffStayPick day={day} vendors={vendors} disabled={disabled} onSet={onSet} />}
         </SlotBox>
-        {(show || (day.breakfast_mode ?? 'hotel') !== 'hotel') && <SlotBox day={index} slot="breakfast" label={t('breakfast')} icon={<Coffee size={14} />} dragging={dragging} picked={picked}
+        {(show || (day.breakfast_mode ?? 'hotel') !== 'hotel') && <SlotBox day={index} slot="breakfast" label={t('breakfast')} icon={<Coffee size={14} />} dragging={dragging} picked={picked} state={breakfastState}
           onTap={(item) => onPlace('breakfast', item)}
           aside={<BreakfastModePick value={day.breakfast_mode ?? 'hotel'} disabled={disabled}
             onChange={(m) => onSet(m === 'hotel' || m === 'own' ? { breakfast_mode: m, breakfast_id: null, breakfast_menu_id: null } : { breakfast_mode: m })} />}>
@@ -604,11 +616,11 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             {day.breakfast_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
         </SlotBox>}
-        <SlotBox day={index} slot="lunch" label={t('lunch')} icon={<Utensils size={14} />} dragging={dragging} picked={picked} onTap={(item) => onPlace('lunch', item)}
+        <SlotBox day={index} slot="lunch" label={t('lunch')} icon={<Utensils size={14} />} dragging={dragging} picked={picked} onTap={(item) => onPlace('lunch', item)} state={mealState('lunch')}
           aside={(show || (day.lunch_mode ?? 'included') !== 'included') && <MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { lunch_mode: m, lunch_id: null, lunch_menu_id: null } : { lunch_mode: m })} />}>
           {(day.lunch_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
-          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.lunch_id}
+          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.lunch_id} placeholder={t('chooseRestaurant')}
             cities={[...(day.stops ?? []), day.city]}
             onChange={(v) => onSet({ lunch_id: v, lunch_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ lunch_id: v.id, lunch_menu_id: null })) : undefined} />
@@ -625,11 +637,11 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           {day.lunch_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
         </SlotBox>
-        <SlotBox day={index} slot="dinner" label={t('dinner')} icon={<Utensils size={14} />} dragging={dragging} picked={picked} onTap={(item) => onPlace('dinner', item)}
+        <SlotBox day={index} slot="dinner" label={t('dinner')} icon={<Utensils size={14} />} dragging={dragging} picked={picked} onTap={(item) => onPlace('dinner', item)} state={mealState('dinner')}
           aside={(show || (day.dinner_mode ?? 'included') !== 'included') && <MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { dinner_mode: m, dinner_id: null, dinner_menu_id: null } : { dinner_mode: m })} />}>
           {(day.dinner_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
-          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.dinner_id}
+          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.dinner_id} placeholder={t('chooseRestaurant')}
             cities={[day.city, ...(day.stops ?? [])]}
             onChange={(v) => onSet({ dinner_id: v, dinner_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ dinner_id: v.id, dinner_menu_id: null })) : undefined} />
@@ -647,6 +659,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           </>}
         </SlotBox>
         <SlotBox day={index} slot="extras" label={simple ? t('whatTheyDo') : t('dayServices')} icon={<Ticket size={14} />} wide dragging={dragging} picked={picked}
+          state={day.extras.length ? 'done' : 'optional'}
           onTap={(item) => onPlace('extras', item)}>
           <DayServices value={day.extras} disabled={disabled} onChange={(extras) => onSet({ extras })}
             onAddNew={canCreate ? (vendorId) => onNewService(vendorId, false, (s) => s.id && onSet({ extras: [...day.extras, { id: slotId(), service_id: s.id, quantity: null, notes: '' }] })) : undefined} />
@@ -741,10 +754,12 @@ const SLOT_TONE: Partial<Record<Slot, { pill: string }>> = {
   extras: { pill: 'bg-pink-50 text-pink-800' },
 }
 
-function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, children, footer, aside }: {
+function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, children, footer, aside, state }: {
   day: number; slot: Slot; label: string; icon: ReactNode; wide?: boolean; dragging: Item | null; picked: Item | null
   onTap: (item: Item) => void; children: ReactNode; footer?: ReactNode; aside?: ReactNode
+  state?: 'done' | 'todo' | 'optional'   // a tick in the label, an amber frame and "to do", or a quiet dashed "optional"
 }) {
+  const { t } = useI18n()
   const { setNodeRef, isOver } = useDroppable({ id: `${day}:${slot}`, data: { day, slot } })
   const active = dragging ?? picked
   const ok = active ? accepts(slot, active) : false
@@ -754,10 +769,16 @@ function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, childr
   return (
     <div ref={setNodeRef} onClick={() => picked && ok && onTap(picked)}
       className={cn('rounded-lg border p-2 transition-colors', wide && 'col-span-full',
-        active && ok ? 'border-dashed border-brand-400 bg-brand-50/60' : 'border-slate-200 bg-white',
+        active && ok ? 'border-dashed border-brand-400 bg-brand-50/60'
+          : state === 'todo' ? 'border-amber-300 bg-amber-50/40'
+            : state === 'optional' ? 'border-dashed border-slate-300 bg-white' : 'border-slate-200 bg-white',
         isOver && ok && 'border-solid border-brand-600 bg-brand-100', picked && ok && 'cursor-copy')}>
       <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
-        <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5', tone?.pill)}>{icon}{label}</span>
+        <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5', tone?.pill)}>
+          {icon}{label}{state === 'done' && <Check size={12} className="text-emerald-600" aria-label={t('gridLegendDone')} />}
+        </span>
+        {state === 'todo' && <span className="text-[11px] font-semibold text-amber-700">{t('slotTodo')}</span>}
+        {state === 'optional' && <span className="text-[11px] text-slate-500">{t('stepOptional')}</span>}
         {aside && <span className="ml-auto">{aside}</span>}
       </div>
       {children}
