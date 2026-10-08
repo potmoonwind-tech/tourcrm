@@ -55,6 +55,12 @@ export const toFields = (d: TourDay): DayFields => ({
 })
 
 /** What the day has, in a sensible order with usual times. */
+/** "Gelati" and "Gelati Monastery": one name starts the other (as the catalogue matches stops). */
+const samePlace = (a: string, b: string) => {
+  const [short, long] = [a.trim().toLowerCase(), b.trim().toLowerCase()].sort((x, y) => x.length - y.length)
+  return short.length >= 4 && (long === short || long.startsWith(`${short} `) || long.startsWith(`${short},`))
+}
+
 export function suggest(day: DayFields, index: number, last: boolean, services: ServiceBrief[], factor = 1.25): ScheduleItem[] {
   const out: ScheduleItem[] = []
   const add = (x: Omit<ScheduleItem, 'id'>) => out.push({ id: newId(), ...x })
@@ -88,19 +94,25 @@ export function suggest(day: DayFields, index: number, last: boolean, services: 
     else return
     at = Math.max(13 * 60, at) + 90
   }
-  ;(day.stops ?? []).forEach((stop, i) => {
-    at += driveTo(i)
-    if (at >= (timed ? 12 * 60 + 30 : 13 * 60)) lunch()
-    add({ kind: 'visit', time: hm(at), end: '', title: stop, ref: null, place: stop, notes: '' })
-    at += 60
-  })
   const sights = day.extras.filter((x) => {
     const s = services.find((v) => v.id === x.service_id)
     return s && !['transport', 'guide', 'meal'].includes(s.category)
   })
-  // One visit per place: KTW's wine tasting and bread baking are one stop.
   const placeOf = (x: DayExtra) => services.find((v) => v.id === x.service_id)?.vendor.id
-  const firsts = sights.filter((x, i) => sights.findIndex((y) => placeOf(y) === placeOf(x)) === i)
+  // A stop that is an activity's place (Gelati the stop, Gelati the ticket): one visit, in the stops' order.
+  const atStop = new Set<string>()
+  ;(day.stops ?? []).forEach((stop, i) => {
+    at += driveTo(i)
+    if (at >= (timed ? 12 * 60 + 30 : 13 * 60)) lunch()
+    const hit = sights.find((x) => { const s = services.find((v) => v.id === x.service_id); return s && samePlace(s.vendor.name, stop) })
+    if (hit && !atStop.has(placeOf(hit) ?? '')) {
+      atStop.add(placeOf(hit) ?? '')
+      add({ kind: 'visit', time: hm(at), end: '', title: '', ref: `extra:${hit.id}`, place: '', notes: '' })
+    } else add({ kind: 'visit', time: hm(at), end: '', title: stop, ref: null, place: stop, notes: '' })
+    at += 60
+  })
+  // One visit per place: KTW's wine tasting and bread baking are one stop.
+  const firsts = sights.filter((x, i) => sights.findIndex((y) => placeOf(y) === placeOf(x)) === i && !atStop.has(placeOf(x) ?? ''))
   for (const x of firsts) add({ kind: 'visit', time: '', end: '', title: '', ref: `extra:${x.id}`, place: '', notes: '' })
   if (timed) {
     if (at >= 12 * 60) lunch()           // on the way, before the last drive
@@ -214,7 +226,8 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
     const places = [...byId.values()].filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
     const ids = new Set(places.map((v) => v.id))
     const offered = services.filter((s) => ids.has(s.vendor.id) && s.category !== 'meal' && s.category !== 'hotel')
-    const only = (vid: string) => { const l = offered.filter((s) => s.vendor.id === vid); return l.length === 1 ? l[0].id : undefined }
+    // A place with priced activities: picked, its first one is on the day (the others are ticked in "what they do").
+    const only = (vid: string) => offered.find((s) => s.vendor.id === vid)?.id
     return [
       ...places.map((v): PlaceSuggestion => ({ name: v.name, detail: [v.city, v.visit_minutes ? dur(v.visit_minutes) : ''].filter(Boolean).join(' · '), kind: '', lat: 0, lon: 0, own: true,
         service_id: only(v.id) })),

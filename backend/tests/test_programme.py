@@ -414,3 +414,14 @@ def test_a_meal_with_no_place_yet_is_sent_as_tbd_in_its_town(make_client):
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
     assert ["Lunch", "TBD · Garni"] in p["days"][0]["meals"] and ["Dinner", "own arrangements"] in p["days"][0]["meals"]
     assert ["Lunch", "TBD · Batumi"] in p["days"][1]["meals"] and ["Dinner", "TBD · Kobuleti"] in p["days"][1]["meals"]
+
+
+
+def test_a_stop_that_is_an_activitys_place_is_one_visit(make_client):
+    c, base, _ = agency(make_client)
+    v = mk(c, f"{base}/vendors", {"name": "Gelati Monastery", "type": "activity", "city": "Kutaisi"})
+    svc = c.put(f"{base}/vendors/{v['id']}/services", json=[{"name": "Gelati entry", "category": "ticket", "unit": "person"}]).json()[0]
+    days = [{"city": "Kutaisi", "stops": ["Gelati"], "extras": [{"id": "e1", "service_id": svc["id"], "quantity": None, "notes": ""}]}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    visits = [x for x in p["days"][0]["steps"] if x["kind"] == "visit"]
+    assert len(visits) == 1 and "Gelati" in visits[0]["text"], visits

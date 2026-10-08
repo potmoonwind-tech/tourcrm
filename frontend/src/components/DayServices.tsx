@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { MapPin, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import type { DayExtra, ServiceBrief } from '../lib/api'
+import type { DayExtra, ServiceBrief, Vendor } from '../lib/api'
 import { useServiceList, useVendors } from '../lib/data'
 import { useI18n } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
@@ -16,10 +16,15 @@ const AUTO_UNITS = new Set(['person', 'room_night', 'group', 'vehicle_day', 'day
  * (everything the supplier offers), so a stop with several activities reads — and is set up — as one stop.
  * Quantity left empty = counted from the unit.
  */
-export function DayServices({ value, onChange, disabled, onAddNew, grip }: {
+export function DayServices({ value, onChange, disabled, onAddNew, grip, visits = [], onAddVisit, onRemoveVisit }: {
   value: DayExtra[]; onChange: (v: DayExtra[]) => void; disabled?: boolean
   onAddNew?: (vendorId?: string) => void   // a new service: for this place, or any supplier
   grip?: (vendorId: string, serviceIds: string[]) => ReactNode   // a handle to drag the place (with its activities) to another day
+  // The day's visits in its timeline that aren't priced activities (Gelati, a photo stop): shown here too, so
+  // "what they do" is the whole day. A catalogue place picked here with nothing priced becomes such a visit.
+  visits?: { id: string; title: string; vendorId?: string }[]
+  onAddVisit?: (v: Vendor) => void
+  onRemoveVisit?: (stepId: string) => void
 }) {
   const { t } = useI18n()
   const services = useServiceList()
@@ -41,7 +46,10 @@ export function DayServices({ value, onChange, disabled, onAddNew, grip }: {
   const bare = new Map((vendors.data ?? [])
     .filter((v) => !['hotel', 'restaurant', 'transport', 'guide', 'driver'].includes(v.type) && !offers.has(v.id))
     .map((v) => [v.id, v]))
-  const places = [...used, ...picked.filter((v) => !used.includes(v) && (offers.has(v) || bare.has(v)))]
+  // A visit in the timeline at a catalogue place: that place's card (tick its activities right here).
+  const visited = visits.map((x) => x.vendorId).filter((v): v is string => !!v && (offers.has(v) || bare.has(v)))
+  const places = [...used, ...[...picked, ...visited].filter((v, i, a) => a.indexOf(v) === i && !used.includes(v) && (offers.has(v) || bare.has(v)))]
+  const loose = visits.filter((x) => !x.vendorId || !places.includes(x.vendorId))
   const gone = value.filter((x) => services.data && !byId.has(x.service_id))
   const [adding, setAdding] = useState(false)
 
@@ -51,6 +59,7 @@ export function DayServices({ value, onChange, disabled, onAddNew, grip }: {
   const patch = (serviceId: string, p: Partial<DayExtra>) => onChange(value.map((x) => (x.service_id === serviceId ? { ...x, ...p } : x)))
   const drop = (vendorId: string) => {
     setPicked((l) => l.filter((v) => v !== vendorId))
+    for (const x of visits) if (x.vendorId === vendorId) onRemoveVisit?.(x.id)
     onChange(value.filter((x) => byId.get(x.service_id)?.vendor.id !== vendorId))
   }
 
@@ -111,6 +120,19 @@ export function DayServices({ value, onChange, disabled, onAddNew, grip }: {
           </div>
         )
       })}
+      {loose.map((x) => (
+        <div key={x.id} className="flex items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-white px-2.5 py-1.5">
+          <MapPin size={14} className="shrink-0 text-slate-400" aria-hidden />
+          <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{x.title}</span>
+          <span className="shrink-0 text-xs text-slate-500">{t('visitFreeInTimeline')}</span>
+          {!disabled && onRemoveVisit && (
+            <Tooltip label={t('placeRemove')}>
+              <button type="button" onClick={() => onRemoveVisit(x.id)} aria-label={t('placeRemoveOf', { name: x.title })}
+                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={14} /></button>
+            </Tooltip>
+          )}
+        </div>
+      ))}
       {gone.map((x, i) => (
         <span key={x.id ?? i} className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 py-0.5 pl-2 pr-1 text-xs text-red-700">
           {t('serviceRemoved')}
@@ -125,7 +147,7 @@ export function DayServices({ value, onChange, disabled, onAddNew, grip }: {
             const v = e.target.value
             if (v === '__new__') onAddNew?.()
             else if (v && offers.get(v)?.length === 1) onChange([...value, { id: slotId(), service_id: offers.get(v)![0].id, quantity: null, notes: '' }])
-            else if (v && bare.has(v)) setPicked((l) => [...l, v])
+            else if (v && bare.has(v)) { setPicked((l) => [...l, v]); onAddVisit?.(bare.get(v)!) }
             else if (v) setPicked((l) => [...l, v])
             setAdding(false)
           }}>

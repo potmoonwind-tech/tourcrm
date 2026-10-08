@@ -15,13 +15,13 @@ import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, BedDouble, Bookmark, Bus, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronDown, ChevronRight, Download, ListChecks } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { api, type BreakfastMode, type DayTemplate, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
+import { api, type BreakfastMode, type DayExtra, type DayTemplate, type ScheduleItem, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
 import { fmt, weekday } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
 import { DayServices } from './DayServices'
-import { DayProgramme, relayDay, withoutTbd } from './DayProgramme'
+import { DayProgramme, relayDay, sightOf, suggest, withoutTbd } from './DayProgramme'
 import { Dialog, toast, Menu, askText } from './overlay'
 import { InfoTip, Tooltip } from './Tooltip'
 import { VendorSelect } from './tour'
@@ -620,6 +620,36 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
     onSet({ ...blankDay(), ...tpl.data, city: day.city.trim() || tpl.city })
     toast('savedDayApplied', 'ok', { label: t('undo'), onClick: () => onSet(before) })
   }
+  // "What they do" and the timeline are one list: an activity added here gets its step in the timeline (or
+  // takes over a visit to the same place typed there); one taken off loses its step. A timeline never kept
+  // ("suggested") follows by itself.
+  const setExtras = (extras: DayExtra[]) => {
+    let schedule = day.schedule ?? []
+    if (schedule.length) {
+      const all = [...day.extras, ...extras]
+      const placeOf = (ref: string | null) => {
+        const e = ref?.startsWith('extra:') ? all.find((x) => x.id === ref.slice(6)) : undefined
+        return e ? menus.find((s) => s.id === e.service_id)?.vendor.id : undefined
+      }
+      // Taken off: its step moves to another activity at the same place, or goes.
+      const kept = new Set(extras.map((e) => e.id))
+      schedule = schedule.flatMap((x) => {
+        if (!x.ref?.startsWith('extra:') || kept.has(x.ref.slice(6))) return [x]
+        const other = extras.find((e) => menus.find((s) => s.id === e.service_id)?.vendor.id === placeOf(x.ref))
+        return other ? [{ ...x, ref: `extra:${other.id}` }] : []
+      })
+      const had = new Set(day.extras.map((e) => e.id))
+      for (const e of extras.filter((x) => !had.has(x.id))) {
+        const s = menus.find((x) => x.id === e.service_id)
+        if (!s || ['transport', 'guide', 'meal', 'hotel'].includes(s.category)) continue
+        if (schedule.some((x) => placeOf(x.ref) === s.vendor.id)) continue          // the place is in the day already
+        const typed = schedule.findIndex((x) => x.kind === 'visit' && !x.ref && sightOf(x, byId)?.id === s.vendor.id)
+        schedule = typed >= 0 ? schedule.map((x, i) => (i === typed ? { ...x, ref: `extra:${e.id}`, title: '', place: '' } : x))
+          : withStep(schedule, { id: slotId(), kind: 'visit', time: '', end: '', title: '', ref: `extra:${e.id}`, place: '', notes: '' })
+      }
+    }
+    onSet({ extras, schedule })
+  }
   const missing = [!day.city.trim(), hotelState === 'todo', mealState('lunch') === 'todo', mealState('dinner') === 'todo'].filter(Boolean).length
   // Meals: restaurants, and the hotels that serve them (a meal on their price list) — not every hotel.
   const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
@@ -786,12 +816,16 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
         <SlotBox day={index} slot="extras" label={simple ? t('whatTheyDo') : t('dayServices')} icon={<Ticket size={14} />} wide dragging={dragging} picked={picked}
           state={day.extras.length ? 'done' : 'optional'}
           onTap={(item) => onPlace('extras', item)}>
-          <DayServices value={day.extras} disabled={disabled} onChange={(extras) => onSet({ extras })}
+          <DayServices value={day.extras} disabled={disabled} onChange={setExtras}
+            visits={(day.schedule ?? []).filter((x) => x.kind === 'visit' && !x.ref && x.title.trim()).map((x) => ({ id: x.id, title: x.title, vendorId: sightOf(x, byId)?.id }))}
+            onAddVisit={(v) => onSet({ schedule: withStep(day.schedule?.length ? day.schedule : suggest(day, index, last, menus, factor),
+              { id: slotId(), kind: 'visit', time: '', end: '', title: v.name, ref: null, place: '', notes: '' }) })}
+            onRemoveVisit={(id) => onSet({ schedule: (day.schedule ?? []).filter((x) => x.id !== id) })}
             grip={disabled ? undefined : (_vid, ids) => {
               const s = menus.find((x) => x.id === ids[0])
               return s ? <SlotGrip day={index} slot="extras" item={{ kind: 'service', service: s }} serviceIds={ids} /> : null
             }}
-            onAddNew={canCreate ? (vendorId) => onNewService(vendorId, false, (s) => s.id && onSet({ extras: [...day.extras, { id: slotId(), service_id: s.id, quantity: null, notes: '' }] })) : undefined} />
+            onAddNew={canCreate ? (vendorId) => onNewService(vendorId, false, (s) => s.id && setExtras([...day.extras, { id: slotId(), service_id: s.id, quantity: null, notes: '' }])) : undefined} />
         </SlotBox>
         {<DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel}
           onSetDay={onSet}
@@ -1380,4 +1414,10 @@ function MealTbd({ town, disabled, onTown, onPick }: { town: string; disabled?: 
       {!disabled && <button type="button" onClick={onPick} className="ml-auto text-xs font-medium text-brand-700 hover:underline">{t('mealTbdPick')}</button>}
     </div>
   )
+}
+
+/** A new step in the day: before the check-in (or dinner) - the timeline then gives it its time. */
+function withStep(schedule: ScheduleItem[], step: ScheduleItem): ScheduleItem[] {
+  const at = schedule.findIndex((x) => x.ref === 'hotel' || x.ref === 'dinner')
+  return at < 0 ? [...schedule, step] : [...schedule.slice(0, at), step, ...schedule.slice(at)]
 }

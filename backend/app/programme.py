@@ -30,6 +30,13 @@ from .schemas import DayFields, ScheduleItem
 LANGS = ("en", "ka", "zh")
 LANG_NAME = {"en": "English", "ka": "Georgian", "zh": "Simplified Chinese"}
 
+def _same_place(a: str, b: str) -> bool:
+    """'Gelati' and 'Gelati Monastery': one name starts the other (as the catalogue matches stops)."""
+    a, b = a.casefold().strip(), b.casefold().strip()
+    short, long_ = sorted((a, b), key=len)
+    return len(short) >= 4 and (long_ == short or long_.startswith(short + " ") or long_.startswith(short + ","))
+
+
 def tbd_town(d, meal: str) -> str:
     """Where an included lunch or dinner with no place chosen yet will be - so a programme sent out says
     "TBD · Yerevan" instead of leaving the meal out: the town marked for it, else lunch at the day's first stop
@@ -459,13 +466,27 @@ def suggest(d: DayFields, index: int, last: bool, services: dict[str, Service], 
             return
         at = max(13 * 60, at) + 90
 
+    seen: set[str] = set()
+
+    def activity_at(stop: str):
+        """The day's activity at this stop's place (Gelati the stop, Gelati the ticket): one visit, not two."""
+        for e in d.extras:
+            s = services.get(e.service_id)
+            if s and s.category not in ("transport", "guide", "meal") and s.vendor and _same_place(s.vendor.name, stop):
+                return e, s
+        return None
+
     for i, stop in enumerate(d.stops):
         at += drive_to(i)
         if at >= (12 * 60 + 30 if timed else 13 * 60):
             lunch()
-        out.append(_item(kind="visit", time=hm(at), title=stop, place=stop))
+        hit = activity_at(stop)
+        if hit and hit[1].vendor_id not in seen:
+            seen.add(hit[1].vendor_id)
+            out.append(_item(kind="visit", time=hm(at), ref=f"extra:{hit[0].id}"))
+        else:
+            out.append(_item(kind="visit", time=hm(at), title=stop, place=stop))
         at += 60
-    seen: set[str] = set()
     for e in d.extras:
         s = services.get(e.service_id)
         if s and s.category not in ("transport", "guide", "meal") and s.vendor_id not in seen:

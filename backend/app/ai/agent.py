@@ -47,6 +47,12 @@ The same for Word documents (read_document).
 city = where the group sleeps, stops = places visited, lunch/dinner mode from the meal lines (X or "free" = own). \
 Name hotels and restaurants only when the programme names them; "a 5* hotel in Tbilisi" goes in the day's notes, \
 not as a supplier. Programmes are often machine-translated: keep place names as the agency writes them in the CRM.
+- Sights and activities in a programme (a monastery, a wine tasting, a cooking class, a museum) belong to the day twice: \
+the place in the day's stops (where the group goes, in order) and the activity in the day's extras ("what they do"). \
+First look for each one in the catalogue (list_records kind=vendors with a search on its name, any language or spelling), \
+then get_vendor_prices for its services: reuse the existing supplier and service - never propose a second one. \
+A place the catalogue doesn't have: propose it as an activity supplier with one service named after the visit and no \
+price unless the source gives one, then use it in extras. Entry tickets are activities too; transport and guides are not.
 - Send proposals in batches of at most 40 items per call.
 - Hotel prices are per room per night (codes room_SGL, room_DBL, room_TWN, room_TRP, room_QUAD, unit room_night). \
 Restaurant lunch/dinner prices are per person (codes lunch, dinner). Seasons are valid_from/valid_to; group-size \

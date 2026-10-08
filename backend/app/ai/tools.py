@@ -55,7 +55,8 @@ _DAY = {
         "border_crossing": {"type": "string"},
         "notes": {"type": "string"},
         "km": {"type": "integer", "description": "Road km driven that day, if known"},
-        "extras": {"type": "array", "description": "Other services that day (tickets, transport, guide...)", "items": {
+        "extras": {"type": "array", "description": "What they do that day: activities and tickets at catalogue places (reuse "
+                                                   "existing suppliers and services), and other services (transport, guide...)", "items": {
             "type": "object",
             "properties": {"vendor": _REF, "service": {"type": "string", "description": "The service's name at that vendor"},
                            "quantity": {"type": "number", "description": "Leave out to count it from the group (per person, per room...)"},

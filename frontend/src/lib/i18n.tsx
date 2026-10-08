@@ -2947,6 +2947,7 @@ const en = {
   mealTbdSet: "Not decided yet - mark as TBD",
   mealTbdTown: "Town where it will be",
   mealTbdPick: "Choose the place",
+  visitFreeInTimeline: "free visit · in the timeline",
 }
 
 type Dict = typeof en
@@ -5890,6 +5891,7 @@ const ka: Dict = {
   mealTbdSet: "ჯერ არ ვიცი - მოინიშნოს როგორც დასაზუსტებელი",
   mealTbdTown: "ქალაქი, სადაც იქნება",
   mealTbdPick: "ადგილის არჩევა",
+  visitFreeInTimeline: "უფასო ვიზიტი · განრიგში",
 }
 
 export type Lang = 'en' | 'ka'
