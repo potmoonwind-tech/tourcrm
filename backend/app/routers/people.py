@@ -222,6 +222,25 @@ def room_label(code: str) -> str:
     return m.group(1) if m else code.strip()
 
 
+def rooming_text(t: Tour) -> str:
+    """Room by room, for the hotel's email: "1. TWN (2 single beds): ZHANG San, LI Si - needs a cot"."""
+    rooms: dict[str, list[Participant]] = defaultdict(list)
+    alone: list[Participant] = []
+    for p in sorted(t.participants, key=lambda p: (room_order(p.room_group), p.position)):
+        (rooms[p.room_group.strip()] if p.room_group.strip() else alone).append(p)
+    lines = []
+    for i, members in enumerate(rooms.values(), 1):
+        kind = next((m.room_type for m in members if m.room_type), "") or _type_for_size(len(members))
+        note = next((m.room_note for m in members if m.room_note), "")
+        lines.append(f"{i}. {kind} ({BEDS.get(kind, '')}): " + ", ".join(m.full_name for m in members) + (f" - {note}" if note else ""))
+    n = len(lines)
+    for p in alone:
+        n += 1
+        lines.append(f"{n}. {p.room_type or '?'}{f' ({BEDS[p.room_type]})' if p.room_type in BEDS else ''}: {p.full_name}"
+                     + (f" - {p.room_note}" if p.room_note else ""))
+    return "\n".join(lines)
+
+
 @router.get("/rooming-list.xlsx")
 def rooming_list(tour_id: str, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
     """The list hotels and border posts ask for, grouped by room."""

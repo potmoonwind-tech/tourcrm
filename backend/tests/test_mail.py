@@ -162,3 +162,20 @@ def test_one_email_for_the_whole_series(make_client):
         b = next(b for b in c.get(f"{base}/tours/{x['id']}/bookings").json()["bookings"] if b["vendor"]["id"] == hotel["id"])
         assert b["status"] == "requested"
         assert len(c.get(f"{base}/mail/log?tour_id={x['id']}").json()) == 1
+
+
+def test_the_rooming_list_to_each_hotel_of_the_tour(make_client):
+    c, base, _ = agency(make_client)
+    a = mk(c, f"{base}/vendors", {"name": "Rooms Tbilisi", "type": "hotel", "email": "res@rooms.ge"})
+    b = mk(c, f"{base}/vendors", {"name": "Kazbegi Lodge", "type": "hotel"})
+    route = mk(c, f"{base}/series", {"code": "RL", "days": [{"city": "Tbilisi", "hotel_id": a["id"]}, {"city": "Kazbegi", "hotel_id": b["id"]}, {"city": "Tbilisi"}]})
+    t = mk(c, f"{base}/tours", {"series_id": route["id"], "start_date": "2026-11-01", "pax": 3})
+    url = f"{base}/tours/{t['id']}"
+    for name, kind, room, note in (("ZHANG San", "TWN", "R1", "two beds please"), ("LI Si", "TWN", "R1", ""), ("WANG Wu", "SGL", "", "")):
+        mk(c, f"{url}/participants", {"full_name": name, "room_type": kind, "room_group": room, "room_note": note})
+    drafts = c.post(f"{url}/rooming-drafts", json={"language": "en"}).json()
+    # Every hotel of this tour, each with its own night.
+    assert [(d["name"], d["to"], d["check_in"]) for d in drafts] == [("Rooms Tbilisi", "res@rooms.ge", "1 Nov 2026"), ("Kazbegi Lodge", "", "2 Nov 2026")]
+    body = drafts[0]["body"]
+    assert "1. TWN (2 single beds): ZHANG San, LI Si - two beds please" in body and "2. SGL (1 single bed): WANG Wu" in body
+    assert drafts[0]["subject"] == "Rooming list · " + t["code"] + " · 1 Nov 2026 – 2 Nov 2026"

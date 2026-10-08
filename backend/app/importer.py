@@ -37,22 +37,44 @@ class ImportFileError(ValueError):
 
 # --- reading ---------------------------------------------------------------------------
 
+class Table(list):
+    """The rows of the first sheet, plus what a list from a partner often carries besides values:
+    `merged` - for each cell inside a merged block, the block's (top row, rows it spans) (two people
+    in one "twin" cell share a room); `others` - the other sheets' rows (passports on Sheet2)."""
+    def __init__(self, rows=(), merged=None, others=None):
+        super().__init__(rows)
+        self.merged: dict[tuple[int, int], tuple[int, int]] = merged or {}
+        self.others: list[list[tuple[int, list]]] = others or []
+
+
+def _sheet_rows(ws, merged: dict | None) -> list[tuple[int, list]]:
+    rows = []
+    for i, r in enumerate(ws.iter_rows(values_only=True), 1):
+        rows.append((i, list(r)))
+        if i > MAX_ROWS + 50:      # a tiny file can unpack to millions of rows: stop early
+            break
+    if merged is not None:
+        for rng in ws.merged_cells.ranges:
+            top, span = rng.min_row, rng.max_row - rng.min_row + 1
+            for r in range(rng.min_row, min(rng.max_row, len(rows)) + 1):
+                for c in range(rng.min_col - 1, rng.max_col):
+                    merged[(r, c)] = (top, span)
+    return rows
+
+
 def read_table(data: bytes, filename: str) -> list[tuple[int, list]]:
-    """[(spreadsheet row number, [cell values])], empty rows dropped."""
+    """[(spreadsheet row number, [cell values])], empty rows dropped (a Table: merged cells and other sheets too)."""
     if len(data) > MAX_BYTES:
         raise ImportFileError("File is larger than 5 MB")
     name = filename.lower()
     if name.endswith((".xlsx", ".xlsm")):
         try:
-            wb = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
+            wb = load_workbook(io.BytesIO(data), data_only=True)
         except Exception as e:  # corrupt / not really xlsx
             raise ImportFileError("Could not read the Excel file") from e
-        ws = wb.worksheets[0]
-        rows = []
-        for i, r in enumerate(ws.iter_rows(values_only=True), 1):
-            rows.append((i, list(r)))
-            if i > MAX_ROWS + 50:      # a tiny file can unpack to millions of rows: stop early
-                break
+        merged: dict = {}
+        rows = _sheet_rows(wb.worksheets[0], merged)
+        others = [[(i, r) for i, r in _sheet_rows(ws, None) if any(_blank(v) is not None for v in r)] for ws in wb.worksheets[1:4]]
         wb.close()
     elif name.endswith((".csv", ".txt")):
         for enc in ("utf-8-sig", "cp1251"):
@@ -73,7 +95,9 @@ def read_table(data: bytes, filename: str) -> list[tuple[int, list]]:
     rows = [(i, r) for i, r in rows if any(_blank(v) is not None for v in r)]
     if not rows:
         raise ImportFileError("The file is empty")
-    return rows
+    if name.endswith((".xlsx", ".xlsm")):
+        return Table(rows, merged, [o for o in others if o])
+    return Table(rows)
 
 
 def _blank(v):
@@ -157,13 +181,37 @@ GENDER = as_choice({
     "f": "F", "female": "F", "woman": "F", "mrs": "F", "ms": "F", "ქ": "F", "მდედრ": "F", "ქალი": "F", "ж": "F", "жен": "F", "женский": "F", "女": "F",
 }, "gender")
 
-ROOM = as_choice({
+_ROOM = as_choice({
     "sgl": "SGL", "single": "SGL", "sngl": "SGL", "1": "SGL", "单人间": "SGL", "单间": "SGL", "ერთადგილიანი": "SGL",
     "dbl": "DBL", "double": "DBL", "dbl room": "DBL", "2": "DBL", "双人间": "DBL", "大床": "DBL", "大床房": "DBL", "ორადგილიანი": "DBL",
     "twn": "TWN", "twin": "TWN", "标间": "TWN", "双床": "TWN", "双床房": "TWN",
     "trp": "TRP", "tpl": "TRP", "triple": "TRP", "3": "TRP", "三人间": "TRP", "სამადგილიანი": "TRP",
     "quad": "QUAD", "qdr": "QUAD", "4": "QUAD", "四人间": "QUAD",
+    "dbl/twn": "DBL", "双人": "DBL", "标准间": "TWN", "单人": "SGL", "三人": "TRP",
+    # Other languages partners write in: Russian, Spanish, Italian, German, French, Turkish.
+    "двухместный": "DBL", "дабл": "DBL", "твин": "TWN", "одноместный": "SGL", "сингл": "SGL", "трехместный": "TRP",
+    "doble": "DBL", "matrimonial": "DBL", "individual": "SGL", "sencilla": "SGL", "triple": "TRP",
+    "doppia": "DBL", "matrimoniale": "DBL", "singola": "SGL", "tripla": "TRP",
+    "doppelzimmer": "DBL", "einzelzimmer": "SGL", "zweibett": "TWN", "chambre double": "DBL", "chambre simple": "SGL",
+    "çift": "DBL", "tek": "SGL",
 }, "room type")
+
+
+def ROOM(v) -> str:
+    """ "TWN", or "标间/twin", "Twin (2 beds)": the first part that names a room type."""
+    try:
+        return _ROOM(v)
+    except ValueError:
+        for part in re.split(r"[/|,;()（）\s]+", str(v)):
+            if part.strip():
+                try:
+                    return _ROOM(part)
+                except ValueError:
+                    continue
+        raise
+
+
+LEADER_WORDS = {norm_header(x) for x in ("领队", "tl", "tour leader", "leader", "escort", "ტურლიდერი", "лидер", "руководитель", "руководитель группы")}
 
 STATUS = as_choice({
     "confirmed": "confirmed", "ok": "confirmed", "yes": "confirmed", "დადასტურებული": "confirmed", "подтвержден": "confirmed",
@@ -197,13 +245,18 @@ def as_currency(v) -> str:
 # Shared aliases
 NAME = ("name", "სახელი", "название", "имя", "名称")
 NOTES = ("notes", "note", "remarks", "remark", "comment", "comments", "შენიშვნა", "შენიშვნები", "примечание", "комментарий", "备注")
-PHONE = ("phone", "mobile", "tel", "telephone", "ტელეფონი", "მობილური", "телефон", "电话", "手机")
+PHONE = ("phone", "mobile", "tel", "telephone", "contact", "ტელეფონი", "მობილური", "телефон", "电话", "手机", "联系方式", "联系电话")
 EMAIL = ("email", "e-mail", "mail", "ელფოსტა", "почта", "邮箱")
 
 SPECS: dict[str, list[F]] = {
     "participants": [
         F("full_name", ("fullname", "full name", "name", "passenger", "guest", "tourist", "traveller", "სახელიგვარი",
-                        "სახელი და გვარი", "სახელი", "ტურისტი", "фио", "имя", "姓名", "名字", "拼音"), as_text(200), example="WANG Li"),
+                        "სახელი და გვარი", "სახელი", "ტურისტი", "фио", "имя", "姓名", "名字"), as_text(200), example="WANG Li"),
+        # The passport name in Latin letters - one column, or surname and given name side by side under one header.
+        F("en_name", ("english name", "name in english", "latin name", "passport name", "英文名", "英文姓名", "拼音", "拼音名",
+                      "имя латиницей", "ლათინურად"), as_text(200)),
+        F("local_name", ("中文名", "中文姓名", "汉字", "local name", "name in chinese", "chinese name", "native name"), as_text(100)),
+        F("no", ("no", "#", "序号", "编号", "№", "n", "nr", "номер п/п", "ნომერი")),
         F("first_name", ("first name", "given name", "given names", "სახელი (first)", "имя (first)", "名")),
         F("last_name", ("last name", "surname", "family name", "გვარი", "фамилия", "姓")),
         F("gender", ("gender", "sex", "სქესი", "пол", "性别"), GENDER, example="F"),
@@ -214,7 +267,9 @@ SPECS: dict[str, list[F]] = {
                               "პასპორტის ნომერი", "паспорт", "номер паспорта", "护照", "护照号", "护照号码"), as_text(50), example="E12345678"),
         F("passport_expiry", ("passport expiry", "expiry", "expiry date", "date of expiry", "valid until", "expires",
                               "passport valid", "პასპორტის ვადა", "ვადა", "срок действия", "有效期", "护照有效期"), as_date, example=date(2031, 1, 31)),
-        F("room_type", ("room type", "room", "accommodation", "ოთახის ტიპი", "ოთახი", "тип номера", "номер", "房型"), ROOM, example="DBL"),
+        F("room_type", ("room type", "room", "accommodation", "rooming", "room arrangement", "ოთახის ტიპი", "ოთახი", "тип номера", "номер",
+                        "房型", "分房", "住房", "房间安排", "分房情况", "房间类型"), ROOM, example="DBL"),
+        F("room_note", ("room note", "note for hotel", "bed", "beds", "房间备注", "床型"), as_text(300)),
         F("room_group", ("room no", "room number", "room group", "roommate", "roommates", "sharing", "share with",
                          "ოთახის ნომერი", "№ номера", "房号", "房间", "同住"), as_text(40), example="R1"),
         F("phone", PHONE, as_text(50)),
@@ -271,13 +326,15 @@ def _alias_table(spec: list[F]) -> dict[str, str]:
 @dataclass
 class Parsed:
     columns: dict[str, str | None]
+    unread: int = 0  # headed columns not matched to a field
     total: int = 0  # data rows under the header
     records: list[tuple[int, dict]] = field(default_factory=list)
     errors: list[ImportIssue] = field(default_factory=list)
     warnings: list[ImportIssue] = field(default_factory=list)
 
 
-def parse(entity: str, table: list[tuple[int, list]]) -> Parsed:
+def parse(entity: str, table: list[tuple[int, list]], forced: dict | None = None) -> Parsed:
+    """`forced`: {"header_row": n, "columns": {index: field}, "leader": "TL"} - which column is which, as AI read it."""
     spec = SPECS[entity]
     aliases = _alias_table(spec)
     by_key = {f.key: f for f in spec}
@@ -288,11 +345,20 @@ def parse(entity: str, table: list[tuple[int, list]]) -> Parsed:
         if len({aliases[n] for n in map(norm_header, row) if n in aliases}) >= 2:
             header_idx = i
             break
-    _, header = table[header_idx]
+    if forced:
+        header_idx = next((i for i, (n, _) in enumerate(table) if n == forced.get("header_row")), -1)
+    _, header = table[header_idx] if header_idx >= 0 else (0, [])
     col_map: dict[int, str] = {}
     columns: dict[str, str | None] = {}
-    for idx, h in enumerate(header):
+    for idx, h in enumerate([] if forced else header):
         if _blank(h) is None:
+            # A column without a header right of one that has it: "英文名" over SURNAME | Given, or a note
+            # next to the room ("needs two beds").
+            left = col_map.get(idx - 1)
+            if entity == "participants" and left == "en_name" and "first_name" not in col_map.values():
+                col_map[idx] = "first_name"
+            elif entity == "participants" and left == "room_type" and "room_note" not in col_map.values():
+                col_map[idx] = "room_note"
             continue
         key = aliases.get(norm_header(h))
         if key in col_map.values():
@@ -301,22 +367,28 @@ def parse(entity: str, table: list[tuple[int, list]]) -> Parsed:
         if key:
             col_map[idx] = key
 
+    if forced:
+        col_map = {int(i): k for i, k in forced["columns"].items() if k in by_key}
+        columns = {(str(header[i]).strip() if i < len(header) and _blank(header[i]) is not None else _col_letter(i)): k
+                   for i, k in col_map.items()}
+    leader_words = LEADER_WORDS | ({norm_header(forced["leader"])} if forced and forced.get("leader") else set())
     result = Parsed(columns=columns)
     missing = [f.key for f in spec if f.required and f.key not in col_map.values()]
-    if entity == "participants" and "full_name" not in col_map.values() and not {"first_name", "last_name"} & set(col_map.values()):
+    if entity == "participants" and not {"full_name", "first_name", "last_name", "en_name", "local_name"} & set(col_map.values()):
         missing.append("full_name")
     if missing:
         result.errors.append(ImportIssue(row=table[header_idx][0], message=f"Missing column(s): {', '.join(missing)}"))
         return result
 
     body = table[header_idx + 1:]
+    result.unread = sum(1 for k in columns.values() if k is None)
     if len(body) > MAX_ROWS:
         raise ImportFileError(f"At most {MAX_ROWS} rows per import")
     for rownum, row in body:
         rec: dict = {}
         problems = []
         cells = {idx: (_blank(row[idx]) if idx < len(row) else None) for idx in col_map}
-        if all(v is None for v in cells.values()):
+        if all(v is None for i, v in cells.items() if col_map[i] != "no"):
             continue  # nothing in the recognised columns (e.g. only a row number)
         result.total += 1
         for idx, key in col_map.items():
@@ -328,10 +400,17 @@ def parse(entity: str, table: list[tuple[int, list]]) -> Parsed:
             except ValueError as e:
                 problems.append(f"{key}: {e}")
         if entity == "participants":
-            first, last = rec.pop("first_name", ""), rec.pop("last_name", "")
+            en = rec.pop("en_name", "")
+            first, last = rec.pop("first_name", ""), rec.pop("last_name", "") or (en if "first_name" in col_map.values() else "")
             if not rec.get("full_name") and (first or last):
                 # Passport order: SURNAME Given names
                 rec["full_name"] = f"{str(last).upper()} {first}".strip()
+            if not rec.get("full_name") and en:
+                rec["full_name"] = en
+            if not rec.get("full_name") and rec.get("local_name"):
+                rec["full_name"] = rec["local_name"]
+            if norm_header(rec.pop("no", "")) in leader_words:
+                rec["leader"] = True
             if not rec.get("full_name"):
                 problems.append("full_name: missing")
         for f in spec:
@@ -341,7 +420,91 @@ def parse(entity: str, table: list[tuple[int, list]]) -> Parsed:
             result.errors.append(ImportIssue(row=rownum, message="; ".join(problems)))
         else:
             result.records.append((rownum, rec))
+    if entity == "participants":
+        room_col = next((i for i, k in col_map.items() if k == "room_type"), None)
+        _rooms(result, table, room_col)
+        _passports(result, table)
     return result
+
+
+CAPACITY = {"SGL": 1, "DBL": 2, "TWN": 2, "TRP": 3, "QUAD": 4}
+
+
+def _rooms(result: "Parsed", table, room_col: int | None) -> None:
+    """Who shares a room, as such lists show it: one room cell merged over the roommates' rows, or a room
+    type on the first of them and the next rows empty (a twin takes the next person, a triple two more).
+    Each room gets a label (R1, R2…); a list's own room numbers win."""
+    merged = getattr(table, "merged", {}) or {}
+    n, cur = 0, None          # cur: [label, places left, merged top row, room type]
+    for rownum, rec in result.records:
+        if rec.get("room_group"):
+            cur = None
+            continue
+        block = merged.get((rownum, room_col)) if room_col is not None else None
+        if cur and block and block[0] == cur[2] and rownum != block[0]:
+            rec["room_group"], rec["room_type"] = cur[0], rec.get("room_type") or cur[3]
+        elif rec.get("room_type"):
+            n += 1
+            places = block[1] if block and block[0] == rownum and block[1] > 1 else CAPACITY.get(rec["room_type"], 1)
+            cur = [f"R{n}", places - 1, block[0] if block else None, rec["room_type"]]
+            rec["room_group"] = cur[0]
+        elif cur and cur[1] > 0 and room_col is not None:
+            rec["room_group"], rec["room_type"] = cur[0], cur[3]
+            cur[1] -= 1
+        else:
+            cur = None
+            continue
+        if cur and cur[2] is not None and block and block[0] == cur[2] and rownum != block[0]:
+            cur[1] -= 1
+    # A room note goes to everyone in the room.
+    notes: dict[str, str] = {}
+    for _, rec in result.records:
+        if rec.get("room_group") and rec.get("room_note"):
+            notes.setdefault(rec["room_group"], rec["room_note"])
+    for _, rec in result.records:
+        if rec.get("room_group") in notes and not rec.get("room_note"):
+            rec["room_note"] = notes[rec["room_group"]]
+
+
+PASSPORT_NO = re.compile(r"^[A-Z]{1,2}\d{6,9}$")
+
+
+def _passports(result: "Parsed", table) -> None:
+    """Passports listed on another sheet (name, passport number, dates): matched to the people by name."""
+    people: dict[str, dict] = {}
+    for _, rec in result.records:
+        for k in ("local_name", "full_name"):
+            if rec.get(k):
+                people.setdefault(norm_header(rec[k]), rec)
+    today = date.today()
+    for sheet in getattr(table, "others", []) or []:
+        for _, row in sheet:
+            cells = [_blank(v) for v in row]
+            rec = next((people[norm_header(c)] for c in cells if isinstance(c, str) and norm_header(c) in people), None)
+            if rec is None:
+                continue
+            for c in cells:
+                if c is None:
+                    continue
+                token = str(c).replace(" ", "").upper()
+                if isinstance(c, str) and PASSPORT_NO.match(token) and not rec.get("passport_number"):
+                    rec["passport_number"] = token
+                    continue
+                try:
+                    d = as_date(c) if isinstance(c, (date, datetime)) or re.match(r"^\d{4}[-./]\d{1,2}[-./]\d{1,2}", str(c)) else None
+                except ValueError:
+                    d = None
+                if d is not None:
+                    if d > today and not rec.get("passport_expiry"):
+                        rec["passport_expiry"] = d
+                    elif d < today and not rec.get("birth_date"):
+                        rec["birth_date"] = d
+                    continue
+                if isinstance(c, str) and not rec.get("gender"):
+                    try:
+                        rec["gender"] = GENDER(c)
+                    except ValueError:
+                        pass
 
 
 # --- per-entity checks against the database and saving ---------------------------------
@@ -350,9 +513,74 @@ def _ci(col):
     return func.lower(col)
 
 
+def _col_letter(i: int) -> str:
+    s = ""
+    i += 1
+    while i:
+        i, r = divmod(i - 1, 26)
+        s = chr(65 + r) + s
+    return s
+
+
+def _shape(v) -> str:
+    """A cell for the AI to read the column from, without the person: numbers (passports, phones, dates) as 9."""
+    if v is None:
+        return ""
+    if isinstance(v, (date, datetime)):
+        return "9999-99-99"
+    return re.sub(r"\d", "9", str(v).strip())[:40]
+
+
+def ai_columns(ws, table) -> dict | None:
+    """Which column is which, read by AI from the first rows (numbers masked) - for lists the usual reading
+    doesn't understand. None without an AI key or when the answer isn't usable."""
+    from .ai import keys
+    if not keys.key_for(ws):
+        return None
+    sample = "\n".join(f"row {n}: " + " | ".join(f"{_col_letter(i)}={_shape(v)}" for i, v in enumerate(row) if _blank(v) is not None)
+                       for n, row in table[:14])
+    others = "\n".join(f"other sheet row: " + " | ".join(_shape(v) for v in row if _blank(v) is not None)
+                        for sheet in (getattr(table, "others", []) or [])[:1] for _, row in sheet[:3])
+    fields = [f.key for f in SPECS["participants"]]
+    prompt = (
+        "These are the first rows of a tour group's passenger list, sent by a travel agency (any language). Numbers are "
+        "masked as 9. Say which column holds what. Answer with only JSON: {\"header_row\": <row number of the header, "
+        "or the row before the first person if there is none>, \"columns\": {\"<column letter>\": \"<field>\"}, "
+        "\"leader\": \"<the text that marks the tour leader in a column, or empty>\"}. Fields: " + ", ".join(fields) + ". "
+        "Use en_name for a Latin passport name in one column; last_name and first_name when it is split in two; "
+        "local_name for a name in Chinese or another script; room_type for the room (twin, double, 标间…); room_note for "
+        "a note about the room; no for the row number; leave out columns that are none of these.\n\n" + sample
+        + ("\n\n" + others if others else ""))
+    try:
+        from .programme import make_client
+        from .config import settings
+        msg = make_client(ws).messages.create(model=settings.ai_translate_model, max_tokens=1500,
+                                              messages=[{"role": "user", "content": prompt}])
+        text = "".join(b.text for b in msg.content if getattr(b, "type", "") == "text")
+        got = __import__("json").loads(text[text.index("{"): text.rindex("}") + 1])
+        cols = {}
+        for letter, key in (got.get("columns") or {}).items():
+            idx = 0
+            for ch in str(letter).strip().upper():
+                idx = idx * 26 + (ord(ch) - 64)
+            if idx > 0 and key in fields:
+                cols[idx - 1] = key
+        return {"header_row": int(got.get("header_row") or 0), "columns": cols, "leader": str(got.get("leader") or "")} if cols else None
+    except Exception:          # noqa: BLE001 - no AI: the usual reading stands
+        return None
+
+
 def run_import(db: Session, ctx: WorkspaceCtx, entity: str, table: list[tuple[int, list]], commit: bool,
                tour: Tour | None = None, replace: bool = False) -> ImportResult:
     p = parse(entity, table)
+    by_ai = False
+    # A list the usual reading doesn't understand (no name column, or several unknown columns): AI reads the columns.
+    if entity == "participants" and (not p.records or p.unread >= 2 or any(e.message.startswith("Missing column") for e in p.errors)):
+        forced = ai_columns(ctx.workspace, table)
+        if forced:
+            q = parse(entity, table, forced)
+            if len(q.records) >= len(p.records) and q.records:
+                p, by_ai = q, True
     created = 0
     preview: list[dict] = []
     valid = 0
@@ -371,7 +599,7 @@ def run_import(db: Session, ctx: WorkspaceCtx, entity: str, table: list[tuple[in
             db.rollback()
     p.errors.sort(key=lambda e: e.row)
     return ImportResult(total=p.total, valid=valid, created=created, committed=commit, columns=p.columns,
-                        errors=p.errors, warnings=p.warnings, preview=preview)
+                        errors=p.errors, warnings=p.warnings, preview=preview, by_ai=by_ai)
 
 
 def _participants(db, ctx, p: Parsed, tour: Tour, replace: bool):
@@ -380,7 +608,15 @@ def _participants(db, ctx, p: Parsed, tour: Tour, replace: bool):
     pos = next_position(db, tour.id)
     limit = tour.end_date + timedelta(days=183)
     seen: set[str] = set()
+    leaders = sum(1 for _, rec in p.records if rec.get("leader"))
+    if leaders:
+        # "领队" in the list: the group's free tour leader (counted in the tour's leaders, eats at the staff table).
+        p.warnings.append(ImportIssue(row=0, message=f"{leaders} tour leader(s) found: counted as the tour's free tour leaders"))
+        if not tour.leaders:
+            tour.leaders = leaders
     for rownum, rec in p.records:
+        if rec.pop("leader", False):
+            rec["notes"] = ("Tour leader. " + rec.get("notes", "")).strip()
         pn = rec.get("passport_number", "").replace(" ", "").upper()
         if pn:
             if pn in seen:

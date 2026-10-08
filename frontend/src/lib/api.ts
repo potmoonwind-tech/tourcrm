@@ -185,7 +185,8 @@ export interface StaffAssignment { id: string; role: StaffRole; vendor: VendorRe
 export type RoomType = '' | 'SGL' | 'DBL' | 'TWN' | 'TRP' | 'QUAD'
 export const ROOM_TYPES: RoomType[] = ['SGL', 'DBL', 'TWN', 'TRP', 'QUAD']
 export interface Participant {
-  id: string; full_name: string; gender: '' | 'M' | 'F'; birth_date: string | null; nationality: string
+  id: string; full_name: string; local_name?: string   // the name in the traveller's own script (王丽)
+  gender: '' | 'M' | 'F'; birth_date: string | null; nationality: string
   passport_number: string; passport_expiry: string | null; room_type: RoomType; room_group: string
   room_note?: string   // for the hotel, the same on everyone in the room
   phone: string; notes: string
@@ -198,6 +199,7 @@ export interface ImportResult {
   total: number; valid: number; created: number; committed: boolean
   columns: Record<string, string | null>; errors: ImportIssue[]; warnings: ImportIssue[]
   preview: Record<string, string | number | null>[]
+  by_ai?: boolean      // AI said which column is which (the reading itself is the usual one)
 }
 
 export async function apiUpload<T>(path: string, file: File): Promise<T> {

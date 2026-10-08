@@ -28,7 +28,7 @@ def share_any(menu, t, agency_share: int) -> bool:
     return dish_util.sharing(menu.dishes, t.plate_share, agency_share)
 
 PROVIDERS = {"gmail": ("smtp.gmail.com", 587), "outlook": ("smtp-mail.outlook.com", 587)}
-KINDS = ("booking_request", "booking_change", "booking_cancel", "restaurant", "payment", "series_request")
+KINDS = ("booking_request", "booking_change", "booking_cancel", "restaurant", "payment", "series_request", "rooming")
 LANGS = ("en", "ka", "ru")
 
 
@@ -124,6 +124,21 @@ def send(host: str, port: int, username: str, password: str, *, sender: str, fro
 # --- templates ---------------------------------------------------------------------------------------
 
 DEFAULTS: dict[str, dict[str, tuple[str, str]]] = {
+    # The rooming list to each hotel of a tour: who sleeps with whom, the Excel (passports) attached.
+    "rooming": {
+        "en": ("Rooming list · {group} · {check_in} – {check_out}",
+               "Dear {supplier},\n\nPlease find the rooming list for our group {group}{reference_line}: {pax} people, "
+               "check-in {check_in}, check-out {check_out} (nights: {nights}), {rooms}.\n\n{rooming}\n\n{notes}"
+               "The full list with passport details is in the attached Excel file.\n\nThank you,\n{signature}"),
+        "ka": ("რუმინგ ლისტი · {group} · {check_in} – {check_out}",
+               "მოგესალმებით, {supplier}!\n\nგიგზავნით ჩვენი ჯგუფის {group}{reference_line} რუმინგ ლისტს: {pax} ადამიანი, "
+               "შესვლა {check_in}, გასვლა {check_out} ({nights} ღამე), {rooms}.\n\n{rooming}\n\n{notes}"
+               "სრული სია პასპორტის მონაცემებით თანდართულ Excel ფაილშია.\n\nმადლობა,\n{signature}"),
+        "ru": ("Руминг-лист · {group} · {check_in} – {check_out}",
+               "Здравствуйте, {supplier}!\n\nНаправляем руминг-лист нашей группы {group}{reference_line}: {pax} чел., "
+               "заезд {check_in}, выезд {check_out} (ночей: {nights}), {rooms}.\n\n{rooming}\n\n{notes}"
+               "Полный список с паспортными данными - во вложенном файле Excel.\n\nСпасибо,\n{signature}"),
+    },
     # One supplier, a whole route's departures in one email: each group with its tour number, dates and people.
     "series_request": {
         "en": ("Booking request · series {series} · {count} groups · {dates}",
@@ -194,7 +209,8 @@ DEFAULTS: dict[str, dict[str, tuple[str, str]]] = {
 }
 PLACEHOLDERS = ("supplier", "contact", "group", "tour_code", "client", "pax", "dates", "check_in", "check_out", "nights",
                 "rooms", "what", "reference", "reference_line", "notes", "my_name", "agency", "signature",
-                "series", "count", "departures")     # the last three: a series email
+                "series", "count", "departures",     # a series email
+                "rooming")                           # the rooming list, room by room
 
 WORDS = {
     "en": {"night": "night", "nights": "nights", "rooms": "Rooms", "breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner", "people": "people",

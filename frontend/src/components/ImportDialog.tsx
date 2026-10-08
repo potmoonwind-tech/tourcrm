@@ -81,6 +81,7 @@ export function ImportDialog({ entity, tourId, onClose, onDone }: {
 
         {result && !result.committed && (
           <>
+            {result.by_ai && <p className="rounded-lg bg-violet-50 px-3 py-2 text-sm text-violet-900">{t('importByAi')}</p>}
             <div className="flex flex-wrap gap-1.5 text-xs">
               <span className="py-1 font-semibold text-slate-500">{t('columns')}:</span>
               {Object.entries(result.columns).map(([h, k]) => (

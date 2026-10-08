@@ -10,7 +10,7 @@ from .. import bookings as bk, mail, ratelimit
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_jobs, require_role
 from ..models import MailAccount, MailLog, MailTemplate, Series, Tour, TourBooking, utcnow
-from .people import rooming_filename, rooming_xlsx
+from .people import rooming, rooming_filename, rooming_text, rooming_xlsx
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["mail"])
 office = require_role("staff")
@@ -195,6 +195,48 @@ def email_draft(tour_id: str, booking_id: str, body: DraftIn, ctx: WorkspaceCtx 
     return DraftOut(kind=kind, language=lang, to=b.vendor.email or "", subject=mail.fill(tpl.subject, values),
                     body=mail.fill(tpl.body, values), has_account=acc is not None,
                     can_attach_rooming=b.vendor.type == "hotel" and bool(t.participants))
+
+
+# --- the rooming list to the tour's hotels ------------------------------------------------------------
+
+class RoomingDraft(BaseModel):
+    booking_id: str
+    vendor_id: str
+    name: str
+    to: str
+    check_in: str
+    check_out: str
+    subject: str
+    body: str
+
+
+@router.post("/tours/{tour_id}/rooming-drafts", response_model=list[RoomingDraft])
+def rooming_drafts(tour_id: str, body: DraftIn, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
+    """One email per hotel of this tour (its own dates, rooms and reference), with the rooming list room by room."""
+    t = db.scalar(select(Tour).where(Tour.id == tour_id, Tour.workspace_id == ctx.workspace.id))
+    if t is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tour not found")
+    lang = body.language or (ctx.workspace.language if ctx.workspace.language in mail.LANGS else "en")
+    _check_kind("rooming", lang)
+    tpl = _templates(db, ctx.workspace.id)[("rooming", lang)]
+    acc = _mine(db, ctx)
+    rows, used = bk.sync(db, t)
+    db.commit()
+    text = rooming_text(t)
+    out = []
+    for b in sorted(rows, key=lambda b: min(used[b.vendor_id].dates) if b.vendor_id in used and used[b.vendor_id].dates else t.start_date):
+        u = used.get(b.vendor_id)
+        if b.status == "cancelled" or u is None or b.vendor.type != "hotel" or not u.details(t).get("stays"):
+            continue
+        values = mail.booking_values(t, b, u, lang, my_name=(acc.from_name if acc else "") or ctx.user.full_name,
+                                     agency=ctx.workspace.name, signature=acc.signature if acc else "",
+                                     agency_share=ctx.workspace.plate_share or 1)
+        values["rooming"] = text
+        values["rooms"] = rooming(t).text or values["rooms"]
+        out.append(RoomingDraft(booking_id=b.id, vendor_id=b.vendor_id, name=b.vendor.name, to=b.vendor.email or "",
+                                check_in=values["check_in"], check_out=values["check_out"],
+                                subject=mail.fill(tpl.subject, values), body=mail.fill(tpl.body, values)))
+    return out
 
 
 # --- a series: one supplier, every (or some) departure in one email -----------------------------------

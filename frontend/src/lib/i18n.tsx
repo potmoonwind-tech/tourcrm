@@ -2808,6 +2808,16 @@ const en = {
   seriesEmail: "Email",
   seriesEmailTitle: "{name} · series {code}",
   seriesEmailDepartures: "Departures in this email: {n} of {total} (tap to leave one out)",
+  mailKind_rooming: "Rooming list",
+  roomingSend: "Send rooming to hotels",
+  roomingHotels: "Hotels of this tour (tap one to see its letter)",
+  roomingLetterFor: "Letter to {name}",
+  roomingSendTo: "Send ({n})",
+  roomingSent: "Rooming list sent",
+  roomingNoEmail: "no email - type it below",
+  roomingNoAddress: "Tick a hotel and give it an email address",
+  roomingNoHotels: "This tour has no hotel nights yet.",
+  importByAi: "AI recognised the columns of this list (only the first rows, numbers hidden). Check the preview before saving.",
 }
 
 type Dict = typeof en
@@ -5612,6 +5622,16 @@ const ka: Dict = {
   seriesEmail: "წერილი",
   seriesEmailTitle: "{name} · სერია {code}",
   seriesEmailDepartures: "გასვლები ამ წერილში: {n} / {total} (დააჭირეთ, რომ ამოიღოთ)",
+  mailKind_rooming: "რუმინგ ლისტი",
+  roomingSend: "რუმინგის გაგზავნა სასტუმროებში",
+  roomingHotels: "ამ ტურის სასტუმროები (დააჭირეთ, რომ ნახოთ წერილი)",
+  roomingLetterFor: "წერილი: {name}",
+  roomingSendTo: "გაგზავნა ({n})",
+  roomingSent: "რუმინგ ლისტი გაიგზავნა",
+  roomingNoEmail: "ელფოსტა არ არის - ჩაწერეთ ქვემოთ",
+  roomingNoAddress: "მონიშნეთ სასტუმრო და მიუთითეთ ელფოსტა",
+  roomingNoHotels: "ამ ტურს ჯერ არ აქვს სასტუმროს ღამეები.",
+  importByAi: "ამ სიის სვეტები AI-მ ამოიცნო (მხოლოდ პირველი რიგები, ციფრები დამალული). შენახვამდე შეამოწმეთ.",
 }
 
 export type Lang = 'en' | 'ka'

@@ -137,7 +137,7 @@ def test_participant_import_preview_then_commit(make_client):
     r = upload(c, url, data, tour_id=t["id"]).json()
     assert r["committed"] is False and r["created"] == 0
     assert r["columns"]["姓名"] == "full_name" and r["columns"]["Room no"] == "room_group"
-    assert r["columns"]["No."] is None
+    assert r["columns"]["No."] == "no"          # the number column: where "领队" marks the tour leader
     assert r["total"] == 4 and r["valid"] == 2
     assert {e["row"] for e in r["errors"]} == {5, 7}  # bad date, unknown room type
     assert r["preview"][0]["gender"] == "F" and r["preview"][0]["room_type"] == "DBL"
@@ -236,3 +236,67 @@ def test_templates_download(make_client):
     tpl = c.get(f"{base}/import/participants/template").content
     r = upload(c, f"{base}/import/participants", tpl, tour_id=t["id"]).json()
     assert r["valid"] == 1, r
+
+
+def test_a_partners_list_with_merged_rooms_a_leader_and_passports_on_sheet_two(make_client):
+    """A list as partners send it: a title, "英文名" over SURNAME | Given, the tour leader marked "领队",
+    roommates sharing one merged "标间/twin" cell, a note next to the room, passports on the second sheet."""
+    c, base, _ = agency(make_client)
+    t = tour_with_route(c, base)
+    wb = Workbook()
+    ws = wb.active
+    for r in (["0928 group list"], ["序号", "中文名", "英文名", None, "性别", "出生日期", "联系方式", "分房", None],
+              ["领队", "张三", "ZHANG", "SAN", "男", date(1985, 1, 2), "13800000000", "标间/twin", None],
+              [1, "李四", "LI", "SI", "男", date(1970, 3, 4), None, None, None],
+              [2, "王五", "WANG", "WU", "女", date(1960, 5, 6), None, "大床/double", "生日蛋糕"],
+              [3, "赵六", "ZHAO", "LIU", "女", date(1962, 7, 8), None, None, None],
+              [4, "钱七", "QIAN", "QI", "女", date(1990, 9, 10), None, "单间/single", None]):
+        ws.append(r)
+    ws.merge_cells("A1:I1")
+    ws.merge_cells("C2:D2")
+    ws.merge_cells("H3:H4")
+    ws.merge_cells("H5:H6")
+    p2 = wb.create_sheet("Sheet2")
+    for r in (["张三", "护照", "EA1111111", date(1985, 1, 2), "男"], ["李四", "护照", "EB2222222", date(1970, 3, 4), "男"],
+              ["王五", "护照", "EC3333333", date(1960, 5, 6), "女"], ["钱七", "护照", "ED4444444", date(1990, 9, 10), "女"]):
+        p2.append(r)
+    buf = io.BytesIO()
+    wb.save(buf)
+    r = upload(c, f"{base}/import/participants", buf.getvalue(), tour_id=t["id"], commit="true").json()
+    assert r["created"] == 5 and r["errors"] == [], r
+    people = {p["local_name"]: p for p in c.get(f"{base}/tours/{t['id']}/participants").json()}
+    assert people["张三"]["full_name"] == "ZHANG SAN" and people["张三"]["notes"].startswith("Tour leader")
+    assert people["张三"]["passport_number"] == "EA1111111" and people["赵六"]["passport_number"] == ""
+    # Roommates: the merged cell, a twin for the leader and Li; a double for Wang and Zhao (its note too); Qian alone.
+    assert people["张三"]["room_group"] == people["李四"]["room_group"] and people["李四"]["room_type"] == "TWN"
+    assert people["王五"]["room_group"] == people["赵六"]["room_group"] and people["赵六"]["room_note"] == "生日蛋糕"
+    assert people["钱七"]["room_type"] == "SGL" and people["钱七"]["room_group"] not in (people["张三"]["room_group"], people["王五"]["room_group"])
+    assert c.get(f"{base}/tours/{t['id']}/rooming").json()["text"] == "1 DBL + 1 TWN + 1 SGL"
+    assert c.get(f"{base}/tours/{t['id']}").json()["leaders"] == 1       # the free tour leader of the group
+
+
+def test_a_list_nobody_taught_us_is_read_by_ai(make_client, monkeypatch):
+    """Headers the usual reading doesn't know: AI says which column is which (it gets the first rows with the
+    numbers masked), and the list is read as usual from that."""
+    from app import importer
+    seen = {}
+
+    class Fake:
+        def __init__(self):
+            self.messages = self
+
+        def create(self, model, max_tokens, messages):
+            seen["prompt"] = messages[0]["content"]
+            from types import SimpleNamespace
+            text = '{"header_row": 1, "columns": {"A": "full_name", "B": "passport_number", "C": "room_type"}, "leader": "TL"}'
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text=text)])
+
+    monkeypatch.setattr("app.programme.make_client", lambda ws: Fake())
+    monkeypatch.setattr("app.ai.keys.key_for", lambda ws: "sk-test")
+    c, base, _ = agency(make_client)
+    t = tour_with_route(c, base)
+    data = xlsx([["Persona", "Documento", "Habitación"], ["GARCIA Ana", "X1234567", "doble"], ["LOPEZ Juan", "X7654321", "doble"]])
+    r = upload(c, f"{base}/import/participants", data, tour_id=t["id"]).json()
+    assert r["by_ai"] is True and r["valid"] == 2 and r["columns"] == {"Persona": "full_name", "Documento": "passport_number", "Habitación": "room_type"}
+    assert "X1234567" not in seen["prompt"] and "X9999999" in seen["prompt"]          # passport numbers never leave
+    assert importer  # noqa

@@ -17,7 +17,7 @@ import { Button, ErrorText, Field, Input, Select, Spinner } from './ui'
 
 export const MAIL_KINDS = ['booking_request', 'booking_change', 'booking_cancel', 'restaurant', 'payment'] as const
 /** Every template (Settings → Email): the tour's, and the one for a whole series. */
-export const TEMPLATE_KINDS = [...MAIL_KINDS, 'series_request'] as const
+export const TEMPLATE_KINDS = [...MAIL_KINDS, 'series_request', 'rooming'] as const
 
 /** "Subject\n\nBody" on the clipboard: to paste into your own email, WhatsApp or the hotel's form. */
 export const copyEmail = (subject: string, body: string) =>
@@ -256,6 +256,102 @@ export function SeriesEmailDialog({ seriesId, vendorId, supplier, seriesCode, on
         </div>
       )}
       <ErrorText error={draft.error} />
+    </Dialog>
+  )
+}
+
+
+interface RoomingDraft { booking_id: string; vendor_id: string; name: string; to: string; check_in: string; check_out: string; subject: string; body: string }
+type Letter = RoomingDraft & { on: boolean }
+
+/** The rooming list to the tour's hotels: every hotel of this tour ticked, each its own letter (its dates and
+ * rooms); copy one, or send to the ticked ones with the Excel list attached. */
+export function RoomingEmailDialog({ tourId, onClose }: { tourId: string; onClose: () => void }) {
+  const ws = useWorkspace()!
+  const { t } = useI18n()
+  const qc = useQueryClient()
+  const [language, setLanguage] = useState<string>(ws.language === 'ka' ? 'ka' : 'en')
+  const [letters, setLetters] = useState<Letter[]>([])
+  const [active, setActive] = useState(0)
+  const drafts = useQuery({
+    queryKey: ['rooming-drafts', ws.id, tourId, language],
+    queryFn: () => api<RoomingDraft[]>(wsPath(ws.id, `/tours/${tourId}/rooming-drafts`), { method: 'POST', body: { language } }),
+    staleTime: 0, meta: { silent: true },
+  })
+  useEffect(() => {
+    if (!drafts.data) return
+    setLetters((cur) => drafts.data.map((d) => {
+      const was = cur.find((x) => x.booking_id === d.booking_id)
+      return { ...d, to: was?.to || d.to, on: was ? was.on : true }
+    }))
+  }, [drafts.data])
+  const split = (s: string) => s.split(/[,;\s]+/).map((x) => x.trim()).filter(Boolean)
+  const ready = letters.filter((l) => l.on && split(l.to).length)
+  const send = useMutation({
+    mutationFn: async () => {
+      for (const l of ready) {
+        await api(wsPath(ws.id, '/mail/send'), {
+          method: 'POST',
+          body: { to: split(l.to), subject: l.subject, body: l.body, tour_id: tourId, booking_id: l.booking_id, kind: 'rooming',
+            mark_requested: false, attach_rooming: true },
+        })
+      }
+    },
+    onSettled: () => qc.invalidateQueries({ queryKey: ['mail-log', ws.id, tourId] }),
+    onSuccess: () => { toast('roomingSent'); onClose() },
+  })
+  const cur = letters[active]
+  const set = (p: Partial<Letter>) => setLetters(letters.map((l, i) => (i === active ? { ...l, ...p } : l)))
+  return (
+    <Dialog wide title={t('roomingSend')} onClose={onClose}
+      footer={letters.length > 0 && (
+        <>
+          <Button variant="secondary" onClick={() => cur && copyEmail(cur.subject, cur.body)}><Copy size={15} aria-hidden />{t('emailCopy')}</Button>
+          <Button disabled={send.isPending || !ready.length} onClick={() => send.mutate()} title={!ready.length ? t('roomingNoAddress') : undefined}>
+            <Send size={15} aria-hidden />{send.isPending ? t('emailSending') : t('roomingSendTo', { n: ready.length })}
+          </Button>
+        </>
+      )}>
+      {drafts.isPending && <div className="flex justify-center py-8"><Spinner /></div>}
+      {drafts.data && !letters.length && <p className="text-sm text-slate-600">{t('roomingNoHotels')}</p>}
+      {letters.length > 0 && (
+        <div className="space-y-3">
+          <fieldset>
+            <legend className="mb-1.5 text-sm font-medium text-slate-700">{t('roomingHotels')}</legend>
+            <ul className="divide-y divide-slate-100 rounded-lg border border-slate-200">
+              {letters.map((l, i) => (
+                <li key={l.booking_id} className={i === active ? 'flex items-center gap-3 bg-brand-50/60 px-3 py-2' : 'flex items-center gap-3 px-3 py-2'}>
+                  <input type="checkbox" className="size-4" checked={l.on} aria-label={l.name}
+                    onChange={(e) => setLetters(letters.map((x, j) => (j === i ? { ...x, on: e.target.checked } : x)))} />
+                  <button type="button" onClick={() => setActive(i)} className="min-w-0 flex-1 text-left text-sm">
+                    <b className="font-medium text-slate-900">{l.name}</b>
+                    <span className="ml-2 text-slate-500">{l.check_in} – {l.check_out}</span>
+                    {!l.to && <span className="ml-2 text-xs text-amber-700">{t('roomingNoEmail')}</span>}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </fieldset>
+          <Field label={t('emailLanguage')}>
+            <Select value={language} onChange={(e) => setLanguage(e.target.value)}>
+              {MAIL_LANGS.map((l) => <option key={l} value={l}>{t(`mailLang_${l}` as TKey)}</option>)}
+            </Select>
+          </Field>
+          {cur && (
+            <div className="space-y-3 rounded-lg border border-slate-200 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{t('roomingLetterFor', { name: cur.name })}</p>
+              <Field label={t('emailToLabel')}><Input type="text" inputMode="email" value={cur.to} onChange={(e) => set({ to: e.target.value })} placeholder="reservations@hotel.ge" /></Field>
+              <Field label={t('emailSubject')}><Input value={cur.subject} maxLength={300} onChange={(e) => set({ subject: e.target.value })} /></Field>
+              <Field label={t('emailBody')}>
+                <textarea value={cur.body} onChange={(e) => set({ body: e.target.value })} rows={14}
+                  className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm leading-relaxed text-slate-800 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
+              </Field>
+            </div>
+          )}
+          <ErrorText error={send.error} />
+        </div>
+      )}
+      <ErrorText error={drafts.error} />
     </Dialog>
   )
 }

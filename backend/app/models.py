@@ -427,7 +427,9 @@ class Participant(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
     tour_id: Mapped[str] = mapped_column(ForeignKey("tours.id", ondelete="CASCADE"), index=True)
     full_name: Mapped[str] = mapped_column(String(200))
-    gender: Mapped[str] = mapped_column(String(1), default="")  # M | F | ""
+    # The name in the traveller's own script (王丽) - the guide's list; hotels get the passport name.
+    local_name: Mapped[str] = mapped_column(String(100), default="", server_default="")
+    gender: Mapped[str] = mapped_column(String(1), default="")  # M | F | "
     birth_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     nationality: Mapped[str] = mapped_column(String(100), default="")
     passport_number: Mapped[str] = mapped_column(String(50), default="")

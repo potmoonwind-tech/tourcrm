@@ -680,6 +680,7 @@ class StaffOut(_Out):
 
 class ParticipantUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=1, max_length=200)
+    local_name: str | None = Field(default=None, max_length=100)
     gender: Gender | None = None
     birth_date: date | None = None
     nationality: str | None = Field(default=None, max_length=100)
@@ -699,6 +700,7 @@ class ParticipantIn(ParticipantUpdate):
 class ParticipantOut(_Out):
     id: str
     full_name: str
+    local_name: str = ""
     gender: Gender
     birth_date: date | None
     nationality: str
@@ -732,6 +734,7 @@ class ImportResult(BaseModel):
     errors: list[ImportIssue]
     warnings: list[ImportIssue]
     preview: list[dict]
+    by_ai: bool = False              # the columns were recognised by AI (the reading itself is the usual one)
 
 
 TourSummary.model_rebuild()

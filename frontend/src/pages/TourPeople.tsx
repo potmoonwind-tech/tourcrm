@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, Dialog, toast } from '../components/overlay'
-import { AlertTriangle, ArrowRightLeft, BedDouble, Copy, Download, MessageCircle, Plus, Smartphone, Trash2, Upload } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, BedDouble, Copy, Download, Mail, MessageCircle, Plus, Smartphone, Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
+import { RoomingEmailDialog } from '../components/EmailDialog'
 import { ImportDialog } from '../components/ImportDialog'
 import { EmptyState, Phone, VendorSelect } from '../components/tour'
 import { awayDuring, awayText } from '../components/GuideInfo'
@@ -39,6 +40,7 @@ export function ParticipantsTab({ tour }: { tour: Tour }) {
   const base = wsPath(ws.id, `/tours/${tour.id}`)
   const refresh = useTourRefresh(tour.id)
   const [importing, setImporting] = useState(false)
+  const [sendingRooming, setSendingRooming] = useState(false)
   // The people as a list (passports, details) or as rooms (who sleeps with whom); remembered per browser.
   const [view, setViewState] = useState<'list' | 'rooms'>(() => { try { return localStorage.getItem('peopleView') === 'rooms' ? 'rooms' : 'list' } catch { return 'list' } })
   const setView = (v: 'list' | 'rooms') => { setViewState(v); try { localStorage.setItem('peopleView', v) } catch { /* private window */ } }
@@ -67,6 +69,7 @@ export function ParticipantsTab({ tour }: { tour: Tour }) {
               className="inline-flex h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50">
               <Download size={16} />{t('downloadRooming')}
             </a>
+            <Button variant="secondary" onClick={() => setSendingRooming(true)}><Mail size={16} />{t('roomingSend')}</Button>
             <div className="flex-1" />
             <Button variant="ghost" className="text-red-600" onClick={() => void ask({ title: t('confirmClear'), danger: true }).then((ok) => ok && clear.mutate())}>
               <Trash2 size={16} />{t('clearList')}
@@ -130,6 +133,7 @@ export function ParticipantsTab({ tour }: { tour: Tour }) {
         </Card>
       )}
       {importing && <ImportDialog entity="participants" tourId={tour.id} onClose={() => setImporting(false)} onDone={refresh} />}
+      {sendingRooming && <RoomingEmailDialog tourId={tour.id} onClose={() => setSendingRooming(false)} />}
     </div>
   )
 }
@@ -189,7 +193,8 @@ function ParticipantRow({ n, p, base, passportLimit, onChange }: {
   return (
     <tr ref={row} className={cn('transition-colors duration-700', save.isPending && 'opacity-60', save.isError && 'bg-red-50', flash && 'bg-amber-100')}>
       <td className="px-3 text-slate-400">{n}</td>
-      <td className="px-1 py-1">{txt('full_name', 'font-medium')}</td>
+      <td className="px-1 py-1">{txt('full_name', 'font-medium')}
+        {p.local_name && <span className="block px-2 text-[11px] text-slate-500">{p.local_name}</span>}</td>
       <td className="px-1 py-1">
         <Select className={cell} value={p.gender} onChange={(e) => save.mutate({ gender: e.target.value })}>
           <option value="">—</option><option value="M">{t('genderM')}</option><option value="F">{t('genderF')}</option>
