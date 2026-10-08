@@ -17,7 +17,7 @@ import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
 import { PageHeader } from './Dashboard'
 
-type Kind = 'vendor' | 'prices' | 'client' | 'route' | 'calculation' | 'tour' | 'participants'
+type Kind = 'vendor' | 'prices' | 'client' | 'route' | 'route_change' | 'calculation' | 'tour' | 'participants'
 interface Proposal {
   id: string; kind: Kind; label: string; status: 'proposed' | 'applied' | 'failed'
   result_id: string | null; error: string; data: Record<string, unknown>
@@ -27,7 +27,7 @@ interface AiSession { id: string; title: string; status: 'idle' | 'running' | 'e
 interface Brief { id: string; title: string; status: string; proposed: number; applied: number; updated_at: string }
 interface AiStatus { available: boolean; spent_usd: number; limit_usd: number }
 
-const KINDS: Kind[] = ['vendor', 'prices', 'client', 'route', 'calculation', 'tour', 'participants']
+const KINDS: Kind[] = ['vendor', 'prices', 'client', 'route', 'route_change', 'calculation', 'tour', 'participants']
 const ACCEPT = '.xlsx,.xlsm,.csv,.tsv,.docx,.txt,.pdf,image/jpeg,image/png,image/webp'
 
 export function AssistantPage() {
@@ -335,6 +335,29 @@ function Details({ p, nameOf }: { p: Proposal; nameOf: (r?: string | null) => st
           </li>
         ))}
       </ul>
+    )
+  }
+  if (p.kind === 'route_change') {
+    // Changes to a route that exists: each day and what changes on it, as the assistant read it.
+    const what = (c: any) => [   // eslint-disable-line @typescript-eslint/no-explicit-any
+      c.city != null && `${t('city')}: ${c.city}`, c.stops && `${t('aiStops')}: ${c.stops.join(', ')}`,
+      c.hotel != null && `${t('hotel')}: ${c.hotel ? d.names?.[c.hotel] ?? nameOf(c.hotel) ?? c.hotel : '—'}`,
+      c.lunch != null && `${t('lunch')}: ${c.lunch ? d.names?.[c.lunch] ?? nameOf(c.lunch) ?? c.lunch : '—'}`,
+      c.dinner != null && `${t('dinner')}: ${c.dinner ? d.names?.[c.dinner] ?? nameOf(c.dinner) ?? c.dinner : '—'}`,
+      c.lunch_mode && `${t('lunch')}: ${c.lunch_mode}`, c.dinner_mode && `${t('dinner')}: ${c.dinner_mode}`,
+      c.add_extras?.length > 0 && `+ ${c.add_extras.map((x: any) => x.service).join(', ')}`,   // eslint-disable-line @typescript-eslint/no-explicit-any
+      c.remove_extras?.length > 0 && `− ${c.remove_extras.join(', ')}`,
+      c.notes != null && `${t('notes')}: ${c.notes}`, c.km != null && `${c.km} km`,
+    ].filter(Boolean).join(' · ')
+    return (
+      <div className="space-y-1">
+        {[row(t('name'), d.name), row(t('notes'), d.notes)]}
+        <ul className="space-y-0.5">
+          {(d.changes as any[]).map((c, i) => (   // eslint-disable-line @typescript-eslint/no-explicit-any
+            <li key={i}><b>{c.op === 'insert_after' ? t('aiNewDayAfter', { n: c.day }) : c.op === 'remove' ? t('aiRemoveDay', { n: c.day }) : `${t('day')} ${c.day}`}</b> {what(c)}</li>
+          ))}
+        </ul>
+      </div>
     )
   }
   if (p.kind === 'route' || (p.kind === 'tour' && d.days)) {

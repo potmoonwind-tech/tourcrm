@@ -289,3 +289,33 @@ def test_a_calculation_from_a_proposed_route(make_client, claude):
     assert float(lines["Flight Urumqi – Tbilisi"]["unit_price"]) == 0 and lines["Flight Urumqi – Tbilisi"]["category"] == "ticket"
     visa = lines["Azerbaijan e-visa"]
     assert (visa["kind"], visa["category"], float(visa["unit_price"]), visa["basis"]) == ("visa", "other", 26, "per_person")
+
+
+def test_changes_an_existing_route_exactly_where_asked(make_client, claude):
+    c, base, _ = agency(make_client)
+    funi = mk(c, f"{base}/vendors", {"name": "Funicular", "type": "restaurant", "city": "Tbilisi"})
+    barb = mk(c, f"{base}/vendors", {"name": "Barbarestan", "type": "restaurant", "city": "Tbilisi"})
+    route = mk(c, f"{base}/series", {"code": "HM", "name": "Highlights", "days": [
+        {"city": "Tbilisi", "dinner_id": funi["id"], "notes": "arrival"},
+        {"city": "Kazbegi", "schedule": [{"id": "s1", "kind": "visit", "time": "10:00", "end": "", "title": "Gergeti", "ref": None, "place": "", "notes": ""}]},
+        {"city": "Tbilisi"}]})
+    claude([
+        ([use(1, "list_records", kind="routes", search="HM"), use(2, "get_route", route="hm")], "tool_use"),
+        ([use(3, "propose_route_changes", route=route["id"], summary="HM day 1: dinner at Barbarestan instead of Funicular; Kazbegi a second night",
+              changes=[{"day": 1, "dinner": barb["id"]}, {"day": 2, "op": "insert_after", "city": "Kazbegi"},
+                       {"day": 9, "city": "x"}])], "tool_use"),           # a day the route doesn't have: refused
+        ([use(4, "propose_route_changes", route=route["id"], summary="HM day 1: dinner at Barbarestan instead of Funicular; Kazbegi a second night",
+              changes=[{"day": 1, "dinner": barb["id"]}, {"day": 2, "op": "insert_after", "city": "Kazbegi"}])], "tool_use"),
+        ([text("Proposed: day 1 dinner at Barbarestan, and a second night in Kazbegi.")], "end_turn"),
+    ])
+    s = mk(c, f"{base}/ai/sessions", {})
+    assert c.post(f"{base}/ai/sessions/{s['id']}/messages", data={"text": "In HM put dinner on day 1 at Barbarestan and stay 2 nights in Kazbegi"}).status_code == 200
+    s = c.get(f"{base}/ai/sessions/{s['id']}").json()
+    assert [p["kind"] for p in s["plan"]] == ["route_change"] and s["plan"][0]["label"].startswith("HM · HM day 1")
+    assert c.get(f"{base}/series/{route['id']}").json()["days"][0]["dinner_id"] == funi["id"]     # nothing saved yet
+    s = c.post(f"{base}/ai/sessions/{s['id']}/apply", json={"ids": [s["plan"][0]["id"]]}).json()
+    assert s["plan"][0]["status"] == "applied", s["plan"][0]["error"]
+    days = c.get(f"{base}/series/{route['id']}").json()["days"]
+    assert [d["city"] for d in days] == ["Tbilisi", "Kazbegi", "Kazbegi", "Tbilisi"]
+    assert days[0]["dinner_id"] == barb["id"] and days[0]["notes"] == "arrival"            # the rest of the day stays
+    assert days[1]["schedule"][0]["title"] == "Gergeti"                                    # and the other days too

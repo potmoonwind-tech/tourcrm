@@ -15,6 +15,7 @@ import { useNavigate } from 'react-router-dom'
 import { useWorkspace } from '../lib/session'
 import { cn, countWord } from '../lib/utils'
 import { PageHeader } from './Dashboard'
+import { BulkBar, deleteAll, PickBox, useSelection } from '../components/BulkBar'
 
 /** A short code from a route name, e.g. "Tbilisi weekend" → "TW", "Georgia & Armenia classic" → "GAC". */
 const KA_LATIN: Record<string, string> = {
@@ -41,6 +42,8 @@ export function RoutesPage() {
   const tours = useQuery({ queryKey: ['tours', ws.id, 'all'], queryFn: () => api<TourSummary[]>(wsPath(ws.id, '/tours')) })
   const departures = new Map<string, number>()
   for (const x of tours.data ?? []) if (x.series_id && x.status !== 'cancelled' && x.end_date >= today()) departures.set(x.series_id, (departures.get(x.series_id) ?? 0) + 1)
+  const pick = useSelection((series.data ?? []).map((s) => s.id))
+  const qc = useQueryClient()
 
   return (
     <>
@@ -52,9 +55,23 @@ export function RoutesPage() {
           <EmptyState title={t('emptyRoutes')} hint={t('emptyRoutesHint')}
             action={canEdit && <Button onClick={() => setEditing('new')}><Plus size={16} />{t('newRoute')}</Button>} />
         ) : (
+          <>
+          {canEdit && <BulkBar count={pick.picked.size} onClear={pick.clear}
+            title={t('bulkDeleteRoutesQ', { n: pick.picked.size })} message={t('bulkDeleteRoutesMsg')}
+            onDelete={async () => {
+              const r = await deleteAll([...pick.picked].map((id) => wsPath(ws.id, `/series/${id}`)))
+              void qc.invalidateQueries({ queryKey: ['series', ws.id] })
+              return r
+            }} />}
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {series.data?.map((s) => (
-              <button type="button" key={s.id} onClick={() => setEditing(s)} className="text-left">
+              <div key={s.id} className="relative">
+              {canEdit && (
+                <span className="absolute right-3 top-4 z-10 flex h-7 w-7 items-center justify-center rounded-md bg-white/80">
+                  <PickBox checked={pick.has(s.id)} onChange={() => pick.toggle(s.id)} label={t('bulkPickOne', { name: s.code })} />
+                </span>
+              )}
+              <button type="button" onClick={() => setEditing(s)} className={cn('h-full w-full text-left', pick.has(s.id) && 'rounded-xl ring-2 ring-brand-400')}>
                 <Card className="h-full overflow-hidden transition-shadow hover:shadow-md">
                   <div className={cn('h-1.5', COLOR[s.color].bar)} />
                   <div className="p-4">
@@ -74,8 +91,10 @@ export function RoutesPage() {
                   </div>
                 </Card>
               </button>
+              </div>
             ))}
           </div>
+          </>
         )}
         <SavedDaysList canEdit={canEdit} />
       </div>

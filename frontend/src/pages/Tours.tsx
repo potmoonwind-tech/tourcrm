@@ -17,6 +17,7 @@ import { useWorkspace } from '../lib/session'
 import { cn, countWord, paxText } from '../lib/utils'
 import { PageHeader } from './Dashboard'
 import { DeparturesForm } from './NewDepartures'
+import { BulkBar, deleteAll, PickBox, useSelection } from '../components/BulkBar'
 
 type Range = 'current' | 'past' | 'all'
 
@@ -43,6 +44,10 @@ export function ToursPage() {
   // Past tours read most naturally newest-first.
   const rows = range === 'past' ? [...(tours.data ?? [])].reverse() : tours.data ?? []
   const totalPax = rows.filter((r) => r.status !== 'cancelled').reduce((s, r) => s + r.pax, 0)
+  // Several tours at once (a manager's decision, as deleting one is).
+  const canDelete = atLeast(ws.role, 'manager')
+  const pick = useSelection(rows.map((r) => r.id))
+  const qcList = useQueryClient()
 
   return (
     <>
@@ -81,10 +86,19 @@ export function ToursPage() {
               action={(status || q || range !== 'all') && <Button variant="secondary" onClick={() => { setStatus(''); setQ(''); setRange('all') }}>{t('showAllTours')}</Button>} />
           )
         ) : (
+          <>
+          {canDelete && <BulkBar count={pick.picked.size} onClear={pick.clear}
+            title={t('bulkDeleteToursQ', { n: pick.picked.size })} message={t('bulkDeleteToursMsg')}
+            onDelete={async () => {
+              const r = await deleteAll([...pick.picked].map((id) => wsPath(ws.id, `/tours/${id}`)))
+              void qcList.invalidateQueries({ queryKey: ['tours', ws.id] })
+              return r
+            }} />}
           <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white shadow-sm">
             <table className={cn('w-full min-w-[760px] text-sm transition-opacity', tours.isFetching && 'opacity-70')}>
               <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium text-slate-500">
                 <tr>
+                  {canDelete && <th className="w-10 pl-4"><PickBox checked={pick.all} indeterminate={pick.some} onChange={pick.toggleAll} label={t('bulkPickAll')} /></th>}
                   <th className="px-4 py-3">{t('tourCode')}</th>
                   <th className="px-4 py-3">{t('client')}</th>
                   <th className="px-4 py-3">{t('dates')}</th>
@@ -95,7 +109,9 @@ export function ToursPage() {
               </thead>
               <tbody className="stagger divide-y divide-slate-100">
                 {rows.map((r) => (
-                  <tr key={r.id} onClick={() => navigate(r.id)} className={cn('cursor-pointer hover:bg-slate-50', r.status === 'cancelled' && 'opacity-60')}>
+                  <tr key={r.id} onClick={() => navigate(r.id)} className={cn('cursor-pointer hover:bg-slate-50', r.status === 'cancelled' && 'opacity-60', pick.has(r.id) && 'bg-brand-50/60')}>
+                    {canDelete && <td className="w-10 pl-4" onClick={(e) => { e.stopPropagation(); pick.toggle(r.id) }}>
+                      <PickBox checked={pick.has(r.id)} onChange={() => pick.toggle(r.id)} label={t('bulkPickOne', { name: r.code })} /></td>}
                     <td className="px-4 py-3">
                       {/* The link makes the row reachable by keyboard and screen readers; the row click is for the mouse. */}
                       <Link to={r.id} onClick={(e) => e.stopPropagation()} aria-label={t('openTourCode', { code: r.code })}
@@ -120,6 +136,7 @@ export function ToursPage() {
               </tbody>
             </table>
           </div>
+          </>
         )}
       </div>
       {creating && <NewTourModal onClose={() => setCreating(false)} />}

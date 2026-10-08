@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from .. import catalog
 from ..deps import WorkspaceCtx
-from ..models import AiSession, Client, Quote, Series, Tour, Vendor
+from ..models import AiSession, Client, Quote, Series, Service, Tour, Vendor
 from ..routers.pricing import ServiceIn
 from ..quote_schemas import BUILT_IN_KINDS, CalcStyle
 from ..schemas import ClientCreate, Flight, ParticipantIn, SeriesColor, TourStatus, VendorCreate
@@ -220,6 +220,39 @@ TOOLS: list[dict[str, Any]] = [
         "description": "Take proposals out of the plan (to correct them, propose again after removing).",
         "input_schema": {"type": "object", "properties": {"ids": {"type": "array", "items": {"type": "string"}}}, "required": ["ids"]},
     },
+    {
+        "name": "get_route",
+        "description": "An existing route day by day (city, stops, hotel, lunch, dinner, activities, notes) with the ids of its "
+                       "suppliers - read it before proposing changes to it.",
+        "input_schema": {"type": "object", "properties": {
+            "route": {"type": "string", "description": "The route's id or its code (e.g. HM)"}}, "required": ["route"]},
+    },
+    {
+        "name": "propose_route_changes",
+        "description": "Propose changes to an EXISTING route (never re-propose it as a new route): only the days and fields "
+                       "that change. Day numbers are the route's current ones (as get_route shows them). Leave a field out to "
+                       "keep it; an empty string clears a hotel, lunch or dinner.",
+        "input_schema": {"type": "object", "properties": {
+            "route": {"type": "string", "description": "The route's id"},
+            "summary": {"type": "string", "description": "What changes, in the person's language and words, e.g. "
+                                                         "\"Day 3: dinner at Barbarestan instead of Funicular\""},
+            "name": {"type": "string"}, "notes": {"type": "string"},
+            "changes": {"type": "array", "items": {"type": "object", "properties": {
+                "day": {"type": "integer", "description": "The day's current number; for insert_after, the day the new day "
+                                                          "comes after (0 = before day 1)"},
+                "op": {"type": "string", "enum": ["edit", "insert_after", "remove"], "description": "Default edit"},
+                "city": {"type": "string"},
+                "stops": {"type": "array", "items": {"type": "string"}},
+                "hotel": _REF, "lunch": _REF, "dinner": _REF,
+                "lunch_mode": {"type": "string", "enum": ["included", "tourists", "own"]},
+                "dinner_mode": {"type": "string", "enum": ["included", "tourists", "own"]},
+                "notes": {"type": "string"}, "border_crossing": {"type": "string"},
+                "km": {"type": "integer"},
+                "add_extras": _DAY["properties"]["extras"],
+                "remove_extras": {"type": "array", "items": {"type": "string"}, "description": "Service names to take off that day"}},
+                "required": ["day"]}}},
+            "required": ["route", "summary", "changes"]},
+    },
 ]
 
 
@@ -245,6 +278,31 @@ class DayDraft(BaseModel):
     notes: str = Field(default="", max_length=2000)
     km: int | None = Field(default=None, ge=0, le=5000)
     extras: list[ExtraDraft] = Field(default_factory=list, max_length=30)
+
+
+class DayChange(BaseModel):
+    day: int = Field(ge=0, le=60)
+    op: Literal["edit", "insert_after", "remove"] = "edit"
+    city: str | None = Field(default=None, max_length=100)
+    stops: list[str] | None = Field(default=None, max_length=8)
+    hotel: str | None = None              # "" clears
+    lunch: str | None = None
+    dinner: str | None = None
+    lunch_mode: Literal["included", "tourists", "own"] | None = None
+    dinner_mode: Literal["included", "tourists", "own"] | None = None
+    notes: str | None = Field(default=None, max_length=2000)
+    border_crossing: str | None = Field(default=None, max_length=100)
+    km: int | None = Field(default=None, ge=0, le=5000)
+    add_extras: list[ExtraDraft] = Field(default_factory=list, max_length=30)
+    remove_extras: list[str] = Field(default_factory=list, max_length=30)
+
+
+class RouteChange(BaseModel):
+    route: str
+    summary: str = Field(min_length=1, max_length=500)
+    name: str | None = Field(default=None, max_length=200)
+    notes: str | None = Field(default=None, max_length=5000)
+    changes: list[DayChange] = Field(default_factory=list, max_length=60)
 
 
 class RouteDraft(BaseModel):
@@ -558,7 +616,57 @@ def _name(db: Session, s: AiSession, value: str) -> str:
     return value
 
 
+def _find_route(db: Session, ctx: WorkspaceCtx, value: str) -> Series:
+    v = (value or "").strip()
+    r = db.scalar(select(Series).where(Series.workspace_id == ctx.workspace.id, Series.id == v)) or \
+        db.scalar(select(Series).where(Series.workspace_id == ctx.workspace.id, Series.code == v.upper()))
+    if r is None:
+        raise ToolError(f"No route {value!r} - use list_records kind=routes to find it")
+    return r
+
+
+def _get_route(db, ctx, s, a):
+    r = _find_route(db, ctx, a.get("route", ""))
+    vendor = {v.id: v.name for v in db.scalars(select(Vendor).where(Vendor.workspace_id == ctx.workspace.id))}
+    services = {x.id: (x.name, vendor.get(x.vendor_id, "")) for x in
+                db.scalars(select(Service).join(Vendor, Vendor.id == Service.vendor_id).where(Vendor.workspace_id == ctx.workspace.id))}
+
+    def who(i):
+        return {"id": i, "name": vendor.get(i, "?")} if i else None
+    days = [{"day": d.day_number, "city": d.city, "stops": d.stops or [], "hotel": who(d.hotel_id), "lunch": who(d.lunch_id),
+             "lunch_mode": d.lunch_mode, "dinner": who(d.dinner_id), "dinner_mode": d.dinner_mode, "km": d.km, "notes": d.notes,
+             "border_crossing": d.border_crossing, "flights": d.flights or [],
+             "activities": [{"service": services.get(x.get("service_id"), ("?", ""))[0], "at": services.get(x.get("service_id"), ("", "?"))[1],
+                             "optional": bool(x.get("optional"))} for x in (d.extras or [])],
+             "timeline_steps": len(d.schedule or [])} for d in r.days]
+    return _dump({"id": r.id, "code": r.code, "name": r.name, "notes": r.notes, "days": days}), f"Read route {r.code}"
+
+
+def _route_change(db, ctx, s, a):
+    c = RouteChange.model_validate(a)
+    r = _find_route(db, ctx, c.route)
+    n = len(r.days)
+    for x in c.changes:
+        if x.op == "insert_after" and not 0 <= x.day <= n or x.op != "insert_after" and not 1 <= x.day <= n:
+            raise ToolError(f"Route {r.code} has days 1-{n}: day {x.day} is not one of them")
+        for slot in ("hotel", "lunch", "dinner"):
+            if getattr(x, slot):
+                ref(db, ctx, s, getattr(x, slot), "vendor", f"day {x.day} {slot}")
+        for e in x.add_extras:
+            ref(db, ctx, s, e.vendor, "vendor", f"day {x.day} activities")
+    if not c.changes and c.name is None and c.notes is None:
+        raise ToolError("Nothing to change")
+    data = c.model_dump(mode="json")
+    data["route"], data["code"] = r.id, r.code
+    # Existing suppliers by name, so the plan reads "dinner: Barbarestan", not an id.
+    ids = {getattr(x, k) for x in c.changes for k in ("hotel", "lunch", "dinner") if getattr(x, k) and not PROPOSAL.match(getattr(x, k))}
+    data["names"] = {v.id: v.name for v in db.scalars(select(Vendor).where(Vendor.id.in_(ids)))} if ids else {}
+    pid = _add(s, "route_change", data, f"{r.code} · {c.summary}")
+    return _dump({"id": pid}), f"Proposed changes to {r.code}"
+
+
 HANDLERS = {
+    "get_route": _get_route, "propose_route_changes": _route_change,
     "list_records": _list, "get_vendor_prices": _prices, "read_sheet": _sheet, "read_document": _document,
     "propose_vendors": _vendors, "propose_prices": _price_items, "propose_clients": _clients,
     "propose_route": _route, "propose_tours": _tours, "propose_participants": _people, "remove_proposals": _remove,

@@ -13,14 +13,15 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from ..deps import WorkspaceCtx
-from ..models import AiSession, Quote, Service, Vendor
+from ..models import AiSession, Quote, Series, Service, Vendor
 from ..quote_schemas import CalcStyle, QuoteIn, QuoteItemIn
 from ..routers import catalog as catalog_api, people, pricing, quotes, series, tours
 from ..routers.pricing import ServiceIn
 from ..schemas import ClientCreate, DayFields, ParticipantIn, SeriesIn, TourCreate, VendorCreate
+from ..scoping import get_owned
 from .tools import PROPOSAL
 
-ORDER = ["vendor", "client", "prices", "route", "calculation", "tour", "participants"]
+ORDER = ["vendor", "client", "prices", "route", "route_change", "calculation", "tour", "participants"]
 
 
 class Skip(Exception):
@@ -89,17 +90,19 @@ def _prices(db, ctx, d, resolve):
     return vendor_id
 
 
+def _extra(db, x: dict, resolve) -> dict:
+    vid = resolve(x["vendor"])
+    svc = next((s for s in db.scalars(select(Service).where(Service.vendor_id == vid))
+                if s.name.strip().lower() == x["service"].strip().lower()), None)
+    if svc is None:
+        raise Skip(f"no service {x['service']!r} at {db.get(Vendor, vid).name} — save its prices first")
+    return {"service_id": svc.id, "quantity": x.get("quantity"), "notes": "", "optional": bool(x.get("optional"))}
+
+
 def _days(db, ctx, days: list[dict], resolve) -> list[DayFields]:
     out = []
     for d in days:
-        extras = []
-        for x in d.get("extras") or []:
-            vid = resolve(x["vendor"])
-            svc = next((s for s in db.scalars(select(Service).where(Service.vendor_id == vid))
-                        if s.name.strip().lower() == x["service"].strip().lower()), None)
-            if svc is None:
-                raise Skip(f"no service {x['service']!r} at {db.get(Vendor, vid).name} — save its prices first")
-            extras.append({"service_id": svc.id, "quantity": x.get("quantity"), "notes": "", "optional": bool(x.get("optional"))})
+        extras = [_extra(db, x, resolve) for x in d.get("extras") or []]
         out.append(DayFields(city=d.get("city") or "", stops=d.get("stops") or [],
                              lunch_mode=d.get("lunch_mode") or "included", dinner_mode=d.get("dinner_mode") or "included",
                              flights=d.get("flights") or [], hotel_id=resolve(d.get("hotel")), lunch_id=resolve(d.get("lunch")),
@@ -112,6 +115,54 @@ def _route(db, ctx, d, resolve):
     body = SeriesIn(code=d["code"], name=d.get("name") or "", color=d.get("color") or "indigo", notes=d.get("notes") or "",
                     days=_days(db, ctx, d["days"], resolve))
     return series.create_series(body, ctx=ctx, db=db).id
+
+
+def _route_change(db, ctx, d, resolve):
+    """The route as it is now, with only the proposed changes - everything else (timelines, menus, seating,
+    the people's plan) stays. Day numbers are the route's numbers when the change was proposed."""
+    s = get_owned(db, ctx, Series, d["route"])
+    days = [DayFields.model_validate(x, from_attributes=True) for x in s.days]
+    if any(c["op"] == "edit" and c["day"] > len(days) for c in d["changes"]):
+        raise Skip("the route has fewer days than when this was proposed - ask again")
+    names = {x.id: x.name.strip().lower() for x in db.scalars(select(Service).where(Service.id.in_(
+        [e.service_id for day in days for e in day.extras])))}
+
+    def put(day: DayFields, c: dict) -> DayFields:
+        u: dict = {}
+        for k in ("city", "stops", "lunch_mode", "dinner_mode", "notes", "border_crossing", "km"):
+            if c.get(k) is not None:
+                u[k] = c[k]
+        for slot in ("hotel", "lunch", "dinner"):
+            if c.get(slot) is not None:
+                new = resolve(c[slot]) or None
+                if new != getattr(day, f"{slot}_id") and slot != "hotel":
+                    u[f"{slot}_menu_id"] = None      # another restaurant: its own menu
+                    u["meal_dishes"] = {k: v for k, v in day.meal_dishes.items() if k != slot}
+                u[f"{slot}_id"] = new
+        gone = {x.strip().lower() for x in c.get("remove_extras") or []}
+        extras = [e.model_dump() for e in day.extras if names.get(e.service_id, "") not in gone]
+        extras += [_extra(db, x, resolve) for x in c.get("add_extras") or []]
+        u["extras"] = extras
+        return DayFields.model_validate({**day.model_dump(), **u})
+
+    for c in d["changes"]:
+        if c["op"] == "edit":
+            days[c["day"] - 1] = put(days[c["day"] - 1], c)
+    removed = {c["day"] for c in d["changes"] if c["op"] == "remove"}
+    after: dict[int, list[DayFields]] = {}
+    for c in d["changes"]:
+        if c["op"] == "insert_after":
+            after.setdefault(c["day"], []).append(put(DayFields(), c))
+    out = list(after.get(0, []))
+    for i, day in enumerate(days, 1):
+        if i not in removed:
+            out.append(day)
+        out += after.get(i, [])
+    body = SeriesIn(code=s.code, name=d["name"] if d.get("name") is not None else s.name, color=s.color,
+                    notes=d["notes"] if d.get("notes") is not None else s.notes, days=out, staff_plan=None,
+                    bus_return=s.bus_return)
+    series.replace_series(s.id, body, ctx=ctx, db=db)
+    return s.id
 
 
 def _tour(db, ctx, d, resolve):
@@ -169,5 +220,5 @@ def _participants(db, ctx, d, resolve):
     return tour_id
 
 
-SAVE = {"vendor": _vendor, "client": _client, "prices": _prices, "route": _route, "calculation": _calculation, "tour": _tour,
+SAVE = {"vendor": _vendor, "client": _client, "prices": _prices, "route": _route, "route_change": _route_change, "calculation": _calculation, "tour": _tour,
         "participants": _participants}

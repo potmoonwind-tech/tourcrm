@@ -2927,6 +2927,21 @@ const en = {
   savedDayRename: "Rename",
   savedDayDeleteQ: "Delete “{name}”?",
   noMealPrice: "no meal price yet",
+  aiKind_route_change: "Changes to routes",
+  aiStops: "Stops",
+  aiNewDayAfter: "New day after day {n}",
+  aiRemoveDay: "Remove day {n}",
+  bulkPicked: "{n} selected",
+  bulkClear: "Clear",
+  bulkDelete: "Delete {n}",
+  bulkPickAll: "Select all",
+  bulkPickOne: "Select {name}",
+  bulkDeleted: "Deleted",
+  bulkSomeFailed: "Some couldn't be deleted",
+  bulkDeleteToursQ: "Delete {n} tours?",
+  bulkDeleteToursMsg: "Each tour goes with everything in it: days, bookings, participants, costs, invoices and payments. This can't be undone. To keep the history, cancel a tour instead.",
+  bulkDeleteRoutesQ: "Delete {n} routes?",
+  bulkDeleteRoutesMsg: "Tours made from these routes stay as they are - they're just no longer linked to a route. This can't be undone.",
 }
 
 type Dict = typeof en
@@ -5850,6 +5865,21 @@ const ka: Dict = {
   savedDayRename: "სახელის შეცვლა",
   savedDayDeleteQ: "წავშალოთ „{name}“?",
   noMealPrice: "კვების ფასი ჯერ არ არის",
+  aiKind_route_change: "ცვლილებები მარშრუტებში",
+  aiStops: "გაჩერებები",
+  aiNewDayAfter: "ახალი დღე {n}-ე დღის შემდეგ",
+  aiRemoveDay: "{n}-ე დღის წაშლა",
+  bulkPicked: "მონიშნულია {n}",
+  bulkClear: "გასუფთავება",
+  bulkDelete: "წაშლა ({n})",
+  bulkPickAll: "ყველას მონიშვნა",
+  bulkPickOne: "მონიშვნა: {name}",
+  bulkDeleted: "წაიშალა",
+  bulkSomeFailed: "ზოგიერთი ვერ წაიშალა",
+  bulkDeleteToursQ: "წავშალოთ {n} ტური?",
+  bulkDeleteToursMsg: "ტური იშლება მთლიანად: დღეები, ჯავშნები, მონაწილეები, ხარჯები, ინვოისები და გადახდები. ამის დაბრუნება შეუძლებელია. ისტორიის შესანარჩუნებლად ტური გააუქმეთ.",
+  bulkDeleteRoutesQ: "წავშალოთ {n} მარშრუტი?",
+  bulkDeleteRoutesMsg: "ამ მარშრუტებით შექმნილი ტურები რჩება - უბრალოდ აღარ იქნება მარშრუტთან დაკავშირებული. ამის დაბრუნება შეუძლებელია.",
 }
 
 export type Lang = 'en' | 'ka'
