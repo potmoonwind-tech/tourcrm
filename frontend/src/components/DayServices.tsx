@@ -64,33 +64,99 @@ export function DayServices({ value, onChange, disabled, onAddNew, grip, visits 
     onChange(value.filter((x) => byId.get(x.service_id)?.vendor.id !== vendorId))
   }
 
+  // One row of chips - every place of the day with what is done there; tap one for its details (how many,
+  // optional, a price). A place is free until a price is added.
+  const [open, setOpen] = useState<string | null>(null)
+  const icon = (vid?: string) => {
+    const k = catOf(vendors.data?.find((x) => x.id === vid)?.category)
+    return k ? <span className={cn('flex h-5 w-5 shrink-0 items-center justify-center rounded-full', k.tone)} title={catLabel(t, k.key)}><k.icon size={11} aria-hidden /></span>
+      : <MapPin size={13} className="shrink-0 text-slate-400" aria-hidden />
+  }
+  const chip = 'inline-flex max-w-full items-center gap-0.5 rounded-full border py-0.5 pl-1 pr-0.5 text-sm'
+  const remove = (label: string, onClick: () => void) => !disabled && (
+    <Tooltip label={t('placeRemove')}>
+      <button type="button" onClick={onClick} aria-label={t('placeRemoveOf', { name: label })}
+        className="shrink-0 rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={12} /></button>
+    </Tooltip>
+  )
+  const shown = open && places.includes(open) ? open : null
   return (
     <div className="space-y-2">
-      {places.map((vid) => {
-        const list = offers.get(vid) ?? []
-        const vendor = list[0]?.vendor ?? bare.get(vid)
-        const on = list.filter((s) => value.some((x) => x.service_id === s.id))
-        // A place with one service needs no checklist: it's simply there (remove the place to drop it).
+      <div className="flex flex-wrap items-center gap-1.5">
+        {places.map((vid) => {
+          const list = offers.get(vid) ?? []
+          const name = list[0]?.vendor.name ?? bare.get(vid)?.name ?? ''
+          const on = list.filter((s) => value.some((x) => x.service_id === s.id))
+          // What is done there: the activities when the place has several, "free" when nothing priced is on.
+          const what = on.length === 0 ? t('visitFree') : list.length > 1 ? on.map((s) => s.name).join(', ') : ''
+          const optional = on.some((s) => value.find((x) => x.service_id === s.id)?.optional)
+          return (
+            <span key={vid} className={cn(chip, shown === vid ? 'border-brand-400 bg-brand-50' : on.length ? 'border-slate-200 bg-white' : 'border-dashed border-slate-300 bg-white')}>
+              {grip && on.length > 0 && grip(vid, on.map((x) => x.id))}
+              <button type="button" onClick={() => setOpen(shown === vid ? null : vid)} aria-expanded={shown === vid}
+                className="inline-flex min-w-0 items-center gap-1.5 rounded-full px-1 py-0.5 text-left hover:text-brand-800">
+                {icon(vid)}
+                <span className="truncate font-medium text-slate-800">{name}</span>
+                {what && <span className="truncate text-xs text-slate-500">· {what}</span>}
+                {optional && <span className="shrink-0 text-xs text-amber-700">· {t('activityOptional').toLowerCase()}</span>}
+              </button>
+              {remove(name, () => { drop(vid); if (shown === vid) setOpen(null) })}
+            </span>
+          )
+        })}
+        {loose.map((x) => (
+          <span key={x.id} className={cn(chip, 'border-dashed border-slate-300 bg-white')} title={t('visitFreeInTimeline')}>
+            <span className="inline-flex min-w-0 items-center gap-1.5 px-1 py-0.5">
+              {icon(x.vendorId)}<span className="truncate font-medium text-slate-800">{x.title}</span>
+              <span className="shrink-0 text-xs text-slate-500">· {t('visitFree')}</span>
+            </span>
+            {onRemoveVisit && remove(x.title, () => onRemoveVisit(x.id))}
+          </span>
+        ))}
+        {gone.map((x, i) => (
+          <span key={x.id ?? i} className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 py-0.5 pl-2 pr-1 text-xs text-red-700">
+            {t('serviceRemoved')}
+            {!disabled && <button type="button" onClick={() => onChange(value.filter((y) => y !== x))} aria-label={t('delete')}
+              className="rounded-full p-0.5 hover:bg-white"><X size={12} /></button>}
+          </span>
+        ))}
+        {!disabled && (adding ? (
+          <select autoFocus className="h-8 w-full max-w-72 rounded-full border border-slate-300 bg-white px-3 text-sm" value=""
+            onBlur={() => setAdding(false)}
+            onChange={(e) => {
+              const v = e.target.value
+              if (v === '__new__') onAddNew?.()
+              else if (v && offers.get(v)?.length === 1) onChange([...value, { id: slotId(), service_id: offers.get(v)![0].id, quantity: null, notes: '' }])
+              else if (v && bare.has(v)) { setPicked((l) => [...l, v]); onAddVisit?.(bare.get(v)!) }
+              else if (v) { setPicked((l) => [...l, v]); setOpen(v) }
+              setAdding(false)
+            }}>
+            <option value="">{t('placePick')}</option>
+            {[...offers].filter(([vid]) => !places.includes(vid)).map(([vid, list]) => (
+              <option key={vid} value={vid}>{list[0].vendor.name} ({list.length === 1 ? list[0].name : t('placeActivitiesCount', { n: list.length })})</option>
+            ))}
+            {[...bare.values()].filter((v) => !places.includes(v.id)).map((v) => (
+              <option key={v.id} value={v.id}>{v.name} ({t('visitFree')})</option>
+            ))}
+            {onAddNew && <option value="__new__">{t('addNewOption')}</option>}
+          </select>
+        ) : (
+          <button type="button" onClick={() => (all.length || bare.size ? setAdding(true) : onAddNew?.())} disabled={!all.length && !bare.size && !onAddNew}
+            title={all.length || bare.size ? undefined : t('noServicesYet')}
+            className="inline-flex h-8 items-center gap-1 rounded-full border border-dashed border-slate-300 px-3 text-sm text-slate-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-800 disabled:text-slate-400">
+            <Plus size={14} />{t('placeAdd')}
+          </button>
+        ))}
+        {places.length === 0 && loose.length === 0 && !adding && <span className="text-xs text-slate-500">{t('servicesEmptyHint')}</span>}
+      </div>
+
+      {/* The tapped place: its activities - how many, optional - and a price only when they pay there. */}
+      {shown && (() => {
+        const list = offers.get(shown) ?? []
         const single = list.length === 1
         return (
-          <div key={vid} className="rounded-lg border border-slate-200 bg-white">
-            <div className="flex items-center gap-2 px-2.5 py-1.5">
-              {grip && on.length > 0 && grip(vid, on.map((x) => x.id))}
-              {(() => {
-                const k = catOf(vendors.data?.find((x) => x.id === vid)?.category)
-                return k ? <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', k.tone)} title={catLabel(t, k.key)}><k.icon size={13} aria-hidden /></span>
-                  : <MapPin size={14} className="shrink-0 text-brand-700" aria-hidden />
-              })()}
-              <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{vendor?.name}</span>
-              {!single && <span className="shrink-0 text-xs text-slate-500">{t('placeActivitiesOn', { n: on.length, of: list.length })}</span>}
-              {!disabled && (
-                <Tooltip label={t('placeRemove')}>
-                  <button type="button" onClick={() => drop(vid)} aria-label={t('placeRemoveOf', { name: vendor?.name ?? '' })}
-                    className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={14} /></button>
-                </Tooltip>
-              )}
-            </div>
-            <ul className="border-t border-slate-100 px-2.5 py-1">
+          <div className="animate-reveal rounded-lg border border-slate-200 bg-white px-2.5 py-1.5">
+            <ul>
               {list.map((s) => {
                 const slot = value.find((x) => x.service_id === s.id)
                 return (
@@ -115,67 +181,16 @@ export function DayServices({ value, onChange, disabled, onAddNew, grip, visits 
                   </li>
                 )
               })}
-              {list.length === 0 && <li className="py-1 text-xs text-slate-500">{t('placeNoPrices')}</li>}
-              {!disabled && onAddNew && (
-                <li><button type="button" onClick={() => onAddNew(vid)}
-                  className="inline-flex h-7 items-center gap-1 rounded-md px-1 text-xs font-medium text-brand-700 hover:bg-brand-50">
-                  <Plus size={12} />{t(list.length ? 'placeAddActivity' : 'placeAddFirst')}</button></li>
-              )}
+              {list.length === 0 && <li className="py-1 text-xs text-slate-500">{t('placeFreeHint')}</li>}
             </ul>
+            {!disabled && onAddNew && (
+              <button type="button" onClick={() => onAddNew(shown)} className="mt-0.5 text-xs text-slate-500 hover:text-brand-700 hover:underline">
+                {t('placeAddPrice')}
+              </button>
+            )}
           </div>
         )
-      })}
-      {loose.map((x) => (
-        <div key={x.id} className="flex items-center gap-2 rounded-lg border border-dashed border-slate-200 bg-white px-2.5 py-1.5">
-          <MapPin size={14} className="shrink-0 text-slate-400" aria-hidden />
-          <span className="min-w-0 flex-1 truncate text-sm text-slate-800">{x.title}</span>
-          <span className="shrink-0 text-xs text-slate-500">{t('visitFreeInTimeline')}</span>
-          {!disabled && onRemoveVisit && (
-            <Tooltip label={t('placeRemove')}>
-              <button type="button" onClick={() => onRemoveVisit(x.id)} aria-label={t('placeRemoveOf', { name: x.title })}
-                className="rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={14} /></button>
-            </Tooltip>
-          )}
-        </div>
-      ))}
-      {gone.map((x, i) => (
-        <span key={x.id ?? i} className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 py-0.5 pl-2 pr-1 text-xs text-red-700">
-          {t('serviceRemoved')}
-          {!disabled && <button type="button" onClick={() => onChange(value.filter((y) => y !== x))} aria-label={t('delete')}
-            className="rounded-full p-0.5 hover:bg-white"><X size={12} /></button>}
-        </span>
-      ))}
-      {!disabled && (adding ? (
-        <select autoFocus className="h-8 w-full max-w-72 rounded-md border border-slate-300 bg-white px-2 text-sm" value=""
-          onBlur={() => setAdding(false)}
-          onChange={(e) => {
-            const v = e.target.value
-            if (v === '__new__') onAddNew?.()
-            else if (v && offers.get(v)?.length === 1) onChange([...value, { id: slotId(), service_id: offers.get(v)![0].id, quantity: null, notes: '' }])
-            else if (v && bare.has(v)) { setPicked((l) => [...l, v]); onAddVisit?.(bare.get(v)!) }
-            else if (v) setPicked((l) => [...l, v])
-            setAdding(false)
-          }}>
-          <option value="">{t('placePick')}</option>
-          {[...offers].filter(([vid]) => !places.includes(vid)).map(([vid, list]) => (
-            <option key={vid} value={vid}>{list[0].vendor.name} ({list.length === 1 ? list[0].name : t('placeActivitiesCount', { n: list.length })})</option>
-          ))}
-          {[...bare.values()].filter((v) => !places.includes(v.id)).map((v) => (
-            <option key={v.id} value={v.id}>{v.name} ({t('placeNoPriceOption')})</option>
-          ))}
-          {onAddNew && <option value="__new__">{t('addNewOption')}</option>}
-        </select>
-      ) : (
-        <span className="flex flex-wrap items-center gap-x-2">
-          <button type="button" onClick={() => (all.length || bare.size ? setAdding(true) : onAddNew?.())} disabled={!all.length && !bare.size && !onAddNew}
-            title={all.length || bare.size ? undefined : t('noServicesYet')}
-            className="inline-flex h-8 items-center gap-1 rounded-md px-2 text-sm font-medium text-brand-700 hover:bg-brand-50 disabled:text-slate-400">
-            <Plus size={14} />{t('placeAdd')}
-          </button>
-          {/* Empty: say what goes here and where it counts. */}
-          {places.length === 0 && <span className="text-xs text-slate-500">{t('servicesEmptyHint')}</span>}
-        </span>
-      ))}
+      })()}
     </div>
   )
 }

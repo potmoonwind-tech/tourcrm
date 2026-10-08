@@ -2965,6 +2965,9 @@ const en = {
   actCat_show: "Show & folklore",
   actCat_boat: "Boat & rafting",
   actCat_other: "Other",
+  visitFree: "free",
+  placeFreeHint: "A free visit. Add a price only if they pay here.",
+  placeAddPrice: "+ Add a price or a paid activity",
 }
 
 type Dict = typeof en
@@ -5926,6 +5929,9 @@ const ka: Dict = {
   actCat_show: "შოუ და ფოლკლორი",
   actCat_boat: "ნავი და რაფტინგი",
   actCat_other: "სხვა",
+  visitFree: "უფასო",
+  placeFreeHint: "უფასო ვიზიტი. ფასი დაამატეთ მხოლოდ თუ აქ იხდიან.",
+  placeAddPrice: "+ ფასის ან ფასიანი აქტივობის დამატება",
 }
 
 export type Lang = 'en' | 'ka'
