@@ -1,11 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SetupNudge } from '../components/GetStarted'
-import { Drawer, ask, useGuardedClose, useUnsaved } from '../components/overlay'
-import { ChevronDown, Landmark, Plus, Search } from 'lucide-react'
+import { Drawer, ask, useGuardedClose, useUnsaved, toast } from '../components/overlay'
+import { ChevronDown, Landmark, Plus, Search, ChefHat } from 'lucide-react'
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { PaymentTermsEditor } from '../components/PaymentTermsEditor'
 import { ScaleEditor } from '../components/ScaleEditor'
 import { GuideInfo } from '../components/GuideInfo'
+import { MenuBuilder } from '../components/MenuBuilder'
 import { ServicesEditor } from '../components/ServicesEditor'
 import { EmptyState, Phone } from '../components/tour'
 import { Button, ButtonLink, ErrorText, Field, field, Input, Select } from '../components/ui'
@@ -160,6 +161,7 @@ function VendorModal({ vendor, defaultType, canEdit, onClose: close, onCreated, 
 }) {
   const { t } = useI18n()
   const [pricesDirty, setPricesDirty] = useState(false)
+  const [building, setBuilding] = useState(false)
   const onClose = () => {
     if (!pricesDirty) return close()
     void ask({ title: t('unsavedPrices'), message: t('unsavedPricesMsg'), confirmLabel: t('discard'), danger: true }).then((ok) => ok && close())
@@ -303,6 +305,14 @@ function VendorModal({ vendor, defaultType, canEdit, onClose: close, onCreated, 
         </fieldset>
       </form>
       {vendor && (vendor.type === 'transport' || vendor.type === 'other') && <CompanyDrivers company={vendor} canEdit={canEdit} />}
+      {vendor && canEdit && vendor.type === 'restaurant' && (
+        // Its dishes with prices (Excel, a photo of the menu, by hand) and its set menus, built by dragging.
+        <div className="mt-6 flex flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50/50 px-4 py-3">
+          <span className="min-w-0 flex-1 text-sm text-slate-700"><b className="block text-slate-900">{t('mbOpenTitle')}</b>{t('mbOpenHelp')}</span>
+          <Button type="button" onClick={() => (pricesDirty ? toast('mbSaveFirst', 'error') : setBuilding(true))}><ChefHat size={16} />{t('mbOpen')}</Button>
+        </div>
+      )}
+      {building && vendor && <MenuBuilder vendor={vendor} onClose={() => setBuilding(false)} />}
       {vendor && canEdit && <ServicesEditor vendor={vendor} onDirtyChange={setPricesDirty} autoStart={justCreated} saveRef={pricesSave} />}
       {!vendor && canEdit && <p className="mt-6 rounded-lg bg-slate-50 px-4 py-3 text-sm text-slate-600">{t('pricesAfterCreate')}</p>}
     </Drawer>

@@ -49,6 +49,7 @@ class Dish(BaseModel):
     name: str = Field(min_length=1, max_length=80)
     price: float | None = Field(default=None, ge=0, le=100000)   # one plate (one portion), in the menu's currency
     per_plate: int | None = Field(default=None, ge=1, le=20)      # people sharing one plate (None = the tour's / agency's)
+    dish_id: str | None = Field(default=None, max_length=36)       # the restaurant's dish it came from (its price follows)
 
 
 class ServiceIn(BaseModel):

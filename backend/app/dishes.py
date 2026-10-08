@@ -17,8 +17,11 @@ def normalize(raw) -> list[dict]:
         if not name or name.lower() in seen:
             continue
         seen.add(name.lower())
-        out.append({"name": name, "price": float(price) if price not in (None, "") else None,
-                    "per_plate": int(per) if per not in (None, "") and 1 <= int(per) <= 20 else None})
+        row = {"name": name, "price": float(price) if price not in (None, "") else None,
+               "per_plate": int(per) if per not in (None, "") and 1 <= int(per) <= 20 else None}
+        if isinstance(d, dict) and d.get("dish_id"):
+            row["dish_id"] = str(d["dish_id"])[:36]       # from the restaurant's dish list: its price follows it
+        out.append(row)
     return out
 
 

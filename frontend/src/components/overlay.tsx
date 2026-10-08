@@ -65,8 +65,9 @@ export function Drawer({ title, subtitle, onClose, children, footer, size = 'lg'
   )
 }
 
-export function Dialog({ title, onClose, children, wide, footer, top }: {
+export function Dialog({ title, onClose, children, wide, footer, top, size }: {
   title: ReactNode; onClose: () => void; children: ReactNode; wide?: boolean; footer?: ReactNode
+  size?: 'xl'     // a working screen in a dialog (the menu builder)
   top?: boolean   // above drawers and dialogs (confirmations)
 }) {
   const { t } = useI18n()
@@ -76,7 +77,7 @@ export function Dialog({ title, onClose, children, wide, footer, top }: {
       <div className="animate-fade absolute inset-0 bg-slate-900/40" onMouseDown={onClose} />
       <div role="dialog" aria-modal="true"
         className={cn('animate-dialog relative flex max-h-[92vh] w-full flex-col rounded-t-2xl bg-white shadow-xl sm:rounded-2xl',
-          wide ? 'sm:max-w-3xl' : 'sm:max-w-lg')}>
+          size === 'xl' ? 'sm:max-w-6xl' : wide ? 'sm:max-w-3xl' : 'sm:max-w-lg')}>
         <header className="flex items-center justify-between gap-3 px-6 pt-5 pb-3">
           <h2 className="text-xl font-semibold text-slate-800">{title}</h2>
           <IconButton label={t('close')} onClick={onClose}><X size={20} /></IconButton>

@@ -1005,6 +1005,35 @@ class FieldLink(Base):
     acked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
+class RestaurantDish(Base):
+    """A dish on a restaurant's own list (app/routers/menu_builder.py): set menus are built from these."""
+    __tablename__ = "restaurant_dishes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    category: Mapped[str] = mapped_column(String(40), default="", server_default="")     # Salads, Mains…
+    price: Mapped[Decimal | None] = mapped_column(Money, nullable=True)                   # one plate (portion)
+    currency: Mapped[str] = mapped_column(String(3), default="", server_default="")
+    per_plate: Mapped[int | None] = mapped_column(Integer, nullable=True)                 # usually shared: one plate for N
+    position: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    history: Mapped[list["DishPriceChange"]] = relationship(cascade="all, delete-orphan", lazy="selectin")
+
+
+class DishPriceChange(Base):
+    """A dish's price from a moment on: its history."""
+    __tablename__ = "dish_price_changes"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    dish_id: Mapped[str] = mapped_column(ForeignKey("restaurant_dishes.id", ondelete="CASCADE"), index=True)
+    price: Mapped[Decimal | None] = mapped_column(Money, nullable=True)
+    currency: Mapped[str] = mapped_column(String(3), default="")
+    changed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    changed_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+
 class ProgrammeShare(Base):
     """A programme shared by link (/p/<token>): anyone with it sees the programme as it was made - the
     request is kept and built again on each visit (no prices or team details are in a programme)."""

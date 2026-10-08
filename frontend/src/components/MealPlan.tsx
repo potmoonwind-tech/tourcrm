@@ -4,7 +4,7 @@
  * table - the group's, and the staff's (tour leaders, guide, driver) by default; tap a person to move
  * them, add a guest - and so how many plates of each dish go on each table.
  */
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Check, Plus, Undo2, UserPlus, X } from 'lucide-react'
 import { useState } from 'react'
 import { api, type DayFields, type Dish, type MealSeat, type ServiceBrief, type StaffAssignment } from '../lib/api'
@@ -41,6 +41,11 @@ export function MealPlan({ meal, day, dayNumber, menu, crew, disabled, twice, on
   const dishes: Dish[] = own ?? menu?.dishes ?? []
   const share = crew?.share ?? ws.plate_share ?? 1
   const [newDish, setNewDish] = useState('')
+  // The restaurant's own dish list (Catalogue → its menu builder): suggested when adding a dish here.
+  const own_list = useQuery({
+    queryKey: ['restaurant-dishes', ws.id, vendorId], enabled: !!vendorId && !disabled, retry: false, staleTime: 60_000, meta: { silent: true },
+    queryFn: () => api<{ id: string; name: string; price: string | null; currency: string; per_plate: number | null }[]>(wsPath(ws.id, `/vendors/${vendorId}/dishes`)),
+  })
   const [guest, setGuest] = useState<string | null>(null)
 
   // --- the dishes: any change makes this tour's own list (the restaurant's menu stays as it is)
@@ -145,8 +150,21 @@ export function MealPlan({ meal, day, dayNumber, menu, crew, disabled, twice, on
         </table>
       )}
       {!disabled && (
-        <form className="flex gap-1" onSubmit={(e) => { e.preventDefault(); const n = newDish.trim(); if (n) { setDishes([...dishes, { name: n, price: null, per_plate: null }]); setNewDish('') } }}>
-          <Input value={newDish} onChange={(e) => setNewDish(e.target.value)} placeholder={t('mpDishPh')} className="h-7 text-xs" aria-label={t('mpAddDish')} />
+        <form className="flex gap-1" onSubmit={(e) => {
+          e.preventDefault()
+          const n = newDish.trim()
+          if (!n) return
+          // A dish from the restaurant's list comes with its price and how it's shared.
+          const known = (own_list.data ?? []).find((x) => x.name.toLowerCase() === n.toLowerCase())
+          setDishes([...dishes, known ? { name: known.name, price: known.price === null ? null : Number(known.price), per_plate: known.per_plate, dish_id: known.id } as Dish
+            : { name: n, price: null, per_plate: null }])
+          setNewDish('')
+        }}>
+          <Input value={newDish} onChange={(e) => setNewDish(e.target.value)} placeholder={t('mpDishPh')} className="h-7 text-xs" aria-label={t('mpAddDish')}
+            list={`dishes-${vendorId}`} />
+          <datalist id={`dishes-${vendorId}`}>
+            {(own_list.data ?? []).map((x) => <option key={x.id} value={x.name}>{x.price ? `${x.price} ${x.currency}` : ''}</option>)}
+          </datalist>
           <button type="submit" className="flex h-7 shrink-0 items-center gap-1 rounded-md border border-slate-200 px-2 text-xs text-slate-700 hover:bg-slate-50">
             <Plus size={12} />{t('mpAddDish')}
           </button>
