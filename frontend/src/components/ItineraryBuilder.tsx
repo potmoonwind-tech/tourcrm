@@ -14,7 +14,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, BedDouble, Bus, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronDown, ChevronRight, Download, ListChecks } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
-import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, type BreakfastMode, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
 import { fmt, weekday } from '../lib/dates'
@@ -33,6 +33,9 @@ import { useWorkspace } from '../lib/session'
 
 type Slot = 'hotel' | 'breakfast' | 'lunch' | 'dinner' | 'extras'
 type Item = { kind: 'vendor'; vendor: Vendor } | { kind: 'service'; service: ServiceBrief }
+/** Where a dragged box comes from (a day's hotel, a meal, or a place with its activities). */
+type Carry = { day: number; slot: Slot; serviceIds?: string[] }
+const MEALS: Slot[] = ['breakfast', 'lunch', 'dinner']
 
 const SLOT_FIELD = { hotel: 'hotel_id', breakfast: 'breakfast_id', lunch: 'lunch_id', dinner: 'dinner_id' } as const
 
@@ -135,15 +138,79 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
     onChange(days.filter((_, j) => j !== i))
   }
 
-  const onDragStart = (e: DragStartEvent) => setDragging((e.active.data.current?.item as Item) ?? null)
+  // A box dragged from one day to another moves; with Ctrl (⌥ on a Mac) held it is copied.
+  const [carrying, setCarrying] = useState<Carry | null>(null)
+  const copyKey = useRef(false)
+  const [copying, setCopying] = useState(false)
+  useEffect(() => {
+    if (!carrying) return
+    const f = (e: KeyboardEvent | PointerEvent) => {
+      const on = e.ctrlKey || e.metaKey || e.altKey
+      if (on !== copyKey.current) { copyKey.current = on; setCopying(on) }
+    }
+    window.addEventListener('keydown', f); window.addEventListener('keyup', f); window.addEventListener('pointermove', f)
+    return () => { window.removeEventListener('keydown', f); window.removeEventListener('keyup', f); window.removeEventListener('pointermove', f) }
+  }, [carrying])
+  const carry = (from: Carry, to: { day: number; slot: Slot }, item: Item, copy: boolean) => {
+    if ((from.day === to.day && from.slot === to.slot) || !accepts(to.slot, item)) return
+    const before = days
+    const next = days.map((d) => ({ ...d }))
+    const src = next[from.day], dst = next[to.day]
+    const w = (d: DayFields, k: string, v: unknown) => { (d as unknown as Record<string, unknown>)[k] = v }
+    const r = (d: DayFields, k: string) => (d as unknown as Record<string, unknown>)[k]
+    if (from.slot === 'extras') {
+      const ids = new Set(from.serviceIds ?? [])
+      const moving = src.extras.filter((x) => ids.has(x.service_id))
+      dst.extras = [...dst.extras, ...moving.filter((x) => !dst.extras.some((y) => y.service_id === x.service_id)).map((x) => ({ ...x, id: slotId() }))]
+      if (!copy) src.extras = src.extras.filter((x) => !ids.has(x.service_id))
+    } else if (item.kind === 'vendor' && to.slot !== 'extras') {
+      const f = from.slot as 'hotel' | 'breakfast' | 'lunch' | 'dinner'
+      // A meal takes its menu, its own dishes and who sits where along to the other meal.
+      const menu = MEALS.includes(f) ? r(src, `${f}_menu_id`) ?? null : null
+      const dishes = MEALS.includes(f) ? src.meal_dishes?.[f as 'lunch'] : undefined
+      const seats = MEALS.includes(f) ? src.seating?.[f as 'lunch'] : undefined
+      const mode = f === 'lunch' || f === 'dinner' ? r(src, `${f}_mode`) : undefined
+      if (!copy) {
+        w(src, SLOT_FIELD[f], null)
+        if (MEALS.includes(f)) {
+          w(src, `${f}_menu_id`, null)
+          if (src.meal_dishes?.[f as 'lunch']) { const m = { ...src.meal_dishes }; delete m[f as 'lunch']; src.meal_dishes = m }
+          if (src.seating?.[f as 'lunch']) { const m = { ...src.seating }; delete m[f as 'lunch']; src.seating = m }
+        }
+        if (f === 'breakfast') src.breakfast_mode = 'hotel'
+      }
+      w(dst, SLOT_FIELD[to.slot], item.vendor.id)
+      if (to.slot === 'hotel' && !dst.city && item.vendor.city) dst.city = item.vendor.city
+      if (to.slot === 'breakfast' && ['hotel', 'own'].includes(dst.breakfast_mode ?? 'hotel')) dst.breakfast_mode = 'included'
+      if (MEALS.includes(f) && MEALS.includes(to.slot)) {
+        const m = to.slot as 'lunch'
+        w(dst, `${m}_menu_id`, menu)
+        dst.meal_dishes = { ...dst.meal_dishes, [m]: dishes }
+        if (!dishes) { const x = { ...dst.meal_dishes }; delete x[m]; dst.meal_dishes = x }
+        dst.seating = { ...dst.seating, [m]: seats }
+        if (!seats) { const x = { ...dst.seating }; delete x[m]; dst.seating = x }
+        if (mode && (m === 'lunch' || m === 'dinner')) w(dst, `${m}_mode`, mode)
+      }
+    } else return
+    onChange(next)
+    toast(copy ? 'dragCopied' : 'dragMoved', 'ok', { label: t('undo'), onClick: () => onChange(before) })
+  }
+
+  const onDragStart = (e: DragStartEvent) => {
+    setDragging((e.active.data.current?.item as Item) ?? null)
+    setCarrying((e.active.data.current?.from as Carry) ?? null)
+  }
   const onDragEnd = (e: DragEndEvent) => {
     setDragging(null)
+    setCarrying(null)
     const { active, over } = e
     if (!over) return
     const item = active.data.current?.item as Item | undefined
-    if (item) {   // palette → slot
+    if (item) {   // palette → slot, or a box from one day to another
       const target = over.data.current as { day: number; slot: Slot } | undefined
-      if (target) place(target.day, target.slot, item)
+      const from = active.data.current?.from as Carry | undefined
+      if (target && from) carry(from, target, item, copyKey.current)
+      else if (target) place(target.day, target.slot, item)
       return
     }
     const from = keys.current.indexOf(String(active.id))
@@ -158,7 +225,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   const byId = useMemo(() => new Map(vs.map((v) => [v.id, v])), [vs])
   return (
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd}
-      onDragCancel={() => setDragging(null)}>
+      onDragCancel={() => { setDragging(null); setCarrying(null) }}>
       <div className={cn('grid gap-4', view === 'days' && listOpen && !disabled && 'lg:grid-cols-[18rem_1fr]')}>
         {view === 'days' && listOpen && !disabled && <Palette vendors={vs} services={services.data ?? []} picked={picked} onPick={setPicked}
           onClose={() => { setListOpen(false); setPicked(null) }}
@@ -234,7 +301,13 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           )}
         </div>
       </div>
-      <DragOverlay>{dragging && <Chip item={dragging} lifted />}</DragOverlay>
+      <DragOverlay>{dragging && (
+        <div className="relative">
+          <Chip item={dragging} lifted />
+          {carrying && <span className="absolute -right-2 -top-3 rounded-full bg-slate-800 px-2 py-0.5 text-[11px] font-medium text-white">
+            {copying ? t('dragCopy') : t('dragMove')}</span>}
+        </div>
+      )}</DragOverlay>
       {newVendor && <QuickVendorDialog type={newVendor.type} city={newVendor.city} onClose={() => setNewVendor(null)}
         onCreated={(v) => newVendor.then?.(v)} />}
       {newService && <QuickServiceDialog vendorId={newService.vendorId} menu={newService.menu} meal={newService.meal} onClose={() => setNewService(null)}
@@ -520,6 +593,10 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   const hotelState = last ? undefined : day.hotel_id ? 'done' as const : 'todo' as const
   const bm = day.breakfast_mode ?? 'hotel'
   const breakfastState = bm === 'hotel' || bm === 'own' ? (index === 0 && bm === 'hotel' ? undefined : 'done' as const) : day.breakfast_id ? 'done' as const : 'todo' as const
+  const holds = (id: string | null | undefined): Item | undefined => {
+    const v = !disabled && id ? byId.get(id) : undefined
+    return v ? { kind: 'vendor', vendor: v } : undefined
+  }
   const missing = [!day.city.trim(), hotelState === 'todo', mealState('lunch') === 'todo', mealState('dinner') === 'todo'].filter(Boolean).length
   // Meals: restaurants, and the hotels that serve them (a meal on their price list) — not every hotel.
   const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
@@ -584,7 +661,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
       )}
       <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-4">
         <SlotBox day={index} slot="hotel" label={last ? t('lastDayNoHotel') : simple ? t('whereSleep') : t('hotel')} icon={<BedDouble size={14} />}
-          dragging={dragging} picked={picked} onTap={(item) => onPlace('hotel', item)} state={hotelState}
+          dragging={dragging} picked={picked} onTap={(item) => onPlace('hotel', item)} state={hotelState} carry={holds(day.hotel_id)}
           footer={!disabled && hotel && !last && <button type="button" onClick={onHotelNext} className="text-xs text-brand-700 hover:underline">{t('sameHotelNextNight')}</button>}>
           <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['hotel']} value={day.hotel_id} onChange={(v) => onSet({ hotel_id: v })}
             placeholder={last ? undefined : t('chooseHotel')}
@@ -594,6 +671,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
         </SlotBox>
         {/* Breakfast is always shown: usually last night's hotel, named - one glance confirms it. */}
         {<SlotBox day={index} slot="breakfast" label={t('breakfast')} icon={<Coffee size={14} />} dragging={dragging} picked={picked} state={breakfastState}
+          carry={['hotel', 'own'].includes(bm) ? undefined : holds(day.breakfast_id)}
           onTap={(item) => onPlace('breakfast', item)}
           aside={<BreakfastModePick value={day.breakfast_mode ?? 'hotel'} disabled={disabled}
             onChange={(m) => onSet(m === 'hotel' || m === 'own' ? { breakfast_mode: m, breakfast_id: null, breakfast_menu_id: null } : { breakfast_mode: m })} />}>
@@ -618,6 +696,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           </>}
         </SlotBox>}
         <SlotBox day={index} slot="lunch" label={t('lunch')} icon={<Utensils size={14} />} dragging={dragging} picked={picked} onTap={(item) => onPlace('lunch', item)} state={mealState('lunch')}
+          carry={day.lunch_mode === 'own' ? undefined : holds(day.lunch_id)}
           aside={(show || (day.lunch_mode ?? 'included') !== 'included') && <MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { lunch_mode: m, lunch_id: null, lunch_menu_id: null } : { lunch_mode: m })} />}>
           {(day.lunch_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
@@ -639,6 +718,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           </>}
         </SlotBox>
         <SlotBox day={index} slot="dinner" label={t('dinner')} icon={<Utensils size={14} />} dragging={dragging} picked={picked} onTap={(item) => onPlace('dinner', item)} state={mealState('dinner')}
+          carry={day.dinner_mode === 'own' ? undefined : holds(day.dinner_id)}
           aside={(show || (day.dinner_mode ?? 'included') !== 'included') && <MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { dinner_mode: m, dinner_id: null, dinner_menu_id: null } : { dinner_mode: m })} />}>
           {(day.dinner_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
@@ -663,6 +743,10 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           state={day.extras.length ? 'done' : 'optional'}
           onTap={(item) => onPlace('extras', item)}>
           <DayServices value={day.extras} disabled={disabled} onChange={(extras) => onSet({ extras })}
+            grip={disabled ? undefined : (_vid, ids) => {
+              const s = menus.find((x) => x.id === ids[0])
+              return s ? <SlotGrip day={index} slot="extras" item={{ kind: 'service', service: s }} serviceIds={ids} /> : null
+            }}
             onAddNew={canCreate ? (vendorId) => onNewService(vendorId, false, (s) => s.id && onSet({ extras: [...day.extras, { id: slotId(), service_id: s.id, quantity: null, notes: '' }] })) : undefined} />
         </SlotBox>
         {(show || (day.schedule ?? []).length > 0) && <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel}
@@ -755,9 +839,10 @@ const SLOT_TONE: Partial<Record<Slot, { pill: string }>> = {
   extras: { pill: 'bg-pink-50 text-pink-800' },
 }
 
-function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, children, footer, aside, state }: {
+function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, children, footer, aside, state, carry }: {
   day: number; slot: Slot; label: string; icon: ReactNode; wide?: boolean; dragging: Item | null; picked: Item | null
   onTap: (item: Item) => void; children: ReactNode; footer?: ReactNode; aside?: ReactNode
+  carry?: Item   // what's in the box: a grip drags it to another day
   state?: 'done' | 'todo' | 'optional'   // a tick in the label, an amber frame and "to do", or a quiet dashed "optional"
 }) {
   const { t } = useI18n()
@@ -780,11 +865,25 @@ function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, childr
         </span>
         {state === 'todo' && <span className="text-[11px] font-semibold text-amber-700">{t('slotTodo')}</span>}
         {state === 'optional' && <span className="text-[11px] text-slate-500">{t('stepOptional')}</span>}
+        {carry && <SlotGrip day={day} slot={slot} item={carry} />}
         {aside && <span className="ml-auto">{aside}</span>}
       </div>
       {children}
       {footer && <div className="mt-1">{footer}</div>}
     </div>
+  )
+}
+
+/** A handle on a filled box: drag it onto another day's box to move it there (Ctrl/⌥ copies). */
+function SlotGrip({ day, slot, item, serviceIds }: { day: number; slot: Slot; item: Item; serviceIds?: string[] }) {
+  const { t } = useI18n()
+  const from: Carry = { day, slot, serviceIds }
+  const { attributes, listeners, setNodeRef } = useDraggable({ id: `s-${day}:${slot}:${serviceIds?.join(',') ?? ''}`, data: { item, from } })
+  return (
+    <button ref={setNodeRef} type="button" {...attributes} {...listeners} title={t('dragToDay')} aria-label={t('dragToDay')}
+      className="cursor-grab touch-none rounded-md p-0.5 text-slate-400 hover:bg-slate-100 hover:text-slate-700 active:cursor-grabbing">
+      <GripVertical size={14} aria-hidden />
+    </button>
   )
 }
 

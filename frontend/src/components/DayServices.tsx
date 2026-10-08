@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import { MapPin, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { DayExtra, ServiceBrief } from '../lib/api'
@@ -15,9 +16,10 @@ const AUTO_UNITS = new Set(['person', 'room_night', 'group', 'vehicle_day', 'day
  * (everything the supplier offers), so a stop with several activities reads — and is set up — as one stop.
  * Quantity left empty = counted from the unit.
  */
-export function DayServices({ value, onChange, disabled, onAddNew }: {
+export function DayServices({ value, onChange, disabled, onAddNew, grip }: {
   value: DayExtra[]; onChange: (v: DayExtra[]) => void; disabled?: boolean
   onAddNew?: (vendorId?: string) => void   // a new service: for this place, or any supplier
+  grip?: (vendorId: string, serviceIds: string[]) => ReactNode   // a handle to drag the place (with its activities) to another day
 }) {
   const { t } = useI18n()
   const services = useServiceList()
@@ -63,6 +65,7 @@ export function DayServices({ value, onChange, disabled, onAddNew }: {
         return (
           <div key={vid} className="rounded-lg border border-slate-200 bg-white">
             <div className="flex items-center gap-2 px-2.5 py-1.5">
+              {grip && on.length > 0 && grip(vid, on.map((x) => x.id))}
               <MapPin size={14} className="shrink-0 text-brand-700" aria-hidden />
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{vendor?.name}</span>
               {!single && <span className="shrink-0 text-xs text-slate-500">{t('placeActivitiesOn', { n: on.length, of: list.length })}</span>}
