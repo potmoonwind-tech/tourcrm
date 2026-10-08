@@ -2883,7 +2883,7 @@ const en = {
   showEverythingHelp: "Every option of every day, open (for experienced managers)",
   whereSleep: "Where they sleep",
   whatTheyDo: "What they do",
-  moreForDay: "More for this day: stops on the way, flight, timetable, driver's room, notes",
+  moreForDay: "More for this day: stops on the way, flight, driver's room, notes",
   fewerDetails: "Fewer details",
   menuAndTables: "menu & tables",
   dishesN: "{n} dishes",
@@ -2906,6 +2906,10 @@ const en = {
   dragCopy: "Copy",
   dragMoved: "Moved",
   dragCopied: "Copied",
+  progOnRoad: "{km} km · {time} on the road",
+  progFree: "{time} free —",
+  progAddShort: "Add:",
+  progStepMenu: "More for {name}",
 }
 
 type Dict = typeof en
@@ -5785,7 +5789,7 @@ const ka: Dict = {
   showEverythingHelp: "ყველა დღის ყველა პარამეტრი, გახსნილი (გამოცდილი მენეჯერებისთვის)",
   whereSleep: "სად ღამდებიან",
   whatTheyDo: "რას აკეთებენ",
-  moreForDay: "მეტი ამ დღისთვის: გაჩერებები გზაში, ფრენა, განრიგი, მძღოლის ოთახი, შენიშვნები",
+  moreForDay: "მეტი ამ დღისთვის: გაჩერებები გზაში, ფრენა, მძღოლის ოთახი, შენიშვნები",
   fewerDetails: "ნაკლები დეტალი",
   menuAndTables: "მენიუ და მაგიდები",
   dishesN: "{n} კერძი",
@@ -5808,6 +5812,10 @@ const ka: Dict = {
   dragCopy: "კოპირება",
   dragMoved: "გადატანილია",
   dragCopied: "დაკოპირდა",
+  progOnRoad: "{km} კმ · {time} გზაში",
+  progFree: "{time} თავისუფალი —",
+  progAddShort: "დამატება:",
+  progStepMenu: "მეტი: {name}",
 }
 
 export type Lang = 'en' | 'ka'

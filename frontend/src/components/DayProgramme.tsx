@@ -9,16 +9,16 @@
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, ArrowDownUp, BedDouble, Car, ChevronDown, Coffee, Map as MapIcon, Pin, GripVertical, Landmark, MapPin, Plane, Plus, Smile, Truck, Utensils, X } from 'lucide-react'
+import { AlertTriangle, ArrowDownUp, BedDouble, Car, Coffee, Map as MapIcon, Pin, GripVertical, Landmark, MapPin, Plane, Smile, Truck, Utensils, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { Fragment, useEffect, useId, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
 import { airportName } from '../lib/airports'
 import { wsPath } from '../lib/data'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
 import { useWorkspace } from '../lib/session'
-import { Label } from './overlay'
+import { Label, Menu } from './overlay'
 import { InfoTip, Tooltip } from './Tooltip'
 import { PlaceInput, type PlaceSuggestion } from './PlaceInput'
 import { TripMap, type MapStop } from './TripMap'
@@ -37,6 +37,8 @@ const KIND_STYLE: Record<ScheduleKind, string> = {
   checkout: 'bg-violet-100 text-violet-800', flight: 'bg-cyan-100 text-cyan-800', other: 'bg-slate-100 text-slate-700',
 }
 const ADDABLE: ScheduleKind[] = ['visit', 'free', 'transfer', 'other']
+// A drive on the day ribbon: a quiet grey (fixed, so the easy-to-see greys don't make it heavy).
+const DRIVE_BAR = 'bg-[#e4e1d9]'
 let seq = 0
 const newId = () => `s${Date.now().toString(36)}${(++seq).toString(36)}`
 
@@ -139,7 +141,7 @@ export function dayLegs(day: DayFields, from: string | undefined, factor: number
   }))
 }
 
-export function DayProgramme({ day, index, last, byId, services, disabled, startOpen, from, fromHotel, onChange, onSetDay }: {
+export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay }: {
   day: DayFields; index: number; last: boolean; byId: Map<string, Vendor>; services: ServiceBrief[]; disabled?: boolean; startOpen?: boolean
   from?: string      // where the group slept the night before
   fromHotel?: string | null   // ...and in which hotel: breakfast "at the hotel" is there, and the day's road starts from it
@@ -150,10 +152,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
 }) {
   const { t, lang } = useI18n()
   const saved = day.schedule ?? []
-  const [open, setOpen] = useState(startOpen ?? saved.length > 0)
-  const [adding, setAdding] = useState(false)
   const [mapOpen, setMapOpen] = useState(false)
-  const bodyId = useId()
   // Stable ids for the suggestion while the day stays the same (dragging needs them).
   const factor = useWorkspace()?.drive_factor ?? 1.25
   const suggested = useMemo(() => suggest(day, index, last, services, factor), [day, index, last, services, factor])
@@ -230,7 +229,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
     queryFn: () => api<{ legs: MapLeg[] }>(wsPath(ws.id, '/distances'), { method: 'POST', body: { cities: path.map((p) => p.place) } }),
     staleTime: Infinity,
     meta: { silent: true },
-    enabled: open && path.length > 1,
+    enabled: path.length > 1,
   })
   // Drives already known (this day or any other) are used at once; only new pairs of places wait for
   // the map — the times re-chain now and refine when it answers.
@@ -316,10 +315,10 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
     const m = x.ref
     if ((m === 'lunch' ? day.lunch_mode : day.dinner_mode) === 'own') return undefined
     return (
-      <span className="flex min-w-0 flex-1 items-center gap-2">
-        <span className="shrink-0 text-sm text-slate-800">{t(m)}:</span>
-        <span className="min-w-0 flex-1">
-          <VendorSelect className="h-9" vendors={vendorList} types={['restaurant', 'hotel']} only={(v) => v.type !== 'hotel' || serving.has(v.id)}
+      <span className="block min-w-0">
+        <span className="block px-1 text-sm font-medium text-slate-800">{t(m)}</span>
+        <span className="block min-w-0">
+          <VendorSelect className="h-7 border-transparent bg-transparent px-1 text-xs text-slate-600 hover:border-slate-200" placeholder={t('chooseRestaurant')} vendors={vendorList} types={['restaurant', 'hotel']} only={(v) => v.type !== 'hotel' || serving.has(v.id)}
             value={(m === 'lunch' ? day.lunch_id : day.dinner_id) ?? null} cities={[...(day.stops ?? []), day.city]}
             onChange={(v) => onSetDay(m === 'lunch' ? { lunch_id: v, lunch_menu_id: null } : { dinner_id: v, dinner_menu_id: null })} />
         </span>
@@ -362,26 +361,60 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
     if (x.time) lastEnd = toMin(x.time) + lengthOf(x, usual)
   }
 
+  // A new step at a spot in the day (a free gap, or the end): it follows the step before.
+  const insertAt = (i: number, k: ScheduleKind) =>
+    save(laid([...items.slice(0, i), { id: newId(), kind: k, time: '', end: '', title: '', ref: null, place: '', notes: '' }, ...items.slice(i)]))
+  // The road of the day in one chip, and the day's span.
+  const drives = [...before.values(), ...after].filter((l) => (l.km ?? 0) > 0 || (l.minutes ?? 0) > 0)
+  const roadKm = drives.reduce((n, l) => n + (l.km ?? 0), 0)
+  const roadMin = drives.reduce((n, l) => n + (l.minutes ?? 0), 0)
+  const span = first ? `${first}${lastTime && lastTime !== first ? ` – ${lastTime}` : ''}` : ''
+  // The day ribbon: each step and drive as a coloured block on the hours of the day.
+  const segs: { from: number; to: number; cls: string; title: string }[] = []
+  for (const x of items) {
+    const d = before.get(x.id)
+    const dep = departs.get(x.id)
+    if (d?.minutes && dep != null) segs.push({ from: dep, to: dep + Math.round(d.minutes / 5) * 5, cls: DRIVE_BAR, title: `${t('progDriveTo', { place: d.to })} · ${dur(d.minutes)}` })
+    if (x.time) {
+      const st = toMin(x.time)
+      const lb = label(x)
+      segs.push({ from: st, to: st + lengthOf(x, usual), title: `${x.time} · ${lb.text || x.title || t(`prog_${x.kind}` as TKey)}`,
+        cls: lb.missing ? 'border border-dashed border-red-400 bg-red-50' : KIND_STYLE[x.kind].split(' ')[0] })
+    }
+  }
+  for (const leg of after) if (leg.minutes && lastEnd != null) segs.push({ from: lastEnd, to: lastEnd + Math.round(leg.minutes / 5) * 5, cls: DRIVE_BAR, title: t('progDriveTo', { place: leg.to }) })
+  const r0 = Math.floor(Math.min(7 * 60, ...segs.map((x) => x.from)) / 60) * 60
+  const r1 = Math.ceil(Math.max(22 * 60, ...segs.map((x) => x.to)) / 60) * 60
+  const pct = (m: number) => `${((m - r0) / (r1 - r0)) * 100}%`
+  const ticks = Array.from({ length: Math.floor((r1 - r0) / 180) + 1 }, (_, i) => r0 + i * 180)
+  const addChip = (k: ScheduleKind, onClick: () => void, text?: string) => (
+    <button key={k + (text ?? '')} type="button" onClick={onClick}
+      className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-slate-300 bg-white px-2.5 text-xs text-slate-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-800">
+      <span className="[&>svg]:h-3.5 [&>svg]:w-3.5">{ICON[k]}</span>{text ?? t(`prog_${k}` as TKey)}
+    </button>
+  )
+
   return (
-    <div className="col-span-full rounded-lg border border-slate-200 bg-white">
-      <div className="flex items-center gap-2 px-2 py-1.5">
-        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} aria-controls={bodyId}
-          className="flex min-h-9 flex-1 flex-wrap items-center gap-x-2 gap-y-1 rounded-md px-1 text-left text-sm font-semibold text-slate-800 hover:bg-slate-50">
-          <ChevronDown size={16} aria-hidden className={cn('shrink-0 text-slate-500 transition-transform', open && 'rotate-180')} />
-          {t('dayProgramme')}
-          {saved.length ? (
-            <span className="font-normal text-slate-600">
-              {t('progSteps', { n: items.length })}{first && ` · ${first}${lastTime && lastTime !== first ? `–${lastTime}` : ''}`}
-            </span>
-          ) : <Label tone="light" wide={false}>{t('progSuggestedShort')}</Label>}
-          {issues.size > 0 && <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-800"><AlertTriangle size={14} aria-hidden />{t('progIssues', { n: issues.size })}</span>}
-        </button>
-        {path.length > 1 && (
-          <Button type="button" size="sm" variant="ghost" onClick={() => setMapOpen(true)} aria-label={t('mapDayOf', { n: index + 1 })}>
-            <MapIcon size={16} aria-hidden />{t('mapOpen')}
-          </Button>
+    <section className="col-span-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 sm:p-4" aria-label={t('dayProgramme')}>
+      {/* One line: what this is, the road, the day's span - then the map. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+        <h4 className="text-sm font-semibold text-slate-800">{t('dayProgramme')}</h4>
+        {roadKm > 0 && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-0.5 text-xs text-slate-700">
+            <Car size={13} aria-hidden />{t('progOnRoad', { km: roadKm, time: dur(roadMin) })}
+          </span>
         )}
-        <InfoTip label={t('progHelpTip')} />
+        {!saved.length && items.length > 0 && <Label tone="light" wide={false}>{t('progSuggestedShort')}</Label>}
+        {issues.size > 0 && <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-800"><AlertTriangle size={14} aria-hidden />{t('progIssues', { n: issues.size })}</span>}
+        <span className="ml-auto flex items-center gap-1">
+          {span && <span className="mr-1 text-sm tabular-nums text-slate-500">{span}</span>}
+          {path.length > 1 && (
+            <Button type="button" size="sm" variant="ghost" onClick={() => setMapOpen(true)} aria-label={t('mapDayOf', { n: index + 1 })}>
+              <MapIcon size={16} aria-hidden />{t('mapOpen')}
+            </Button>
+          )}
+          <InfoTip label={`${t('progHelpTip')} ${t('progAutoTimesTip')}`} />
+        </span>
       </div>
       {mapOpen && (
         <TripMap title={t('mapDayOf', { n: index + 1 })} subtitle={[from, ...(day.stops ?? []), day.city].filter(Boolean).join(' → ')}
@@ -394,74 +427,93 @@ export function DayProgramme({ day, index, last, byId, services, disabled, start
             return i === 0 ? { place: p.place, label: p.place, kind: 'start' } : { place: p.place, label: p.place, kind: 'night' }
           })} />
       )}
-      {open && (
-        <div id={bodyId} className="space-y-2 border-t border-slate-100 p-2 sm:p-3">
-          <DayRoadSummary drives={[...before.values(), ...after]} factor={factor} loading={road.isFetching} failed={road.isError}
-            hasPlaces={path.length > 1} />
-          {!saved.length && items.length > 0 && (
-            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-brand-50 px-3 py-2 text-sm text-slate-700">
-              <span className="min-w-48 flex-1">{t('progSuggestedHelp')}</span>
-              {!disabled && <Button type="button" size="sm" variant="secondary" onClick={() => save(items)}>{t('progKeep')}</Button>}
-            </div>
-          )}
-          {items.length > 0 && (
-            <div className="hidden items-center gap-2 px-1.5 text-xs font-medium text-slate-500 sm:flex" aria-hidden>
-              {!disabled && <span className="w-7" />}
-              <span className="w-[4.5rem] text-center">{t('progColStart')}</span>
-              <span className="w-2" />
-              <span className="w-[3.5rem] text-center">{t('progColEnd')}</span>
-              <span className="pl-1">{t('progColStep')}</span>
-            </div>
-          )}
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}
-            accessibility={{ screenReaderInstructions: { draggable: t('progDragInstructions') } }}>
-            <SortableContext items={items.map((x) => x.id)} strategy={verticalListSortingStrategy}>
-              <ol className="divide-y divide-slate-100 sm:space-y-1 sm:divide-y-0" aria-label={t('dayProgramme')}>
-                {items.map((x) => (
-                  <Fragment key={x.id}>
-                    {before.has(x.id) && <DriveRow leg={before.get(x.id)!} depart={departs.get(x.id) ?? null}
-                      samePlace={!disabled && x.kind === 'visit' && !x.ref ? prevPlaceName(x) : undefined}
-                      onSamePlace={(place) => set(x.id, { place })} />}
-                    <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
-                      length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)}
-                      onSet={(patch) => set(x.id, patch)} onRemove={() => removeStep(x)}
-                      onLink={onSetDay ? (serviceId) => linkActivity(x.id, serviceId) : undefined} />
-                  </Fragment>
-                ))}
-                {after.map((leg) => <DriveRow key={leg.to} leg={leg} depart={lastEnd} />)}
-              </ol>
-            </SortableContext>
-          </DndContext>
-          {items.length === 0 && <p className="px-1 text-sm text-slate-500">{t('progEmpty')}</p>}
-          {!disabled && (
-            <div className="flex flex-wrap items-center gap-2 pt-1">
-              {adding ? (
-                <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t('progAdd')}>
-                  {onSetDay && (['breakfast', 'lunch', 'dinner'] as const).filter((m) => !items.some((x) => x.ref === m)).map((m) => (
-                    <Button type="button" key={m} size="sm" variant="secondary" onClick={() => { addMeal(m); setAdding(false) }}>
-                      {m === 'breakfast' ? ICON.breakfast : ICON.meal}{t(m)}
-                    </Button>
-                  ))}
-                  {ADDABLE.map((k) => (
-                    <Button type="button" key={k} size="sm" variant="secondary" onClick={() => { save([...items, { id: newId(), kind: k, time: '', end: '', title: '', ref: null, place: '', notes: '' }]); setAdding(false) }}>
-                      <span className={cn('flex h-5 w-5 items-center justify-center rounded-md', KIND_STYLE[k])}>{ICON[k]}</span>{t(`prog_${k}` as TKey)}
-                    </Button>
-                  ))}
-                  <Button type="button" size="sm" variant="ghost" onClick={() => setAdding(false)}>{t('cancel')}</Button>
-                </div>
-              ) : (
-                <Button type="button" size="sm" variant="secondary" onClick={() => setAdding(true)}><Plus size={16} aria-hidden />{t('progAdd')}</Button>
-              )}
-              {timed.length > 1 && (
-                <Button type="button" size="sm" variant={outOfOrder ? 'secondary' : 'ghost'} onClick={byTime} className={cn('ml-auto', outOfOrder && 'border-amber-400 text-amber-900')}>
-                  <ArrowDownUp size={16} aria-hidden />{t('progSortByTime')}
-                </Button>
-              )}
-            </div>
+
+      {/* The day ribbon: the shape of the day at a glance (long drives, free hours, a meal still to choose). */}
+      {segs.length > 0 && (
+        <div className="mt-3" aria-hidden>
+          <div className="relative h-6 overflow-hidden rounded-md bg-slate-50">
+            {segs.map((x, i) => (
+              <span key={i} title={x.title} className={cn('absolute inset-y-0 flex items-center justify-center text-slate-600', x.cls)}
+                style={{ left: pct(x.from), width: `calc(${pct(x.to)} - ${pct(x.from)})` }}>
+                {x.cls === DRIVE_BAR && x.to - x.from >= 90 && <Car size={13} />}
+              </span>
+            ))}
+          </div>
+          <div className="relative mt-1 h-4 text-[11px] tabular-nums text-slate-400">
+            {ticks.map((m, i) => (
+              <span key={m} className={cn('absolute', i === 0 ? '' : i === ticks.length - 1 && m === r1 ? '-translate-x-full' : '-translate-x-1/2')} style={{ left: pct(m) }}>
+                {String(Math.floor(m / 60) % 24).padStart(2, '0')}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Suggested: a quiet line, not a banner. */}
+      {!saved.length && items.length > 0 && (
+        <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
+          {t('progSuggestedHelp')}
+          {!disabled && <button type="button" onClick={() => save(items)} className="font-medium text-brand-700 hover:underline">{t('progKeep')}</button>}
+        </p>
+      )}
+      {drives.length === 0 && path.length > 1 && (
+        <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500" role="status">
+          <Car size={14} aria-hidden className="shrink-0" />{road.isFetching ? t('progRoadAsking') : road.isError ? t('mapUnavailable') : t('progRoadNone')}
+        </p>
+      )}
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}
+        accessibility={{ screenReaderInstructions: { draggable: t('progDragInstructions') } }}>
+        <SortableContext items={items.map((x) => x.id)} strategy={verticalListSortingStrategy}>
+          <ol className="mt-3" aria-label={t('dayProgramme')}>
+            {items.map((x, i) => {
+              const leg = before.get(x.id)
+              const dep = departs.get(x.id)
+              const arrive = dep != null ? dep + Math.round((leg?.minutes ?? 0) / 5) * 5 : null
+              const gap = x.time && arrive != null ? toMin(x.time) - arrive : 0
+              return (
+                <Fragment key={x.id}>
+                  {leg && <DriveRow leg={leg} depart={dep ?? null}
+                    samePlace={!disabled && x.kind === 'visit' && !x.ref ? prevPlaceName(x) : undefined}
+                    onSamePlace={(place) => set(x.id, { place })} />}
+                  {gap >= 60 && (
+                    <li className="flex gap-3">
+                      <span className="w-16 shrink-0 pt-1.5 text-right text-xs tabular-nums text-slate-400">{hm(arrive!)}</span>
+                      <span className="flex w-8 shrink-0 justify-center" aria-hidden><span className="border-l-2 border-dotted border-slate-300" /></span>
+                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 py-1.5">
+                        <span className="text-sm text-slate-500">{t('progFree', { time: dur(gap) })}</span>
+                        {!disabled && (['visit', 'free', 'other'] as const).map((k) => addChip(k, () => insertAt(i, k)))}
+                      </span>
+                    </li>
+                  )}
+                  <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
+                    length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)} end={i === items.length - 1 && !after.length}
+                    onSet={(patch) => set(x.id, patch)} onRemove={() => removeStep(x)}
+                    onLink={onSetDay ? (serviceId) => linkActivity(x.id, serviceId) : undefined} />
+                </Fragment>
+              )
+            })}
+            {after.map((leg) => <DriveRow key={leg.to} leg={leg} depart={lastEnd} />)}
+          </ol>
+        </SortableContext>
+      </DndContext>
+      {items.length === 0 && <p className="mt-2 text-sm text-slate-500">{t('progEmpty')}</p>}
+
+      {/* Adding: one tap on what to add (it goes at the end and follows the day). */}
+      {!disabled && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-slate-100 pt-3">
+          <span className="mr-1 text-xs font-medium text-slate-500">{t('progAddShort')}</span>
+          {onSetDay && (['breakfast', 'lunch', 'dinner'] as const).filter((m) => !items.some((x) => x.ref === m))
+            .map((m) => addChip(m === 'breakfast' ? 'breakfast' : 'meal', () => addMeal(m), t(m)))}
+          {ADDABLE.map((k) => addChip(k, () => insertAt(items.length, k)))}
+          {outOfOrder && (
+            <Button type="button" size="sm" variant="secondary" onClick={byTime} className="ml-auto border-amber-400 text-amber-900">
+              <ArrowDownUp size={16} aria-hidden />{t('progSortByTime')}
+            </Button>
           )}
         </div>
       )}
-    </div>
+    </section>
   )
 }
 
@@ -483,7 +535,7 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   return (
     <Tooltip label={t('progTimePickTip')}>
       <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}
-        className="h-9 w-[5.5rem] shrink-0 rounded-md border border-slate-300 bg-white px-1 text-sm font-medium tabular-nums text-slate-800 hover:border-slate-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100">
+        className="h-7 w-16 shrink-0 cursor-pointer appearance-none rounded-md bg-transparent px-1 text-right text-[15px] font-medium tabular-nums text-slate-800 hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100">
         <option value="">--:--</option>
         {value && !QUARTERS.includes(value) && <option value={value}>{value}</option>}
         {QUARTERS.map((q) => <option key={q} value={q}>{q}</option>)}
@@ -492,9 +544,10 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   )
 }
 
-function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, onSet, onRemove, onLink }: {
+function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, end, onSet, onRemove, onLink }: {
   x: ScheduleItem; label: { text: string; missing: boolean }; picker?: ReactNode; disabled?: boolean; issue?: StepIssue; onFix: (time: string) => void
   length: number; sights: PlaceSuggestion[]; sight?: Vendor
+  end?: boolean   // the day's last step: the line stops here
   onSet: (p: Partial<ScheduleItem>) => void; onRemove: () => void
   onLink?: (serviceId: string) => void   // a catalogue activity picked: it becomes the day's service
 }) {
@@ -505,96 +558,100 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
   const atPlace = x.kind === 'visit' && !!x.place && x.place.trim().toLowerCase() !== x.title.trim().toLowerCase()
   const kind = t(`prog_${x.kind}` as TKey)
   const name = (typed ? x.title : label.text) || kind
+  // "Breakfast: Old Town Hotel" → the what, and the where under it.
+  const cut = label.text.indexOf(': ')
+  const head = cut > 0 ? label.text.slice(0, cut) : label.text
+  const where = cut > 0 ? label.text.slice(cut + 2) : ''
+  const field = 'h-8 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 hover:border-slate-200 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100'
   return (
-    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn('rounded-lg border bg-white px-1.5 py-1', isDragging ? 'z-10 border-brand-300 shadow-lg' : issue ? 'border-amber-300 bg-amber-50/40' : 'border-transparent hover:border-slate-200')}>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <div className="flex shrink-0 items-center gap-2">
-          {!disabled && (
+    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex gap-3', isDragging && 'relative z-10')}>
+      {/* The time column: when it starts, and how long. */}
+      <div className="w-16 shrink-0 pt-2 text-right">
+        {disabled ? <span className="text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
+          : <TimeSelect value={x.time} label={t('progStartOf', { name })}
+            onChange={(v) => onSet(x.time && x.end && v ? { time: v, fixed: true, end: shift(v, minutesBetween(x.time, x.end)) } : { time: v, fixed: !!v })} />}
+        {x.time && length > 0 && x.kind !== 'flight' && <span className="block pr-1 text-xs tabular-nums text-slate-500">{dur(length)}</span>}
+      </div>
+      {/* The line of the day, with the step's icon in its colour. */}
+      <div className="flex w-8 shrink-0 flex-col items-center">
+        <Tooltip label={kind}>
+          <span className={cn('mt-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full', label.missing ? 'bg-amber-100 text-amber-800' : KIND_STYLE[x.kind])}
+            role="img" aria-label={kind}>{ICON[x.kind]}</span>
+        </Tooltip>
+        {!end && <span className="w-0.5 flex-1 bg-slate-200" aria-hidden />}
+      </div>
+      <div className="min-w-0 flex-1 pb-2">
+        <div className={cn('flex min-h-12 items-center gap-2 rounded-xl border py-1.5 pl-1.5 pr-1 transition-colors',
+          isDragging ? 'border-brand-300 bg-white shadow-lg' : label.missing ? 'border-amber-300 bg-amber-50' : issue ? 'border-amber-300 bg-white' : 'border-slate-200 bg-white')}>
+          {!disabled ? (
             <Tooltip label={t('progDragTip')}>
               <button type="button" {...attributes} {...listeners} aria-label={t('progDragLabel', { name })}
-                className="flex h-9 w-7 cursor-grab touch-none items-center justify-center rounded-md text-slate-500 hover:bg-slate-100 hover:text-slate-800 active:cursor-grabbing">
-                <GripVertical size={18} aria-hidden />
+                className="flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-slate-300 opacity-0 hover:text-slate-700 focus:opacity-100 active:cursor-grabbing group-hover:opacity-100">
+                <GripVertical size={16} aria-hidden />
               </button>
             </Tooltip>
-          )}
-          {disabled ? (
-            <span className="w-[4.5rem] text-center text-sm font-medium tabular-nums text-slate-800">{x.time || '—'}{x.end && <span className="block text-xs font-normal text-slate-500">{x.end}{x.time && ` · ${dur(minutesBetween(x.time, x.end))}`}</span>}</span>
-          ) : (
-            <>
-              <TimeSelect value={x.time} label={t('progStartOf', { name })}
-                onChange={(v) => onSet(x.time && x.end && v ? { time: v, fixed: true, end: shift(v, minutesBetween(x.time, x.end)) } : { time: v, fixed: !!v })} />
-              <span className="w-2 text-center text-slate-500" aria-hidden>–</span>
-              <span className="w-[3.5rem] text-center text-sm tabular-nums text-slate-600" aria-label={t('progEndOf', { name })}>
-                {x.end || (x.time && length ? `≈${hm(toMin(x.time) + length)}` : '—')}
+          ) : <span className="w-1" />}
+          <div className="min-w-0 flex-1">
+            {typed && x.kind === 'visit' && !disabled ? (
+              // A visit is a real place: suggested from the map, and picking one keeps where it is.
+              <span className="block [&>span]:w-full">
+                <PlaceInput value={x.title} own={sights} onChange={(title) => onSet({ title, place: atPlace ? x.place : '' })} maxLength={200}
+                  onPicked={(p) => (p.service_id && onLink ? onLink(p.service_id) : onSet({ title: p.name, place: p.at ? p.at : p.own ? '' : p.name }))}
+                  aria-label={t('progStepName', { kind })} placeholder={t('progNamePh', { kind })} className={field} />
               </span>
-              <DurationPick start={x.time} end={x.end} name={name} usual={length} usualFrom={x.end ? undefined : sight?.name}
-                onChange={(end) => onSet({ end })} />
-              {x.kind !== 'flight' && x.time && (
-                <Tooltip label={x.fixed ? t('progPinnedTip') : t('progFollowsTip')}>
-                  <button type="button" aria-pressed={!!x.fixed} onClick={() => onSet({ fixed: !x.fixed })}
-                    aria-label={t(x.fixed ? 'progUnpin' : 'progPin', { name })}
-                    className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-md border',
-                      x.fixed ? 'border-brand-300 bg-brand-50 text-brand-700' : 'border-transparent text-slate-400 hover:bg-slate-100 hover:text-slate-700')}>
-                    <Pin size={16} aria-hidden className={x.fixed ? 'fill-current' : ''} />
-                  </button>
-                </Tooltip>
-              )}
-            </>
-          )}
-        </div>
-        <div className="flex min-w-[12rem] flex-1 items-center gap-2">
-          <Tooltip label={kind}>
-            <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-md', KIND_STYLE[x.kind])} role="img" aria-label={kind}>{ICON[x.kind]}</span>
-          </Tooltip>
-          {typed && x.kind === 'visit' && !disabled ? (
-            // A visit is a real place: suggested from the map, and picking one keeps where it is.
-            <span className="min-w-0 flex-1 [&>span]:w-full">
-              <PlaceInput value={x.title} own={sights} onChange={(title) => onSet({ title, place: atPlace ? x.place : '' })} maxLength={200}
-                onPicked={(p) => (p.service_id && onLink ? onLink(p.service_id) : onSet({ title: p.name, place: p.at ? p.at : p.own ? '' : p.name }))}
-                aria-label={t('progStepName', { kind })} placeholder={t('progNamePh', { kind })}
-                className="h-9 w-full min-w-0 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 placeholder:text-slate-400 hover:border-slate-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
-              {atPlace && (
-                <span className="mt-1 flex"><span className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 py-0.5 pl-2 pr-1 text-xs text-blue-800">
-                  <MapPin size={12} className="shrink-0" aria-hidden /><span className="truncate">{t('progAt', { place: x.place })}</span>
+            ) : typed ? (
+              <input value={x.title} disabled={disabled} onChange={(e) => onSet({ title: e.target.value })} maxLength={200}
+                aria-label={t('progStepName', { kind })} placeholder={t('progNamePh', { kind })} className={field} />
+            ) : picker ? picker : (
+              <span className="block px-1">
+                <span className="block break-words text-sm font-medium text-slate-800">{head}</span>
+                {where && <span className="block break-words text-xs text-slate-500">{where}</span>}
+                {label.missing && <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-800"><AlertTriangle size={12} aria-hidden />{t('progMissing')}</span>}
+              </span>
+            )}
+            {atPlace && (
+              <span className="mt-0.5 flex px-1"><span className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 py-0.5 pl-2 pr-1 text-xs text-blue-800">
+                <MapPin size={12} className="shrink-0" aria-hidden /><span className="truncate">{t('progAt', { place: x.place })}</span>
+                {!disabled && (
                   <Tooltip label={t('progAtClear')}>
                     <button type="button" onClick={() => onSet({ place: '' })} aria-label={t('progAtClear')}
                       className="rounded-full p-0.5 hover:bg-white"><X size={12} /></button>
                   </Tooltip>
-                </span></span>
-              )}
-            </span>
-          ) : typed ? (
-            <input value={x.title} disabled={disabled} onChange={(e) => onSet({ title: e.target.value })} maxLength={200}
-              aria-label={t('progStepName', { kind })} placeholder={t('progNamePh', { kind })}
-              className="h-9 min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-2 text-sm text-slate-800 placeholder:text-slate-400 hover:border-slate-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:border-transparent disabled:bg-transparent" />
-          ) : picker ? picker : (
-            <span className="min-w-0 flex-1 text-sm text-slate-800">
-              <span className="break-words">{label.text}</span>
-              {label.missing && <span className="ml-2 inline-flex items-center gap-1 text-xs font-medium text-red-700"><AlertTriangle size={13} aria-hidden />{t('progMissing')}</span>}
-            </span>
+                )}
+              </span></span>
+            )}
+          </div>
+          {!disabled && x.kind !== 'flight' && (
+            <DurationPick start={x.time} end={x.end} name={name} usual={length} usualFrom={x.end ? undefined : sight?.name}
+              onChange={(e) => onSet({ end: e })} />
           )}
-          {!disabled && (
-            <Tooltip label={t('progRemoveTip')}>
-              <button type="button" onClick={onRemove} aria-label={t('progRemove', { name })}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-slate-500 hover:bg-red-50 hover:text-red-700">
-                <X size={18} aria-hidden />
+          {!disabled && x.fixed && x.kind !== 'flight' && (
+            <Tooltip label={t('progPinnedTip')}>
+              <button type="button" aria-pressed onClick={() => onSet({ fixed: false })} aria-label={t('progUnpin', { name })}
+                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-brand-700 hover:bg-brand-50">
+                <Pin size={14} aria-hidden className="fill-current" />
               </button>
             </Tooltip>
           )}
-        </div>
-      </div>
-      {issue && (
-        <p className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 pl-9 text-xs font-medium text-amber-900">
-          <span className="inline-flex items-center gap-1"><AlertTriangle size={13} aria-hidden />{issue.text}</span>
-          {issue.fix && !disabled && (
-            <button type="button" onClick={() => onFix(issue.fix!)}
-              className="rounded-md border border-amber-400 bg-white px-2 py-1 text-xs font-semibold text-amber-900 hover:bg-amber-100">
-              {t('progMoveTo', { time: issue.fix })}
-            </button>
+          {!disabled && (
+            <Menu kind="icon" label={t('progStepMenu', { name })} items={[
+              { label: t(x.fixed ? 'progUnpin' : 'progPin', { name }), icon: <Pin size={16} />, onClick: () => onSet({ fixed: !x.fixed }), hidden: x.kind === 'flight' || !x.time },
+              { label: t('progRemove', { name }), icon: <X size={16} />, onClick: onRemove, danger: true },
+            ]} />
           )}
-        </p>
-      )}
+        </div>
+        {issue && (
+          <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-xs font-medium text-amber-900">
+            <span className="inline-flex items-center gap-1"><AlertTriangle size={13} aria-hidden />{issue.text}</span>
+            {issue.fix && !disabled && (
+              <button type="button" onClick={() => onFix(issue.fix!)}
+                className="rounded-full border border-amber-400 bg-white px-2 py-0.5 text-xs font-medium text-amber-900 hover:bg-amber-100">
+                {t('progMoveTo', { time: issue.fix })}
+              </button>
+            )}
+          </p>
+        )}
+      </div>
     </li>
   )
 }
@@ -829,9 +886,9 @@ function DurationPick({ start, end, name, usual, usualFrom, onChange }: {
     <Tooltip label={!start ? t('progDurationNeedsStart') : usualFrom ? t('progDurationSight', { place: usualFrom }) : t('progDurationTip')}>
       <select value={current === null ? '' : String(current)} disabled={!start} aria-label={t('progDurationOf', { name })}
         onChange={(e) => onChange(e.target.value === '' ? '' : shift(start, Number(e.target.value)))}
-        className={cn('h-9 w-[5.5rem] shrink-0 rounded-md border border-slate-300 bg-white px-1 text-sm tabular-nums',
-          'hover:border-slate-500 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-50',
-          current === null ? 'text-slate-500' : 'text-slate-800')}>
+        className={cn('select-chevron h-7 shrink-0 cursor-pointer rounded-full border-0 bg-slate-100 pl-2.5 pr-7 text-xs tabular-nums [background-size:14px]',
+          'hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-50',
+          current === null ? 'text-slate-600' : 'text-slate-800')}>
         <option value="">{usual ? `≈ ${dur(usual)}` : t('progDurationPh')}</option>
         {custom && <option value={String(current)}>{dur(current!)}</option>}
         {DURATIONS.map((m) => <option key={m} value={String(m)}>{dur(m)}</option>)}
@@ -840,62 +897,38 @@ function DurationPick({ start, end, name, usual, usualFrom, onChange }: {
   )
 }
 
-/** A drive between two steps, in the timeline: when it leaves and arrives, where to, km and time. */
+/** A drive between two steps, on the line of the day: how long, how far, when - and where to. */
 function DriveRow({ leg, depart, samePlace, onSamePlace }: {
   leg: DriveLeg; depart: number | null
   samePlace?: string; onSamePlace?: (place: string) => void   // not on the map: "it's at the place before"
 }) {
   const { t } = useI18n()
-  const what = [leg.km != null ? `${leg.km} km` : '', leg.minutes != null ? `≈ ${dur(leg.minutes)}` : ''].filter(Boolean).join(' · ')
+  const what = [leg.minutes != null ? dur(leg.minutes) : '', leg.km != null ? `${leg.km} km` : ''].filter(Boolean).join(' · ')
+  const to = leg.to.split(',')[0]
   return (
-    <li className="flex flex-wrap items-center gap-x-2 gap-y-0.5 py-1 pl-1.5 text-sm text-slate-600 sm:pl-9">
-      <span className="flex w-[4.5rem] shrink-0 justify-center" aria-hidden>
-        <span className="h-6 border-l-2 border-dashed border-slate-300" />
+    <li className="flex gap-3">
+      <span className="w-16 shrink-0" />
+      <span className="flex w-8 shrink-0 justify-center" aria-hidden><span className="border-l-2 border-dashed border-slate-300" /></span>
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 py-2 text-sm text-slate-600">
+        <Car size={15} aria-hidden className="shrink-0 text-slate-500" />
+        {leg.skipped === 'asking' ? <span className="text-slate-500">{t('progRoadAsking')}</span>
+          : leg.skipped ? <span className="text-amber-800">{t(leg.skipped === 'pending' ? 'progDrivePending' : 'progDriveUnknown')}</span>
+          : what && <span className="font-medium tabular-nums text-slate-700">{what}</span>}
+        {depart !== null && leg.minutes != null && (
+          <span className="tabular-nums text-slate-500">{t('progDriveTimes', { from: hm(depart), to: hm(depart + Math.round(leg.minutes / 5) * 5) })}</span>
+        )}
+        <span className="min-w-0 max-w-full truncate text-slate-500" title={leg.to}>
+          → {to}{leg.via.length > 0 && ` (${t('via')} ${leg.via.join(', ')})`}
+        </span>
+        {samePlace && onSamePlace && (leg.skipped === 'not_found' || leg.skipped === 'far' || (!leg.skipped && leg.km == null)) && (
+          <Tooltip label={t('progSamePlaceTip')}>
+            <button type="button" onClick={() => onSamePlace(samePlace)}
+              className="inline-flex h-7 items-center gap-1 rounded-full bg-slate-100 px-2.5 text-xs text-slate-700 hover:bg-slate-200">
+              <MapPin size={13} aria-hidden />{t('progSamePlace', { place: samePlace })}
+            </button>
+          </Tooltip>
+        )}
       </span>
-      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-slate-100 text-slate-700" aria-hidden><Car size={16} /></span>
-      <span className="font-medium text-slate-700">
-        {t('progDriveTo', { place: leg.to })}{leg.via.length > 0 && <span className="font-normal"> ({t('via')} {leg.via.join(', ')})</span>}
-      </span>
-      {leg.skipped === 'asking' ? <span className="text-slate-500">{t('progRoadAsking')}</span>
-        : leg.skipped ? <span className="text-amber-800">{t(leg.skipped === 'pending' ? 'progDrivePending' : 'progDriveUnknown')}</span>
-        : what && <span className="tabular-nums">{what}</span>}
-      {depart !== null && leg.minutes != null && (
-        <span className="tabular-nums text-slate-500">{t('progDriveTimes', { from: hm(depart), to: hm(depart + Math.round(leg.minutes / 5) * 5) })}</span>
-      )}
-      {samePlace && onSamePlace && (leg.skipped === 'not_found' || leg.skipped === 'far' || (!leg.skipped && leg.km == null)) && (
-        <Tooltip label={t('progSamePlaceTip')}>
-          <Button type="button" size="sm" variant="secondary" onClick={() => onSamePlace(samePlace)}>
-            <MapPin size={14} aria-hidden />{t('progSamePlace', { place: samePlace })}
-          </Button>
-        </Tooltip>
-      )}
     </li>
-  )
-}
-
-/** The day's road in one line, and "Re-time with the road" when the drives are known. */
-function DayRoadSummary({ drives, hasPlaces, loading, failed, factor }: {
-  drives: DriveLeg[]; hasPlaces: boolean; loading: boolean; failed: boolean; factor: number
-}) {
-  const { t } = useI18n()
-  const known = drives.filter((l) => (l.km ?? 0) > 0 || (l.minutes ?? 0) > 0)
-  if (!known.length) {
-    if (!hasPlaces) return null
-    return (
-      <p className="flex items-center gap-1.5 px-1 text-sm text-slate-600" role="status">
-        <Car size={15} aria-hidden className="shrink-0" />{loading ? t('progRoadAsking') : failed ? t('mapUnavailable') : t('progRoadNone')}
-      </p>
-    )
-  }
-  const km = known.reduce((s, l) => s + (l.km ?? 0), 0)
-  const min = known.reduce((s, l) => s + (l.minutes ?? 0), 0)
-  return (
-    <div className="flex flex-wrap items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm">
-      <Car size={16} aria-hidden className="shrink-0 text-slate-600" />
-      <span className="min-w-48 flex-1 text-slate-700" role="status">
-        {t('progRouteTotal', { km, time: dur(min), pct: Math.round((factor - 1) * 100) })}{loading && ` · ${t('progRoadAsking')}`}
-      </span>
-      <InfoTip label={t('progAutoTimesTip')} />
-    </div>
   )
 }

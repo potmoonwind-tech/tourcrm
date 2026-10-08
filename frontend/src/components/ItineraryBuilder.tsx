@@ -749,7 +749,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             }}
             onAddNew={canCreate ? (vendorId) => onNewService(vendorId, false, (s) => s.id && onSet({ extras: [...day.extras, { id: slotId(), service_id: s.id, quantity: null, notes: '' }] })) : undefined} />
         </SlotBox>
-        {(show || (day.schedule ?? []).length > 0) && <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel}
+        {<DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel}
           onSetDay={onSet}
           onChange={(schedule) => onSet({ schedule })} />}
         {/* Border crossings and notes are rare: folded away until used. */}
@@ -854,9 +854,11 @@ function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, childr
   const tone = SLOT_TONE[slot]
   return (
     <div ref={setNodeRef} onClick={() => picked && ok && onTap(picked)}
-      className={cn('rounded-lg border p-2 transition-colors', wide && 'col-span-full',
+      className={cn('rounded-xl border p-2.5 transition-colors', wide && 'col-span-full',
         active && ok ? 'border-dashed border-brand-400 bg-brand-50/60'
-          : state === 'todo' ? 'border-amber-300 bg-amber-50/40'
+          : state === 'todo' ? 'border-amber-400 bg-white'
+            // Done: a green frame (to do: amber) - state by the border alone, the box stays white and calm.
+            : state === 'done' ? 'border-emerald-400 bg-white'
             : state === 'optional' ? 'border-dashed border-slate-300 bg-white' : 'border-slate-200 bg-white',
         isOver && ok && 'border-solid border-brand-600 bg-brand-100', picked && ok && 'cursor-copy')}>
       <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
