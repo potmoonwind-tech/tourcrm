@@ -446,8 +446,15 @@ class DayFields(BaseModel):
     # (app/seating.py) - {"dinner": {"<staff id>": "group", "_extra": [{"name": "Photographer", "seat": "staff"}]}}.
     meal_dishes: dict[str, list[MealDish]] = Field(default_factory=dict)
     seating: dict[str, dict] = Field(default_factory=dict)
+    meal_tbd: dict[str, str] = Field(default_factory=dict)   # {"lunch": "Yerevan"}: place to be decided, in that town
 
     _stops_ok = field_validator("stops")(_stops)
+
+    @field_validator("meal_tbd")
+    @classmethod
+    def _tbd(cls, v: dict[str, str]) -> dict[str, str]:
+        out = {k: " ".join(t.split())[:100] for k, t in v.items() if k in ("breakfast", "lunch", "dinner")}
+        return {k: t for k, t in out.items() if t}
     _slots = field_validator("extras")(_unique_slots)
     _meals = field_validator("meal_dishes", "seating")(_per_meal)
 
@@ -599,6 +606,7 @@ class TourDayOut(_Out):
     staff_twin: bool = False
     meal_dishes: dict = {}
     seating: dict = {}
+    meal_tbd: dict = {}
 
 
 class TourSummary(BaseModel):

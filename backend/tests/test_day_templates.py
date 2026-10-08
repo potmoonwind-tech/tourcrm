@@ -25,3 +25,11 @@ def test_saved_days_belong_to_their_agency(make_client):
     assert c2.patch(f"{base2}/day-templates/{t['id']}", json={"name": "x"}).status_code == 404
     assert c2.delete(f"{base2}/day-templates/{t['id']}").status_code == 404
     assert c.post(f"{base}/day-templates", json={"name": "", "city": "", "data": {}}).status_code == 422
+
+
+def test_a_meal_to_be_decided_keeps_its_town(make_client):
+    c, base, _ = agency(make_client)
+    route = mk(c, f"{base}/series", {"code": "AR", "name": "Armenia", "days": [
+        {"city": "Yerevan", "meal_tbd": {"lunch": "  Yerevan ", "dinner": "", "snack": "x"}}, {"city": "Yerevan"}]})
+    d = c.get(f"{base}/series/{route['id']}").json()["days"][0]
+    assert d["meal_tbd"] == {"lunch": "Yerevan"}

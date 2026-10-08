@@ -2942,6 +2942,11 @@ const en = {
   bulkDeleteToursMsg: "Each tour goes with everything in it: days, bookings, participants, costs, invoices and payments. This can't be undone. To keep the history, cancel a tour instead.",
   bulkDeleteRoutesQ: "Delete {n} routes?",
   bulkDeleteRoutesMsg: "Tours made from these routes stay as they are - they're just no longer linked to a route. This can't be undone.",
+  mealTbd: "To be decided",
+  mealTbdShort: "TBD · {town}",
+  mealTbdSet: "Not decided yet - mark as TBD",
+  mealTbdTown: "Town where it will be",
+  mealTbdPick: "Choose the place",
 }
 
 type Dict = typeof en
@@ -5880,6 +5885,11 @@ const ka: Dict = {
   bulkDeleteToursMsg: "ტური იშლება მთლიანად: დღეები, ჯავშნები, მონაწილეები, ხარჯები, ინვოისები და გადახდები. ამის დაბრუნება შეუძლებელია. ისტორიის შესანარჩუნებლად ტური გააუქმეთ.",
   bulkDeleteRoutesQ: "წავშალოთ {n} მარშრუტი?",
   bulkDeleteRoutesMsg: "ამ მარშრუტებით შექმნილი ტურები რჩება - უბრალოდ აღარ იქნება მარშრუტთან დაკავშირებული. ამის დაბრუნება შეუძლებელია.",
+  mealTbd: "დასაზუსტებელია",
+  mealTbdShort: "დასაზუსტებელია · {town}",
+  mealTbdSet: "ჯერ არ ვიცი - მოინიშნოს როგორც დასაზუსტებელი",
+  mealTbdTown: "ქალაქი, სადაც იქნება",
+  mealTbdPick: "ადგილის არჩევა",
 }
 
 export type Lang = 'en' | 'ka'

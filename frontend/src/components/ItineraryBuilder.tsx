@@ -21,7 +21,7 @@ import { fmt, weekday } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
 import { DayServices } from './DayServices'
-import { DayProgramme, relayDay } from './DayProgramme'
+import { DayProgramme, relayDay, withoutTbd } from './DayProgramme'
 import { Dialog, toast, Menu, askText } from './overlay'
 import { InfoTip, Tooltip } from './Tooltip'
 import { VendorSelect } from './tour'
@@ -115,6 +115,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
     if (slot === 'extras' && item.kind === 'service') set(i, { extras: [...days[i].extras, { id: slotId(), service_id: item.service.id, quantity: null, notes: '' }] })
     else if (item.kind === 'vendor' && slot !== 'extras') {
       const patch: Partial<DayFields> = { [SLOT_FIELD[slot]]: item.vendor.id }
+      if (slot !== 'hotel' && days[i].meal_tbd?.[slot]) patch.meal_tbd = withoutTbd(days[i], slot)
       if (slot === 'hotel' && !days[i].city && item.vendor.city) patch.city = item.vendor.city
       // A restaurant dropped on breakfast: breakfast is there, not at the hotel any more.
       if (slot === 'breakfast' && ['hotel', 'own'].includes(days[i].breakfast_mode ?? 'hotel')) patch.breakfast_mode = 'included'
@@ -590,7 +591,9 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   const show = !simple || details          // the less used parts of the day
   const [mealOpen, setMealOpen] = useState<Record<string, boolean>>({})
   // What's done and what's missing in this day (the same rules as "Check" and "Next missing").
-  const mealState = (m: 'lunch' | 'dinner') => (mealDone(day, m) ? 'done' : 'todo') as 'done' | 'todo'
+  const mealState = (m: 'lunch' | 'dinner') =>
+    (!(m === 'lunch' ? day.lunch_id : day.dinner_id) && day.meal_tbd?.[m] && (m === 'lunch' ? day.lunch_mode : day.dinner_mode) !== 'own'
+      ? undefined : mealDone(day, m) ? 'done' : 'todo') as 'done' | 'todo' | undefined
   const hotelState = last ? undefined : day.hotel_id ? 'done' as const : 'todo' as const
   const bm = day.breakfast_mode ?? 'hotel'
   const breakfastState = bm === 'hotel' || bm === 'own' ? (index === 0 && bm === 'hotel' ? undefined : 'done' as const) : day.breakfast_id ? 'done' as const : 'todo' as const
@@ -723,10 +726,19 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           aside={(show || (day.lunch_mode ?? 'included') !== 'included') && <MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { lunch_mode: m, lunch_id: null, lunch_menu_id: null } : { lunch_mode: m })} />}>
           {(day.lunch_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
+          {day.meal_tbd?.lunch && !day.lunch_id ? (
+            <MealTbd town={day.meal_tbd.lunch} disabled={disabled} onTown={(x) => onSet({ meal_tbd: { ...day.meal_tbd, lunch: x } })}
+              onPick={() => onSet({ meal_tbd: withoutTbd(day, 'lunch') })} />
+          ) : <>
           <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} note={mealNote} value={day.lunch_id} placeholder={t('chooseRestaurant')}
             cities={[...(day.stops ?? []), day.city]}
-            onChange={(v) => onSet({ lunch_id: v, lunch_menu_id: null })}
-            onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ lunch_id: v.id, lunch_menu_id: null })) : undefined} />
+            onChange={(v) => onSet({ lunch_id: v, lunch_menu_id: null, meal_tbd: withoutTbd(day, 'lunch') })}
+            onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ lunch_id: v.id, lunch_menu_id: null, meal_tbd: withoutTbd(day, 'lunch') })) : undefined} />
+          {!day.lunch_id && !disabled && (
+            <button type="button" onClick={() => onSet({ meal_tbd: { ...day.meal_tbd, lunch: (day.stops?.[0] || day.city).trim() || '?' } })}
+              className="mt-1 text-xs text-slate-500 hover:text-brand-700 hover:underline">{t('mealTbdSet')}</button>
+          )}
+          </>}
           {day.lunch_id && !show && !mealOpen.lunch ? (
             <MealSummary meal="lunch" day={day} menu={menuOf(menus, day.lunch_menu_id, day.lunch_id, 'lunch')} crew={crew} dayNumber={index + 1}
               onOpen={() => setMealOpen({ ...mealOpen, lunch: true })} />
@@ -745,10 +757,19 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           aside={(show || (day.dinner_mode ?? 'included') !== 'included') && <MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { dinner_mode: m, dinner_id: null, dinner_menu_id: null } : { dinner_mode: m })} />}>
           {(day.dinner_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
+          {day.meal_tbd?.dinner && !day.dinner_id ? (
+            <MealTbd town={day.meal_tbd.dinner} disabled={disabled} onTown={(x) => onSet({ meal_tbd: { ...day.meal_tbd, dinner: x } })}
+              onPick={() => onSet({ meal_tbd: withoutTbd(day, 'dinner') })} />
+          ) : <>
           <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} note={mealNote} value={day.dinner_id} placeholder={t('chooseRestaurant')}
             cities={[day.city, ...(day.stops ?? [])]}
-            onChange={(v) => onSet({ dinner_id: v, dinner_menu_id: null })}
-            onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ dinner_id: v.id, dinner_menu_id: null })) : undefined} />
+            onChange={(v) => onSet({ dinner_id: v, dinner_menu_id: null, meal_tbd: withoutTbd(day, 'dinner') })}
+            onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ dinner_id: v.id, dinner_menu_id: null, meal_tbd: withoutTbd(day, 'dinner') })) : undefined} />
+          {!day.dinner_id && !disabled && (
+            <button type="button" onClick={() => onSet({ meal_tbd: { ...day.meal_tbd, dinner: (day.city).trim() || '?' } })}
+              className="mt-1 text-xs text-slate-500 hover:text-brand-700 hover:underline">{t('mealTbdSet')}</button>
+          )}
+          </>}
           {day.dinner_id && !show && !mealOpen.dinner ? (
             <MealSummary meal="dinner" day={day} menu={menuOf(menus, day.dinner_menu_id, day.dinner_id, 'dinner')} crew={crew} dayNumber={index + 1}
               onOpen={() => setMealOpen({ ...mealOpen, dinner: true })} />
@@ -820,7 +841,7 @@ function MealSummary({ meal, day, menu, crew, dayNumber, onOpen }: {
 }
 
 /** The next day with something missing (a night's hotel, lunch, dinner, the city), or -1. */
-const mealDone = (d: DayFields, m: 'lunch' | 'dinner') => (m === 'lunch' ? d.lunch_mode : d.dinner_mode) === 'own' || !!(m === 'lunch' ? d.lunch_id : d.dinner_id)
+const mealDone = (d: DayFields, m: 'lunch' | 'dinner') => (m === 'lunch' ? d.lunch_mode : d.dinner_mode) === 'own' || !!(m === 'lunch' ? d.lunch_id : d.dinner_id) || !!d.meal_tbd?.[m]
 const nextGapOf = (days: DayFields[]) =>
   days.findIndex((d, i) => !d.city.trim() || (i < days.length - 1 && !d.hotel_id) || !mealDone(d, 'lunch') || !mealDone(d, 'dinner'))
 
@@ -1343,5 +1364,20 @@ function SavedDays({ city, onApply }: { city: string; onApply: (d: DayTemplate) 
       trigger={<><Bookmark size={13} aria-hidden />{c ? t('savedDaysFor', { n: list.length, city: city.trim() }) : t('savedDaysAny', { n: list.length })}<ChevronDown size={13} aria-hidden /></>}
       triggerClassName="inline-flex h-7 items-center gap-1 rounded-full bg-brand-50 px-2.5 text-xs font-medium text-brand-800 hover:bg-brand-100"
       items={list.map((x) => ({ label: c ? x.name : `${x.name}${x.city ? ` · ${x.city}` : ''}`, icon: <Bookmark size={16} />, onClick: () => onApply(x) }))} />
+  )
+}
+
+/** A meal whose place isn't known yet: "TBD · Yerevan" (the town can be changed), or pick the place now. */
+function MealTbd({ town, disabled, onTown, onPick }: { town: string; disabled?: boolean; onTown: (x: string) => void; onPick: () => void }) {
+  const { t } = useI18n()
+  return (
+    <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1.5 text-sm">
+      <Clock size={14} aria-hidden className="shrink-0 text-slate-500" />
+      <span className="font-medium text-slate-700">{t('mealTbd')}</span>
+      <span className="text-slate-400">·</span>
+      <input value={town} disabled={disabled} onChange={(e) => onTown(e.target.value)} maxLength={100} aria-label={t('mealTbdTown')}
+        className="h-7 w-32 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 text-sm text-slate-800 hover:border-slate-300 focus:border-brand-600 focus:bg-white focus:outline-none" />
+      {!disabled && <button type="button" onClick={onPick} className="ml-auto text-xs font-medium text-brand-700 hover:underline">{t('mealTbdPick')}</button>}
+    </div>
   )
 }

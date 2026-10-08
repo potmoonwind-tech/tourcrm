@@ -169,6 +169,12 @@ def _place(v: Vendor | None, menu: Service | None = None, served: list | None = 
                  menu=menu.name if menu else None, dishes=[d for d in dishes if d])
 
 
+def _tbd(d, meal: str) -> Place | None:
+    """A meal whose place is still to be decided, in its town."""
+    town = (getattr(d, "meal_tbd", None) or {}).get(meal)
+    return Place(name="TBD", address="", city=town, phone="") if town else None
+
+
 def _extras(slots, services: dict) -> list[str]:
     """One line per place, its activities after it: "KTW · Wine tasting, Bread baking, Churchkhela (optional)"."""
     places: dict[str, tuple[str, list[str]]] = {}
@@ -239,8 +245,8 @@ def field_page(token: str, request: Request, lang: str = "en", db: Session = Dep
         breakfast_mode=d.breakfast_mode or "hotel",
         breakfast=(_place(slept.get(d.day_number - 1)) if (d.breakfast_mode or "hotel") == "hotel"
                    else None if d.breakfast_mode == "own" else _place(d.breakfast, services.get(d.breakfast_menu_id))),
-        hotel=_place(d.hotel), lunch=_place(d.lunch, services.get(d.lunch_menu_id), (d.meal_dishes or {}).get("lunch")),
-        dinner=_place(d.dinner, services.get(d.dinner_menu_id), (d.meal_dishes or {}).get("dinner")),
+        hotel=_place(d.hotel), lunch=_place(d.lunch, services.get(d.lunch_menu_id), (d.meal_dishes or {}).get("lunch")) or _tbd(d, "lunch"),
+        dinner=_place(d.dinner, services.get(d.dinner_menu_id), (d.meal_dishes or {}).get("dinner")) or _tbd(d, "dinner"),
         extras=_extras(d.extras, services)) for d in days]
     guide_sees = s.role in SEES_GROUP
     for fd in out_days if guide_sees else []:

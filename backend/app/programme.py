@@ -32,19 +32,19 @@ LANG_NAME = {"en": "English", "ka": "Georgian", "zh": "Simplified Chinese"}
 
 LABELS: dict[str, dict[str, str]] = {
     "en": {"day": "Day {n}", "programme": "Programme", "route": "Route", "distance": "Distance", "driving": "Driving",
-           "overnight": "Overnight", "meals": "Meals", "breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner",
+           "overnight": "Overnight", "meals": "Meals", "breakfast": "Breakfast", "lunch": "Lunch", "tbd": "to be decided", "dinner": "Dinner",
            "activities": "Activities and tickets", "optional": "optional", "own": "own arrangements",
            "tourists": "paid on the spot", "at_hotel": "at the hotel", "arrival": "Arrival", "departure": "Departure",
            "border": "Border crossing", "notes": "Notes", "km": "km", "h": "h", "min": "min", "total": "Total distance",
            "days": "{n} days", "checkin": "Check-in", "free": "Free time", "transfer": "Transfer", "no_hotel": "End of the tour", "tab_days": "Days", "tab_menu": "Menu", "map": "Map", "day_map": "The day on the map", "today": "Today", "no_menu": "Menu not chosen yet", "people": "{n} people", "jump": "Go to day", "table_group": "Group", "table_staff": "Staff", "role_leader": "tour leader", "role_guide": "guide", "role_driver": "driver", "role_assistant": "assistant", "role_guest": "guest", "plates_word": "plates", "portions_word": "portions", "plates": "{n} plates", "portions": "{n} portions"},
     "ka": {"day": "დღე {n}", "programme": "პროგრამა", "route": "მარშრუტი", "distance": "მანძილი", "driving": "გზაში",
-           "overnight": "ღამისთევა", "meals": "კვება", "breakfast": "საუზმე", "lunch": "სადილი", "dinner": "ვახშამი",
+           "overnight": "ღამისთევა", "meals": "კვება", "breakfast": "საუზმე", "lunch": "სადილი", "tbd": "დასაზუსტებელია", "dinner": "ვახშამი",
            "activities": "აქტივობები და ბილეთები", "optional": "სურვილისამებრ", "own": "საკუთარი ხარჯით",
            "tourists": "ადგილზე გადახდით", "at_hotel": "სასტუმროში", "arrival": "ჩამოფრენა", "departure": "გაფრენა",
            "border": "საზღვრის კვეთა", "notes": "შენიშვნები", "km": "კმ", "h": "სთ", "min": "წთ", "total": "სულ მანძილი",
            "days": "{n} დღე", "checkin": "განთავსება", "free": "თავისუფალი დრო", "transfer": "გადაადგილება", "no_hotel": "ტურის დასასრული", "tab_days": "დღეები", "tab_menu": "მენიუ", "map": "რუკა", "day_map": "დღის მარშრუტი რუკაზე", "today": "დღეს", "no_menu": "მენიუ ჯერ არ არის არჩეული", "people": "{n} ადამიანი", "jump": "დღეზე გადასვლა", "table_group": "ჯგუფი", "table_staff": "პერსონალი", "role_leader": "ტურლიდერი", "role_guide": "გიდი", "role_driver": "მძღოლი", "role_assistant": "ასისტენტი", "role_guest": "სტუმარი", "plates_word": "თეფში", "portions_word": "პორცია", "plates": "{n} თეფში", "portions": "{n} პორცია"},
     "zh": {"day": "第{n}天", "programme": "行程", "route": "路线", "distance": "距离", "driving": "车程",
-           "overnight": "住宿", "meals": "餐食", "breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐",
+           "overnight": "住宿", "meals": "餐食", "breakfast": "早餐", "lunch": "午餐", "tbd": "待定", "dinner": "晚餐",
            "activities": "活动与门票", "optional": "自选", "own": "自理", "tourists": "现场自付", "at_hotel": "酒店内",
            "arrival": "抵达", "departure": "离开", "border": "过境", "notes": "备注", "km": "公里", "h": "小时", "min": "分钟",
            "total": "总里程", "days": "{n}天", "checkin": "入住", "free": "自由活动", "transfer": "交通", "no_hotel": "行程结束", "tab_days": "行程", "tab_menu": "菜单", "map": "地图", "day_map": "当天路线图", "today": "今天", "no_menu": "尚未选定菜单", "people": "{n}人", "jump": "跳转到某天", "table_group": "团队", "table_staff": "工作人员", "role_leader": "领队", "role_guide": "导游", "role_driver": "司机", "role_assistant": "助理", "role_guest": "客人", "plates_word": "盘", "portions_word": "份", "plates": "{n}盘", "portions": "{n}份"},
@@ -440,7 +440,7 @@ def suggest(d: DayFields, index: int, last: bool, services: dict[str, Service], 
         time = hm(max(13 * 60, at))
         if d.lunch_mode == "own":
             out.append(_item(kind="free", time=time, ref="lunch"))
-        elif d.lunch_id:
+        elif d.lunch_id or (d.meal_tbd or {}).get("lunch"):
             out.append(_item(kind="meal", time=time, ref="lunch"))
         else:
             return
@@ -469,7 +469,7 @@ def suggest(d: DayFields, index: int, last: bool, services: dict[str, Service], 
     dinner = hm(max(19 * 60 + 30, checkin + 90))
     if d.dinner_mode == "own":
         out.append(_item(kind="free", time=dinner, ref="dinner"))
-    elif d.dinner_id:
+    elif d.dinner_id or (d.meal_tbd or {}).get("dinner"):
         out.append(_item(kind="meal", time=dinner, ref="dinner"))
     for k, f in enumerate(d.flights):
         if f.direction == "departure":
@@ -636,6 +636,8 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
                 elif vid:
                     menu = dishes(d, meal, summary=True)
                     p.meals.append((word, T(c.name(vid)) + (f" ({L['tourists']})" if mode == "tourists" else "") + (f": {menu}" if menu else "")))
+                elif (d.meal_tbd or {}).get(meal):
+                    p.meals.append((word, f"{L['tbd']} · {T(d.meal_tbd[meal])}"))
         if inc.activities:
             for e in d.extras:
                 s = services.get(e.service_id)
@@ -745,6 +747,8 @@ def _step_text(x, d: DayFields, prev: DayFields | None, c: _Ctx, L: dict[str, st
         mode, vid = (d.lunch_mode, d.lunch_id) if r == "lunch" else (d.dinner_mode, d.dinner_id)
         if mode == "own":
             return f"{L[r]}: {L['own']}"
+        if not vid and (d.meal_tbd or {}).get(r):
+            return f"{L[r]}: {L['tbd']} · {T(d.meal_tbd[r])}"
         return f"{L[r]}: {T(c.name(vid))}" if vid else ""
     if r.startswith("extra:"):
         slot = next((e for e in d.extras if e.id == r[6:]), None)

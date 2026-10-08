@@ -116,6 +116,7 @@ export interface DayFields {
   schedule?: ScheduleItem[]   // the day's programme in order (empty: not arranged yet)
   staff_stay?: DayStaffStay; staff_hotel_id?: string | null; staff_twin?: boolean   // where the driver and guide sleep
   meal_dishes?: Partial<Record<'breakfast' | 'lunch' | 'dinner', Dish[]>>   // this tour's own dishes for a meal (not the menu's)
+  meal_tbd?: Partial<Record<'breakfast' | 'lunch' | 'dinner', string>>   // place to be decided, in this town ("TBD · Yerevan")
   seating?: Partial<Record<'breakfast' | 'lunch' | 'dinner', Record<string, unknown>>>   // who sits elsewhere than usual, and guests
 }
 export type ScheduleKind = 'breakfast' | 'meal' | 'visit' | 'transfer' | 'free' | 'checkin' | 'checkout' | 'flight' | 'other'
@@ -157,7 +158,7 @@ export interface TourDay {
   border_crossing: string; notes: string; extras: DayExtra[]; km?: number | null; drive_minutes?: number[]; drive_km?: number[]; stops?: string[]
   lunch_mode?: MealMode; dinner_mode?: MealMode; flights?: Flight[]; schedule?: ScheduleItem[]
   staff_stay?: DayStaffStay; staff_hotel?: VendorRef | null; staff_twin?: boolean
-  meal_dishes?: DayFields['meal_dishes']; seating?: DayFields['seating']
+  meal_dishes?: DayFields['meal_dishes']; seating?: DayFields['seating']; meal_tbd?: DayFields['meal_tbd']
 }
 export interface Tour extends TourSummary {
   notes: string; days: TourDay[]

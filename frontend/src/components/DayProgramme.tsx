@@ -51,7 +51,7 @@ export const toFields = (d: TourDay): DayFields => ({
   stops: d.stops ?? [], lunch_mode: d.lunch_mode ?? 'included', dinner_mode: d.dinner_mode ?? 'included',
   flights: d.flights ?? [], schedule: d.schedule ?? [],
   staff_stay: d.staff_stay ?? 'none', staff_hotel_id: d.staff_hotel?.id ?? null, staff_twin: !!d.staff_twin,
-  meal_dishes: d.meal_dishes ?? {}, seating: d.seating ?? {},
+  meal_dishes: d.meal_dishes ?? {}, seating: d.seating ?? {}, meal_tbd: d.meal_tbd ?? {},
 })
 
 /** What the day has, in a sensible order with usual times. */
@@ -84,7 +84,7 @@ export function suggest(day: DayFields, index: number, last: boolean, services: 
     lunched = true
     const time = hm(Math.max(13 * 60, at))
     if (day.lunch_mode === 'own') add({ kind: 'free', time, end: '', title: '', ref: 'lunch', place: '', notes: '' })
-    else if (day.lunch_id) add({ kind: 'meal', time, end: '', title: '', ref: 'lunch', place: '', notes: '' })
+    else if (day.lunch_id || day.meal_tbd?.lunch) add({ kind: 'meal', time, end: '', title: '', ref: 'lunch', place: '', notes: '' })
     else return
     at = Math.max(13 * 60, at) + 90
   }
@@ -112,7 +112,7 @@ export function suggest(day: DayFields, index: number, last: boolean, services: 
   if (day.hotel_id && !last) add({ kind: 'checkin', time: hm(checkin), end: '', title: '', ref: 'hotel', place: '', notes: '' })
   const dinner = hm(Math.max(19 * 60 + 30, checkin + 90))
   if (day.dinner_mode === 'own') add({ kind: 'free', time: dinner, end: '', title: '', ref: 'dinner', place: '', notes: '' })
-  else if (day.dinner_id) add({ kind: 'meal', time: dinner, end: '', title: '', ref: 'dinner', place: '', notes: '' })
+  else if (day.dinner_id || day.meal_tbd?.dinner) add({ kind: 'meal', time: dinner, end: '', title: '', ref: 'dinner', place: '', notes: '' })
   flights.forEach((f, i) => f.direction === 'departure' && add({ kind: 'flight', time: f.time, end: '', title: '', ref: `flight:${i}`, place: f.airport, notes: '' }))
   return out
 }
@@ -179,6 +179,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
       const id = r === 'lunch' ? day.lunch_id : day.dinner_id
       const word = t(r)
       if (mode === 'own') return { text: `${word}: ${t('mealOwn')}`, missing: false }
+      if (!id && day.meal_tbd?.[r]) return { text: `${word}: ${t('mealTbdShort', { town: day.meal_tbd[r]! })}`, missing: false }
       return { text: `${word}: ${byId.get(id ?? '')?.name ?? '—'}${mode === 'tourists' ? ` (${t('mealTourists')})` : ''}`, missing: !id }
     }
     if (r.startsWith('extra:')) {
@@ -318,9 +319,10 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
       <span className="block min-w-0">
         <span className="block px-1 text-sm font-medium text-slate-800">{t(m)}</span>
         <span className="block min-w-0">
-          <VendorSelect className="h-7 w-auto max-w-full border-transparent bg-transparent px-1 text-xs text-slate-600 hover:border-slate-200" placeholder={t('chooseRestaurant')} vendors={vendorList} types={['restaurant', 'hotel']} note={(v) => (v.type === 'hotel' && !serving.has(v.id) ? ` · ${t('noMealPrice')}` : '')}
+          <VendorSelect className="h-7 w-auto max-w-full border-transparent bg-transparent px-1 text-xs text-slate-600 hover:border-slate-200" vendors={vendorList} types={['restaurant', 'hotel']} note={(v) => (v.type === 'hotel' && !serving.has(v.id) ? ` · ${t('noMealPrice')}` : '')}
             value={(m === 'lunch' ? day.lunch_id : day.dinner_id) ?? null} cities={[...(day.stops ?? []), day.city]}
-            onChange={(v) => onSetDay(m === 'lunch' ? { lunch_id: v, lunch_menu_id: null } : { dinner_id: v, dinner_menu_id: null })} />
+            onChange={(v) => onSetDay(m === 'lunch' ? { lunch_id: v, lunch_menu_id: null, meal_tbd: withoutTbd(day, 'lunch') } : { dinner_id: v, dinner_menu_id: null, meal_tbd: withoutTbd(day, 'dinner') })}
+            placeholder={day.meal_tbd?.[m] ? t('mealTbdShort', { town: day.meal_tbd[m]! }) : t('chooseRestaurant')} />
         </span>
       </span>
     )
@@ -515,6 +517,13 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
       )}
     </section>
   )
+}
+
+/** The day's to-be-decided meals without this one (a place was picked). */
+export const withoutTbd = (day: DayFields, meal: 'breakfast' | 'lunch' | 'dinner') => {
+  const next = { ...(day.meal_tbd ?? {}) }
+  delete next[meal]
+  return next
 }
 
 const shift = (s: string, by: number) => {
