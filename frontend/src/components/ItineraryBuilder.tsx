@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, BedDouble, Bus, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronDown, ChevronRight } from 'lucide-react'
+import { AlertTriangle, BedDouble, Bus, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronDown, ChevronRight, Download, ListChecks } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, type BreakfastMode, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
@@ -22,7 +22,7 @@ import { useI18n, type TKey } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
 import { DayServices } from './DayServices'
 import { DayProgramme, relayDay } from './DayProgramme'
-import { Dialog, toast } from './overlay'
+import { Dialog, toast, Menu } from './overlay'
 import { InfoTip, Tooltip } from './Tooltip'
 import { VendorSelect } from './tour'
 import { QuickServiceDialog, QuickVendorDialog } from './QuickAdd'
@@ -60,8 +60,9 @@ export const blankDay = (city = ''): DayFields =>
   ({ city, hotel_id: null, lunch_id: null, dinner_id: null, border_crossing: '', notes: '', extras: [], km: null, stops: [],
      lunch_mode: 'included', dinner_mode: 'included', flights: [], schedule: [] })
 
-export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, crew }: {
+export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, crew, onDownload }: {
   days: DayFields[]; onChange: (days: DayFields[]) => void
+  onDownload?: () => void     // "Download programme", in the builder's "⋯"
   crew?: Crew                 // a tour's group and staff: each meal's tables and plates
   busReturn?: BusReturn | null; onBusReturn?: (b: BusReturn | null) => void   // the bus back to its garage
   dates?: string[]            // a tour's dates; a route has none
@@ -91,6 +92,10 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   // Simple day cards (the four questions; the rest under "More for this day") unless "Show everything" is on.
   const [full, setFullState] = useState(() => { try { return localStorage.getItem('builderFull') === '1' } catch { return false } })
   const setFull = (v: boolean) => { setFullState(v); try { localStorage.setItem('builderFull', v ? '1' : '0') } catch { /* private window */ } }
+  // The map, "Suggest km" and "Recalculate times" keep their own dialogs; the "⋯" opens them.
+  const tools = useRef<Tools>({})
+  const canMap = days.flatMap((d) => [...(d.stops ?? []), d.city]).filter((x) => x?.trim()).length > 1
+  const nextGap = nextGapOf(days)
   const openDay = (i: number) => {
     setView('days')
     setTimeout(() => document.getElementById(`day-card-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
@@ -173,22 +178,28 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             <div className="flex flex-wrap items-center gap-2">
               <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView}
                 options={[['check', t('viewCheck')], ['overview', t('viewOverview')], ['days', t('viewDays')]]} />
-              {view === 'days' && (
-                <label className="flex items-center gap-2 text-sm text-slate-600" title={t('showEverythingHelp')}>
-                  <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={full} onChange={(e) => setFull(e.target.checked)} />
-                  {t('showEverything')}
-                </label>
+              <div className="flex-1" />
+              {/* The one main action: the next thing to fill in. Everything occasional sits in "⋯". */}
+              {!disabled && nextGap >= 0 && (
+                <Button type="button" onClick={() => openDay(nextGap)}>{t('nextMissing', { n: nextGap + 1 })}<ArrowRight size={16} aria-hidden /></Button>
               )}
-              {view === 'days' && !disabled && (
-                <Button type="button" size="sm" variant={listOpen ? 'secondary' : 'tertiary'} aria-pressed={listOpen}
-                  onClick={() => { setListOpen(!listOpen); setPicked(null) }}>
-                  <PanelLeft size={14} aria-hidden />{listOpen ? t('hideList') : t('addFromList')}
-                </Button>
-              )}
+              <Menu kind="more" label={t('moreActions')} items={[
+                { label: t('programmeDownload'), icon: <Download size={16} />, onClick: () => onDownload?.(), hidden: !onDownload },
+                { label: listOpen ? t('hideList') : t('addFromList'), icon: <PanelLeft size={16} />, hidden: disabled,
+                  onClick: () => { setView('days'); setListOpen(!listOpen); setPicked(null) } },
+                { label: full ? t('simpleView') : t('showEverything'), icon: <ListChecks size={16} />,
+                  onClick: () => { setView('days'); setFull(!full) } },
+                { label: t('mapOpen'), icon: <MapIcon size={16} />, onClick: () => tools.current.openMap?.(), hidden: !canMap },
+                { label: t('suggestKm'), icon: <MapPinned size={16} />, onClick: () => tools.current.suggestKm?.(), hidden: disabled || !days.some((d) => d.city.trim()) },
+                { label: t('recalcTimes'), icon: <Clock size={16} />, onClick: () => tools.current.recalc?.(), hidden: disabled || !days.some((d) => (d.schedule ?? []).length) },
+              ]} />
             </div>
-            <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} />
+            {/* Where the tour stands: plain text, nothing to press. */}
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-2">
+              <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
+              <BuildSteps days={days} />
+            </div>
           </div>
-          {view === 'days' && <BuildSteps days={days} onOpen={openDay} />}
           {view === 'days' && <DayStrip days={days} dates={dates} />}
           {view === 'check' && (
             // Every day on one screen: what is done, what is missing, days side by side.
@@ -356,7 +367,7 @@ function DayStrip({ days, dates }: { days: DayFields[]; dates?: string[] }) {
         return (
           <button type="button" key={i} onClick={() => jump(i)}
             title={[`${t('day')} ${i + 1}`, [...(d.stops ?? []), d.city].filter(Boolean).join(' → '), dates?.[i] && fmt(dates[i], lang)].filter(Boolean).join(' · ')}
-            className="flex shrink-0 items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-left text-xs hover:border-brand-400 hover:bg-brand-50">
+            className="flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-white hover:shadow-sm">
             <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[11px] font-semibold text-white">{i + 1}</span>
             <span className="max-w-[8rem] truncate font-medium text-slate-700">{d.city || '—'}</span>
             {(d.stops?.length ?? 0) > 0 && <span className="text-[11px] text-slate-500">+{d.stops!.length}</span>}
@@ -687,42 +698,38 @@ function MealSummary({ meal, day, menu, crew, dayNumber, onOpen }: {
   )
 }
 
-/** Four steps to a built tour - route, hotels, meals, activities - with what's done, and the next gap. */
-function BuildSteps({ days, onOpen }: { days: DayFields[]; onOpen: (i: number) => void }) {
+/** The next day with something missing (a night's hotel, lunch, dinner, the city), or -1. */
+const mealDone = (d: DayFields, m: 'lunch' | 'dinner') => (m === 'lunch' ? d.lunch_mode : d.dinner_mode) === 'own' || !!(m === 'lunch' ? d.lunch_id : d.dinner_id)
+const nextGapOf = (days: DayFields[]) =>
+  days.findIndex((d, i) => !d.city.trim() || (i < days.length - 1 && !d.hotel_id) || !mealDone(d, 'lunch') || !mealDone(d, 'dinner'))
+
+/** Where the build stands, as plain text: route, hotels, meals, activities (optional). */
+function BuildSteps({ days }: { days: DayFields[] }) {
   const { t } = useI18n()
   if (!days.length) return null
   const nights = days.slice(0, -1)
-  const route = days.filter((d) => d.city.trim()).length
-  const hotels = nights.filter((d) => d.hotel_id).length
-  const mealDone = (d: DayFields, m: 'lunch' | 'dinner') => (m === 'lunch' ? d.lunch_mode : d.dinner_mode) === 'own' || !!(m === 'lunch' ? d.lunch_id : d.dinner_id)
-  const meals = days.reduce((n, d) => n + (mealDone(d, 'lunch') ? 1 : 0) + (mealDone(d, 'dinner') ? 1 : 0), 0)
-  const acts = days.filter((d) => d.extras.length).length
-  const next = days.findIndex((d, i) => !d.city.trim() || (i < days.length - 1 && !d.hotel_id) || !mealDone(d, 'lunch') || !mealDone(d, 'dinner'))
   const steps: [string, number, number, boolean][] = [
-    [t('stepRoute'), route, days.length, false], [t('stepHotels'), hotels, nights.length, false],
-    [t('stepMeals'), meals, days.length * 2, false], [t('stepActivities'), acts, days.length, true],
+    [t('stepRoute'), days.filter((d) => d.city.trim()).length, days.length, false],
+    [t('stepHotels'), nights.filter((d) => d.hotel_id).length, nights.length, false],
+    [t('stepMeals'), days.reduce((n, d) => n + (mealDone(d, 'lunch') ? 1 : 0) + (mealDone(d, 'dinner') ? 1 : 0), 0), days.length * 2, false],
+    [t('stepActivities'), days.filter((d) => d.extras.length).length, days.length, true],
   ]
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
-      {steps.map(([label, n, total, optional], k) => {
+    <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" aria-label={t('buildProgress')}>
+      {steps.map(([label, n, total, optional]) => {
         const done = n >= total
         return (
-          <span key={label} className={cn('flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 text-sm',
-            done ? 'border-emerald-200' : optional ? 'border-slate-200' : 'border-amber-200')}>
-            {done ? <Check size={14} className="text-emerald-600" aria-hidden /> : <span className="text-xs font-semibold text-slate-400">{k + 1}</span>}
-            <span className="text-slate-700">{label}</span>
-            <span className={cn('rounded px-1.5 text-xs font-semibold tabular-nums', done ? 'bg-emerald-50 text-emerald-800' : optional ? 'text-slate-500' : 'bg-amber-50 text-amber-800')}>
-              {optional && !n ? t('stepOptional') : `${n}/${total}`}
+          <li key={label} className="flex items-center gap-1">
+            {done ? <Check size={14} className="text-emerald-600" aria-hidden />
+              : <span className={cn('h-2 w-2 rounded-full', optional ? 'bg-slate-300' : 'bg-amber-400')} aria-hidden />}
+            <span className="text-slate-600">{label}</span>
+            <span className={cn('tabular-nums', done ? 'text-emerald-700' : optional ? 'text-slate-500' : 'font-medium text-amber-800')}>
+              {optional && !n ? t('stepOptional') : done ? '' : `${n}/${total}`}
             </span>
-          </span>
+          </li>
         )
       })}
-      {next >= 0 ? (
-        <Button type="button" size="sm" variant="secondary" className="ml-auto" onClick={() => onOpen(next)}>
-          {t('nextMissing', { n: next + 1 })}<ArrowRight size={14} aria-hidden />
-        </Button>
-      ) : <span className="ml-auto flex items-center gap-1 text-sm font-medium text-emerald-700"><Check size={14} aria-hidden />{t('allDaysBuilt')}</span>}
-    </div>
+    </ul>
   )
 }
 
@@ -773,7 +780,7 @@ export function hours(min: number): string {
  * before) — what opening each day would do. Pinned times stay unless released. Days still "suggested"
  * are always up to date and are left alone.
  */
-function RecalcTimes({ days, byId, onChange }: { days: DayFields[]; byId: Map<string, Vendor>; onChange: (d: DayFields[]) => void }) {
+function RecalcTimes({ days, byId, onChange, tools }: { days: DayFields[]; byId: Map<string, Vendor>; onChange: (d: DayFields[]) => void; tools: { current: Tools } }) {
   const ws = useWorkspace()!
   const services = useServiceList()
   const { t } = useI18n()
@@ -782,6 +789,7 @@ function RecalcTimes({ days, byId, onChange }: { days: DayFields[]; byId: Map<st
   const [busy, setBusy] = useState(false)
   const arranged = days.filter((d) => d.schedule?.length).length
   const pinned = days.reduce((n, d) => n + (d.schedule ?? []).filter((x) => x.fixed && x.kind !== 'flight').length, 0)
+  tools.current.recalc = () => setOpen(true)
   if (!arranged) return null
   const run = async () => {
     setBusy(true)
@@ -798,9 +806,6 @@ function RecalcTimes({ days, byId, onChange }: { days: DayFields[]; byId: Map<st
     toast(changed ? 'recalcTimesDone' : 'recalcTimesSame')
   }
   return <>
-    <Tooltip label={t('recalcTimesTip')}>
-      <Button type="button" size="sm" variant="secondary" onClick={() => setOpen(true)}><Clock size={14} aria-hidden />{t('recalcTimes')}</Button>
-    </Tooltip>
     {open && (
       <Dialog title={t('recalcTimes')} onClose={() => !busy && setOpen(false)} footer={<>
         <Button variant="secondary" disabled={busy} onClick={() => setOpen(false)}>{t('cancel')}</Button>
@@ -902,9 +907,12 @@ function MiniLabel({ label, children }: { label: string; children: ReactNode }) 
   return <div className="space-y-1"><span className="block text-xs font-medium text-slate-500">{label}</span>{children}</div>
 }
 
-function DistanceBar({ days, disabled, onChange, byId, back = 0 }: {
+interface Tools { openMap?: () => void; suggestKm?: () => void; recalc?: () => void }
+
+function DistanceBar({ days, disabled, onChange, byId, back = 0, tools }: {
   days: DayFields[]; disabled?: boolean; onChange: (d: DayFields[]) => void; byId: Map<string, Vendor>
   back?: number   // km of the bus's drive back to its garage
+  tools: { current: Tools }
 }) {
   const ws = useWorkspace()!
   const { t } = useI18n()
@@ -941,9 +949,11 @@ function DistanceBar({ days, disabled, onChange, byId, back = 0 }: {
     ...(d.stops ?? []).filter((p) => p.trim()).map((p): MapStop => ({ place: p, label: p, kind: 'stop', day: i + 1 })),
     ...(d.city.trim() ? [{ place: d.city, label: d.city, kind: 'night', day: i + 1 } as MapStop] : []),
   ])
+  tools.current.openMap = () => setMapOpen(true)
+  tools.current.suggestKm = () => suggest.mutate()
   if (days.length < 2) return null
   return (
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm">
+    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 text-sm">
       <span className="flex items-center gap-2 font-medium"><Car size={16} className="text-slate-500" />{t('totalKm', { km: (total + back).toLocaleString('en-US') })}
         {back > 0 && <span className="text-xs font-normal text-slate-500">{t('kmWithBack', { km: back.toLocaleString('en-US') })}</span>}</span>
       {total > 0 && <span className="text-xs text-slate-500">{t('fuelEstimate', { l: fuel.toLocaleString('en-US'), per: ws.fuel_l_per_100km ?? 30 })}</span>}
@@ -961,18 +971,10 @@ function DistanceBar({ days, disabled, onChange, byId, back = 0 }: {
           <p>{t('kmSkippedHint')}</p>
         </div>
       )}
-      {mapStops.length > 1 && (
-        <Button type="button" size="sm" variant="secondary" onClick={() => setMapOpen(true)}><MapIcon size={14} aria-hidden />{t('mapOpen')}</Button>
-      )}
+      {suggest.isPending && <span className="text-xs text-slate-500">{t('askingMap')}</span>}
       {mapOpen && <TripMap stops={mapStops} title={t('mapTrip')} subtitle={t('mapTripSub', { days: days.length, km: total.toLocaleString('en-US') })}
         onClose={() => setMapOpen(false)} />}
-      {!disabled && <RecalcTimes days={days} byId={byId} onChange={onChange} />}
-      {!disabled && (
-        <Button type="button" size="sm" variant="secondary" disabled={suggest.isPending || days.every((d) => !d.city)} onClick={() => suggest.mutate()}
-          title={t('suggestKmHelp')}>
-          <MapPinned size={14} />{suggest.isPending ? t('askingMap') : t('suggestKm')}
-        </Button>
-      )}
+      {!disabled && <RecalcTimes days={days} byId={byId} onChange={onChange} tools={tools} />}
     </div>
   )
 }

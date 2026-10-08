@@ -1,7 +1,7 @@
 import { toFields } from '../components/DayProgramme'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, Drawer, Menu, useGuardedClose } from '../components/overlay'
-import { Ban, Calculator, Check, Download, Minus, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Ban, Calculator, Check, Minus, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { CodeChip } from '../components/tour'
@@ -362,12 +362,8 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
           <Link to={`/w/${ws.id}/routes?open=${tour.series_id}`} className="font-medium text-brand-700 hover:underline">{t('openRoute')}</Link>
         </p>
       )}
-      {/* The programme to send - from what is on screen, saved or not. */}
-      <div className="flex justify-end">
-        <Button size="sm" variant="secondary" onClick={() => setExporting(true)}><Download size={16} />{t('programmeDownload')}</Button>
-      </div>
       {exporting && <ProgrammeDialog title={tour.name || tour.code} startDate={tour.start_date} days={days} people={tour.pax} tourId={tour.id} onClose={() => setExporting(false)} />}
-      <ItineraryBuilder days={days} dates={tour.days.map((d) => d.date)} fixedLength disabled={!canEdit}
+      <ItineraryBuilder onDownload={() => setExporting(true)} days={days} dates={tour.days.map((d) => d.date)} fixedLength disabled={!canEdit}
         crew={{ pax: tour.pax, leaders: tour.leaders ?? 0, leaderSeat: tour.leader_seat, staff: tour.staff, share: tour.plate_share || ws.plate_share || 1 }}
         alerts={dirty ? [] : alerts.data ?? []} onChange={setDraft}
         busReturn={busReturn} onBusReturn={(b) => setBack(b)} />

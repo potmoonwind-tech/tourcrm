@@ -2896,6 +2896,8 @@ const en = {
   stepOptional: "optional",
   showChecklist: "Show checklist",
   hideChecklist: "Hide checklist",
+  simpleView: "Simple view",
+  buildProgress: "How far the tour is built",
 }
 
 type Dict = typeof en
@@ -5788,6 +5790,8 @@ const ka: Dict = {
   stepOptional: "სურვილისამებრ",
   showChecklist: "სიის ჩვენება",
   hideChecklist: "სიის დამალვა",
+  simpleView: "მარტივი ხედი",
+  buildProgress: "რამდენად არის ტური აწყობილი",
 }
 
 export type Lang = 'en' | 'ka'

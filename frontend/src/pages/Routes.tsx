@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SetupNudge } from '../components/GetStarted'
 import { Drawer, ask } from '../components/overlay'
-import { Download, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { blankDay, ItineraryBuilder } from '../components/ItineraryBuilder'
 import { ProgrammeDialog } from '../components/ProgrammeDialog'
@@ -153,11 +153,8 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
               </div>
             </div>
           </div>
-          <div className="flex justify-end">
-            <Button type="button" size="sm" variant="secondary" onClick={() => setExporting(true)}><Download size={16} />{t('programmeDownload')}</Button>
-          </div>
           {exporting && <ProgrammeDialog title={f.name || f.code} days={f.days} onClose={() => setExporting(false)} />}
-          <ItineraryBuilder days={f.days} disabled={!canEdit} onChange={(days) => setF({ ...f, days })}
+          <ItineraryBuilder onDownload={() => setExporting(true)} days={f.days} disabled={!canEdit} onChange={(days) => setF({ ...f, days })}
             busReturn={f.bus_return} onBusReturn={(bus_return) => setF({ ...f, bus_return })} />
         </fieldset>
         {!canEdit && <ErrorText error={save.error || remove.error} />}
