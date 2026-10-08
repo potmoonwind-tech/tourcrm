@@ -3,9 +3,10 @@
  * A series hotel is contracted once (an allotment), so it is confirmed, given to one person and
  * given its payment terms for every departure at once — or for the ticked ones.
  */
+import { SeriesEmailDialog } from '../components/EmailDialog'
 import { RouteStaff } from '../components/RouteStaff'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { ChevronDown } from 'lucide-react'
+import { ChevronDown, Mail } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { ask, Label } from '../components/overlay'
@@ -96,7 +97,7 @@ export function SeriesPage() {
           <h2 className="mb-2 text-sm font-semibold text-slate-600">{t('seriesBookings')}</h2>
           {book.isLoading ? <Spinner /> : (book.data ?? []).length === 0 ? <p className="text-sm text-slate-500">{t('seriesNoBookings')}</p> : (
             <div className="space-y-3">
-              {book.data!.map((g) => <Supplier key={g.vendor.id} g={g} seriesId={seriesId!} open={g.vendor.id === focus} />)}
+              {book.data!.map((g) => <Supplier key={g.vendor.id} g={g} seriesId={seriesId!} seriesCode={route?.code ?? ''} open={g.vendor.id === focus} />)}
             </div>
           )}
         </section>
@@ -105,13 +106,14 @@ export function SeriesPage() {
   )
 }
 
-function Supplier({ g, seriesId, open: openFirst }: { g: SeriesSupplier; seriesId: string; open: boolean }) {
+function Supplier({ g, seriesId, seriesCode, open: openFirst }: { g: SeriesSupplier; seriesId: string; seriesCode: string; open: boolean }) {
   const ws = useWorkspace()!
   const { t, lang } = useI18n()
   const qc = useQueryClient()
   const members = useMembers()
   const text = useDetailsText()
   const [open, setOpen] = useState(openFirst)
+  const [emailing, setEmailing] = useState(false)
   const [f, setF] = useState({ status: '', reference: '', assignee_id: '', pay_when: '' })
   const save = useMutation({
     mutationFn: () => api<SeriesSupplier[]>(wsPath(ws.id, `/series/${seriesId}/bookings`), {
@@ -140,7 +142,10 @@ function Supplier({ g, seriesId, open: openFirst }: { g: SeriesSupplier; seriesI
           <span className="text-xs text-slate-500">{t(`work_${g.kind}` as TKey)}</span>
         </button>
         <Label tone={all ? 'green' : g.confirmed ? 'orange' : 'grey'} wide={false}>{t('seriesConfirmedOf', { n: g.confirmed, total: g.total })}</Label>
+        {/* One email for every departure: each group with its tour number, dates and people. */}
+        <Button size="sm" variant="secondary" onClick={() => setEmailing(true)}><Mail size={14} aria-hidden />{t('seriesEmail')}</Button>
       </div>
+      {emailing && <SeriesEmailDialog seriesId={seriesId} vendorId={g.vendor.id} supplier={g.vendor.name} seriesCode={seriesCode} onClose={() => setEmailing(false)} />}
       <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 bg-slate-50/60 px-4 py-2.5 text-sm">
         <span className="text-xs font-medium text-slate-500">{t('seriesForAll', { n: g.total })}</span>
         <Select className="h-8 w-36 text-xs" value={f.status} onChange={(e) => setF({ ...f, status: e.target.value })} aria-label={t('status')}>

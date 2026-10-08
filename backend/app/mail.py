@@ -28,7 +28,7 @@ def share_any(menu, t, agency_share: int) -> bool:
     return dish_util.sharing(menu.dishes, t.plate_share, agency_share)
 
 PROVIDERS = {"gmail": ("smtp.gmail.com", 587), "outlook": ("smtp-mail.outlook.com", 587)}
-KINDS = ("booking_request", "booking_change", "booking_cancel", "restaurant", "payment")
+KINDS = ("booking_request", "booking_change", "booking_cancel", "restaurant", "payment", "series_request")
 LANGS = ("en", "ka", "ru")
 
 
@@ -124,6 +124,18 @@ def send(host: str, port: int, username: str, password: str, *, sender: str, fro
 # --- templates ---------------------------------------------------------------------------------------
 
 DEFAULTS: dict[str, dict[str, tuple[str, str]]] = {
+    # One supplier, a whole route's departures in one email: each group with its tour number, dates and people.
+    "series_request": {
+        "en": ("Booking request · series {series} · {count} groups · {dates}",
+               "Dear {supplier},\n\nWe would like to book for our series {series} - {count} groups:\n\n{departures}\n\n{notes}"
+               "Please confirm availability and the price for each group, and send us your confirmation numbers.\n\nThank you,\n{signature}"),
+        "ka": ("ჯავშნის მოთხოვნა · სერია {series} · {count} ჯგუფი · {dates}",
+               "მოგესალმებით, {supplier}!\n\nგვსურს დავჯავშნოთ ჩვენი სერიისთვის {series} - {count} ჯგუფი:\n\n{departures}\n\n{notes}"
+               "გთხოვთ, დაგვიდასტუროთ ადგილები და ფასი თითოეული ჯგუფისთვის და გამოგვიგზავნოთ დადასტურების ნომრები.\n\nმადლობა,\n{signature}"),
+        "ru": ("Запрос на бронирование · серия {series} · групп: {count} · {dates}",
+               "Здравствуйте, {supplier}!\n\nПросим забронировать для нашей серии {series} (групп: {count}):\n\n{departures}\n\n{notes}"
+               "Пожалуйста, подтвердите наличие и цену для каждой группы и пришлите номера подтверждения.\n\nСпасибо,\n{signature}"),
+    },
     "booking_request": {
         "en": ("Booking request · {group} · {dates}",
                "Dear {supplier},\n\nWe would like to book for our group {group} ({pax} people):\n\n{what}\n\n{notes}"
@@ -181,24 +193,25 @@ DEFAULTS: dict[str, dict[str, tuple[str, str]]] = {
     },
 }
 PLACEHOLDERS = ("supplier", "contact", "group", "tour_code", "client", "pax", "dates", "check_in", "check_out", "nights",
-                "rooms", "what", "reference", "reference_line", "notes", "my_name", "agency", "signature")
+                "rooms", "what", "reference", "reference_line", "notes", "my_name", "agency", "signature",
+                "series", "count", "departures")     # the last three: a series email
 
 WORDS = {
     "en": {"night": "night", "nights": "nights", "rooms": "Rooms", "breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner", "people": "people",
            "check_in": "Check-in", "check_out": "check-out", "tourists_pay": "the guests pay on the spot",
            "staff": "plus guide and driver", "days": "days", "ref": "your ref.",
            "plate_rule": "one plate per {n} people ({plates} plates of each dish)", "plates": "plates",
-           "staff_rooms": "Driver and guide", "staff_table": "separate staff table"},
+           "staff_rooms": "Driver and guide", "staff_table": "separate staff table", "tour": "Tour"},
     "ka": {"night": "ღამე", "nights": "ღამე", "rooms": "ოთახები", "breakfast": "საუზმე", "lunch": "სადილი", "dinner": "ვახშამი", "people": "ადამიანი",
            "check_in": "შესვლა", "check_out": "გასვლა", "tourists_pay": "სტუმრები იხდიან ადგილზე",
            "staff": "პლუს გიდი და მძღოლი", "days": "დღე", "ref": "თქვენი ნომერი",
            "plate_rule": "ერთი თეფში {n} ადამიანზე (თითო კერძი {plates} თეფში)", "plates": "თეფში",
-           "staff_rooms": "მძღოლი და გიდი", "staff_table": "ცალკე მაგიდა პერსონალისთვის"},
+           "staff_rooms": "მძღოლი და გიდი", "staff_table": "ცალკე მაგიდა პერსონალისთვის", "tour": "ტური"},
     "ru": {"night": "ночь", "nights": "ночи", "rooms": "Номера", "breakfast": "Завтрак", "lunch": "Обед", "dinner": "Ужин", "people": "чел.",
            "check_in": "Заезд", "check_out": "выезд", "tourists_pay": "гости оплачивают на месте",
            "staff": "плюс гид и водитель", "days": "дн.", "ref": "ваш номер",
            "plate_rule": "одна тарелка на {n} чел. ({plates} тарелок каждого блюда)", "plates": "тарелок",
-           "staff_rooms": "Водитель и гид", "staff_table": "отдельный стол для персонала"},
+           "staff_rooms": "Водитель и гид", "staff_table": "отдельный стол для персонала", "tour": "Тур"},
 }
 MONTHS = {"en": "Jan Feb Mar Apr May Jun Jul Aug Sep Oct Nov Dec".split(),
           "ka": "იან თებ მარ აპრ მაი ივნ ივლ აგვ სექ ოქტ ნოე დეკ".split(),
@@ -272,6 +285,34 @@ def booking_values(t, b, u, lang: str, *, my_name: str, agency: str, signature: 
         "what": "\n".join(f"• {x}" for x in lines) or "•",
         "reference": b.reference or "", "reference_line": f" ({w['ref']} {b.reference})" if b.reference else "",
         "notes": f"{b.note.strip()}\n\n" if b.note and b.note.strip() else "",
+        "my_name": my_name, "agency": agency, "signature": signature.strip() or f"{my_name}\n{agency}",
+    }
+
+
+def series_values(series, rows: list, lang: str, *, my_name: str, agency: str, signature: str, agency_share: int = 1) -> dict[str, str]:
+    """A series email: one supplier, each departure as its own numbered block - the tour's number, dates
+    and people, then what it needs (check-in/out, nights, rooms, meals) as in a single tour's email."""
+    w = WORDS[lang]
+    blocks, firsts, lasts, notes = [], [], [], []
+    for i, (t, b, u) in enumerate(rows, 1):
+        v = booking_values(t, b, u, lang, my_name=my_name, agency=agency, signature=signature, agency_share=agency_share)
+        what = "\n".join(f"   {x}" for x in v["what"].split("\n") if x.strip() not in ("", "•"))
+        ref = f" · {w['ref']} {b.reference}" if b.reference else ""
+        blocks.append(f"{i}. {w['tour']} {t.code} · {v['dates']} · {v['pax']} {w['people']}{ref}" + (f"\n{what}" if what else ""))
+        # The supplier's own dates: first check-in (or first use) to last check-out.
+        stays = (u.details(t) if u is not None else {}).get("stays") or []
+        firsts.append(date.fromisoformat(stays[0]["check_in"]) if stays else (min(u.dates) if u and u.dates else t.start_date))
+        lasts.append(date.fromisoformat(stays[-1]["check_out"]) if stays else (max(u.dates) if u and u.dates else t.end_date))
+        if b.note and b.note.strip() and b.note.strip() not in notes:
+            notes.append(b.note.strip())
+    first, last = (min(firsts), max(lasts)) if firsts else (None, None)
+    v0 = rows[0][1].vendor if rows else None
+    return {
+        "supplier": (v0.contact_person or v0.name) if v0 else "", "contact": (v0.contact_person or "") if v0 else "",
+        "series": series.code + (f" ({series.name})" if series.name else ""), "count": str(len(rows)),
+        "departures": "\n\n".join(blocks),
+        "dates": "" if first is None else d_(first, lang) if first == last else f"{d_(first, lang)} – {d_(last, lang)}",
+        "notes": "\n".join(notes) + "\n\n" if notes else "",
         "my_name": my_name, "agency": agency, "signature": signature.strip() or f"{my_name}\n{agency}",
     }
 

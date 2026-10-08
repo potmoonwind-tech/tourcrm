@@ -1,5 +1,5 @@
 """Email from the CRM: your mailbox, the agency's templates, a booking's email filled in, sending, the log."""
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, EmailStr, Field
@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from .. import bookings as bk, mail, ratelimit
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_jobs, require_role
-from ..models import MailAccount, MailLog, MailTemplate, Tour, TourBooking, utcnow
+from ..models import MailAccount, MailLog, MailTemplate, Series, Tour, TourBooking, utcnow
 from .people import rooming_filename, rooming_xlsx
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["mail"])
@@ -197,6 +197,62 @@ def email_draft(tour_id: str, booking_id: str, body: DraftIn, ctx: WorkspaceCtx 
                     can_attach_rooming=b.vendor.type == "hotel" and bool(t.participants))
 
 
+# --- a series: one supplier, every (or some) departure in one email -----------------------------------
+
+class SeriesDraftIn(BaseModel):
+    language: str | None = None
+    tour_ids: list[str] | None = None        # None: every upcoming departure
+
+
+class SeriesDraftTour(BaseModel):
+    tour_id: str
+    booking_id: str
+    code: str
+    start_date: date
+    status: str
+    included: bool                           # in this email
+
+
+class SeriesDraftOut(BaseModel):
+    language: str
+    to: str
+    subject: str
+    body: str
+    has_account: bool
+    tours: list[SeriesDraftTour]
+
+
+@router.post("/series/{series_id}/bookings/{vendor_id}/email-draft", response_model=SeriesDraftOut)
+def series_email_draft(series_id: str, vendor_id: str, body: SeriesDraftIn, ctx: WorkspaceCtx = Depends(office),
+                       db: Session = Depends(get_db)):
+    """One booking request to a supplier for a route's departures: each with its tour number, dates and people."""
+    from .bookings import _series_tours
+    lang = body.language or (ctx.workspace.language if ctx.workspace.language in mail.LANGS else "en")
+    _check_kind("series_request", lang)
+    s = db.scalar(select(Series).where(Series.id == series_id, Series.workspace_id == ctx.workspace.id))
+    tours, rows, vendor = [], [], None
+    for t in _series_tours(db, ctx, series_id):
+        bookings, used = bk.sync(db, t)
+        b = next((x for x in bookings if x.vendor_id == vendor_id and x.status != "cancelled"), None)
+        if b is None:
+            continue
+        vendor = b.vendor
+        inside = body.tour_ids is None or t.id in body.tour_ids
+        tours.append(SeriesDraftTour(tour_id=t.id, booking_id=b.id, code=t.code, start_date=t.start_date, status=b.status, included=inside))
+        if inside:
+            rows.append((t, b, used.get(vendor_id)))
+    db.commit()
+    if s is None or vendor is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No upcoming departure uses this supplier")
+    tpl = _templates(db, ctx.workspace.id)[("series_request", lang)]
+    acc = _mine(db, ctx)
+    values = mail.series_values(s, rows, lang, my_name=(acc.from_name if acc else "") or ctx.user.full_name,
+                                agency=ctx.workspace.name, signature=acc.signature if acc else "",
+                                agency_share=ctx.workspace.plate_share or 1)
+    return SeriesDraftOut(language=lang, to=vendor.email or "", subject=mail.fill(tpl.subject, values),
+                          body=mail.fill(tpl.body, values), has_account=acc is not None, tours=tours)
+
+
 # --- sending -----------------------------------------------------------------------------------------
 
 class SendIn(BaseModel):
@@ -209,6 +265,7 @@ class SendIn(BaseModel):
     kind: str = Field(default="", max_length=30)
     mark_requested: bool = True      # a booking still "to book" becomes "requested"
     attach_rooming: bool = False     # the tour's rooming list (Excel) goes along
+    booking_ids: list[str] = Field(default_factory=list, max_length=60)   # a series email: each departure's booking
 
 
 class LogOut(BaseModel):
@@ -243,9 +300,13 @@ def send_mail(body: SendIn, ctx: WorkspaceCtx = Depends(office), db: Session = D
         t = db.scalar(select(Tour).where(Tour.id == body.tour_id, Tour.workspace_id == ctx.workspace.id))
         if t is None:
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Tour not found")
-    log = MailLog(workspace_id=ctx.workspace.id, user_id=ctx.user.id, tour_id=t.id if t else None,
-                  vendor_id=b.vendor_id if b else None, kind=body.kind, sender=acc.email, to=", ".join(body.to),
-                  cc=", ".join(body.cc), subject=body.subject, body=body.body)
+    # A series email: every departure's booking, each checked to be this agency's.
+    series = [] if body.booking_id else [
+        (x, x.tour) for x in db.scalars(select(TourBooking).join(Tour).where(
+            TourBooking.id.in_(body.booking_ids), Tour.workspace_id == ctx.workspace.id))] if body.booking_ids else []
+    log = MailLog(workspace_id=ctx.workspace.id, user_id=ctx.user.id, tour_id=t.id if t else (series[0][1].id if series else None),
+                  vendor_id=b.vendor_id if b else (series[0][0].vendor_id if series else None), kind=body.kind, sender=acc.email,
+                  to=", ".join(body.to), cc=", ".join(body.cc), subject=body.subject, body=body.body)
     password = mail.unseal(acc.secret_enc)
     try:
         if password is None:
@@ -264,6 +325,13 @@ def send_mail(body: SendIn, ctx: WorkspaceCtx = Depends(office), db: Session = D
     if b is not None and body.mark_requested and b.status == "to_book":
         b.status = "requested"
     db.add(log)
+    # The series email shows on each departure's booking too; each becomes "requested".
+    for sb, st in series[1:]:
+        db.add(MailLog(workspace_id=ctx.workspace.id, user_id=ctx.user.id, tour_id=st.id, vendor_id=sb.vendor_id, kind=body.kind,
+                       sender=acc.email, to=log.to, cc=log.cc, subject=body.subject, body=body.body))
+    for sb, _ in series:
+        if body.mark_requested and sb.status == "to_book":
+            sb.status = "requested"
     db.commit()
     return _log_out(log)
 

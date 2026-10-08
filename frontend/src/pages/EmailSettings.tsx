@@ -4,7 +4,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, ExternalLink, Mail, RotateCcw } from 'lucide-react'
 import { useEffect, useState, type FormEvent } from 'react'
-import { MAIL_KINDS, MAIL_LANGS } from '../components/EmailDialog'
+import { MAIL_LANGS, TEMPLATE_KINDS } from '../components/EmailDialog'
 import { ask } from '../components/overlay'
 import { Button, Card, ErrorText, Field, Input, Select } from '../components/ui'
 import { api, can } from '../lib/api'
@@ -18,7 +18,9 @@ import { PageHeader } from './Dashboard'
 interface Account { connected: boolean; provider: string; email: string; from_name: string; smtp_host: string; smtp_port: number; signature: string; last_ok_at: string | null }
 interface Template { kind: string; language: string; subject: string; body: string; custom: boolean }
 
-const PLACEHOLDERS = ['supplier', 'group', 'pax', 'dates', 'check_in', 'check_out', 'nights', 'rooms', 'what', 'reference', 'notes', 'client', 'my_name', 'agency', 'signature']
+const PLACEHOLDERS = ['supplier', 'contact', 'group', 'tour_code', 'pax', 'dates', 'check_in', 'check_out', 'nights', 'rooms', 'what', 'reference', 'notes', 'client', 'my_name', 'agency', 'signature']
+// A series email's own: the route, how many groups, and each departure's block.
+const SERIES_PLACEHOLDERS = ['supplier', 'series', 'count', 'departures', 'dates', 'notes', 'my_name', 'agency', 'signature']
 
 export function EmailSettingsPage() {
   const ws = useWorkspace()!
@@ -164,7 +166,7 @@ function TemplatesCard({ canEdit }: { canEdit: boolean }) {
       <h2 className="font-semibold">{t('templatesTitle')}</h2>
       <p className="mt-1 text-sm text-slate-600">{t('templatesHelp')}</p>
       <div className="mt-4 flex flex-wrap gap-2" role="tablist" aria-label={t('emailTemplate')}>
-        {MAIL_KINDS.map((k) => (
+        {TEMPLATE_KINDS.map((k) => (
           <button key={k} type="button" role="tab" aria-selected={kind === k} onClick={() => setKind(k)}
             className={cn('rounded-full border px-3 py-1.5 text-sm', kind === k ? 'border-brand-500 bg-brand-50 font-medium text-brand-900' : 'border-slate-200 text-slate-700 hover:border-slate-300')}>
             {t(`mailKind_${k}` as TKey)}
@@ -187,7 +189,7 @@ function TemplatesCard({ canEdit }: { canEdit: boolean }) {
             <textarea value={f.body} onChange={(e) => setF({ ...f, body: e.target.value })} rows={12}
               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 font-mono text-[13px] leading-relaxed text-slate-800 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100" />
           </Field>
-          <p className="text-xs text-slate-600">{t('templatesPlaceholders')} {PLACEHOLDERS.map((p) => <code key={p} className="mr-1 rounded bg-slate-100 px-1">{`{${p}}`}</code>)}</p>
+          <p className="text-xs text-slate-600">{t('templatesPlaceholders')} {(kind === 'series_request' ? SERIES_PLACEHOLDERS : PLACEHOLDERS).map((p) => <code key={p} className="mr-1 rounded bg-slate-100 px-1">{`{${p}}`}</code>)}</p>
           <ErrorText error={save.error || reset.error} />
           {canEdit && (
             <div className="flex flex-wrap items-center gap-2">

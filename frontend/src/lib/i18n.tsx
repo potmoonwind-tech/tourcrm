@@ -2802,6 +2802,12 @@ const en = {
   mpAddPerson: "Add a person",
   mpPersonPh: "Photographer",
   mpTapToMove: "Tap a person to move them to the other table",
+  mailKind_series_request: "Series booking request",
+  emailCopy: "Copy text",
+  emailNoAccountCopy: "Copy the text and send it from your own email or WhatsApp - or connect your mailbox to send from here.",
+  seriesEmail: "Email",
+  seriesEmailTitle: "{name} · series {code}",
+  seriesEmailDepartures: "Departures in this email: {n} of {total} (tap to leave one out)",
 }
 
 type Dict = typeof en
@@ -5600,6 +5606,12 @@ const ka: Dict = {
   mpAddPerson: "ადამიანის დამატება",
   mpPersonPh: "ფოტოგრაფი",
   mpTapToMove: "დააჭირეთ ადამიანს, რომ მეორე მაგიდასთან გადასვათ",
+  mailKind_series_request: "სერიის ჯავშნის მოთხოვნა",
+  emailCopy: "ტექსტის კოპირება",
+  emailNoAccountCopy: "დააკოპირეთ ტექსტი და გაგზავნეთ თქვენი ელფოსტიდან ან WhatsApp-ით - ან დააკავშირეთ ფოსტა, რომ აქედან გაგზავნოთ.",
+  seriesEmail: "წერილი",
+  seriesEmailTitle: "{name} · სერია {code}",
+  seriesEmailDepartures: "გასვლები ამ წერილში: {n} / {total} (დააჭირეთ, რომ ამოიღოთ)",
 }
 
 export type Lang = 'en' | 'ka'

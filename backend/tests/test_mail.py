@@ -131,3 +131,34 @@ def test_the_rooming_list_goes_to_the_hotel(make_client):
     assert r.status_code == 200, r.text
     [att] = list(SENT[-1].iter_attachments())
     assert att.get_filename() == "ZK-1011-rooming-list.xlsx" and len(att.get_content()) > 1000
+
+
+def test_one_email_for_the_whole_series(make_client):
+    from datetime import date, timedelta
+    c, base, _ = agency(make_client)
+    hotel = mk(c, f"{base}/vendors", {"name": "Rooms Hotel", "type": "hotel", "email": "res@rooms.ge", "contact_person": "Nino"})
+    route = mk(c, f"{base}/series", {"code": "HM", "name": "Highlights", "days": [{"city": "Tbilisi", "hotel_id": hotel["id"]}, {"city": "Tbilisi"}]})
+    soon = date.today() + timedelta(days=40)
+    tours = [mk(c, f"{base}/tours", {"series_id": route["id"], "start_date": (soon + timedelta(days=7 * i)).isoformat(), "pax": 10 + i, "rooms": "5 DBL"})
+             for i in range(3)]
+    d = c.post(f"{base}/series/{route['id']}/bookings/{hotel['id']}/email-draft", json={"language": "en"}).json()
+    assert d["to"] == "res@rooms.ge" and len(d["tours"]) == 3 and all(x["included"] for x in d["tours"])
+    assert d["subject"].startswith("Booking request · series HM (Highlights) · 3 groups")
+    # Each departure: its number, the tour's code, dates and people.
+    assert "1. Tour " + tours[0]["code"] in d["body"] and "11 people" in d["body"] and "3. Tour " + tours[2]["code"] in d["body"]
+    assert "Check-in" in d["body"] and "Dear Nino" in d["body"]
+    # Only two of them.
+    two = c.post(f"{base}/series/{route['id']}/bookings/{hotel['id']}/email-draft",
+                 json={"language": "en", "tour_ids": [tours[0]["id"], tours[2]["id"]]}).json()
+    assert "2 groups" in two["subject"] and tours[1]["code"] not in two["body"]
+    # Sent once; every departure's booking becomes requested and shows the email.
+    c.put(f"{base}/mail/account", json={"provider": "gmail", "email": "nino@gmail.com", "password": "abcd abcd abcd abcd"})
+    ids = [x["booking_id"] for x in d["tours"]]
+    r = c.post(f"{base}/mail/send", json={"to": ["res@rooms.ge"], "subject": d["subject"], "body": d["body"],
+                                          "kind": "series_request", "booking_ids": ids})
+    assert r.status_code == 200, r.text
+    assert len(SENT) == 1
+    for x in tours:
+        b = next(b for b in c.get(f"{base}/tours/{x['id']}/bookings").json()["bookings"] if b["vendor"]["id"] == hotel["id"])
+        assert b["status"] == "requested"
+        assert len(c.get(f"{base}/mail/log?tour_id={x['id']}").json()) == 1
