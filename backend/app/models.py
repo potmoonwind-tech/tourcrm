@@ -271,6 +271,8 @@ class _DayFields:
     schedule: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     # Who sits elsewhere than usual at a meal: {"dinner": {"leader": "staff", "<staff id>": "none"}} (app/seating.py).
     seating: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
+    # This tour's own dishes for a meal, instead of the chosen menu's: {"dinner": [{name, per_plate, price}]}.
+    meal_dishes: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
     # Where the driver and guide sleep after this day: "none" (not counted), "same" (the group's hotel),
     # "own" (staff_hotel_id: another hotel, or the same one at a staff price), "free" (the hotel gives it).
     staff_stay: Mapped[str] = mapped_column(String(10), default="none", server_default="none")

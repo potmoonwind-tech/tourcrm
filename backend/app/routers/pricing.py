@@ -212,3 +212,36 @@ def price_catalog(on: date | None = None, pax: int | None = None, type: VendorTy
                                price=r.price if r else None, currency=r.currency if r else None, rate_id=r.id if r else None))
     return rows
 
+
+
+class MenuSave(BaseModel):
+    menu_id: str | None = None          # the menu to update; None = a new one ("Barbarestan · Dinner 2")
+    meal: Literal["breakfast", "lunch", "dinner"] = "dinner"
+    name: str | None = Field(default=None, max_length=200)
+    dishes: list[Dish] = Field(min_length=1, max_length=40)
+
+
+class MenuSaved(BaseModel):
+    id: str
+    name: str
+
+
+@router.post("/vendors/{vendor_id}/menu", response_model=MenuSaved)
+def save_menu(vendor_id: str, body: MenuSave, ctx: WorkspaceCtx = Depends(can_ope), db: Session = Depends(get_db)):
+    """A tour's dishes for a meal kept as the restaurant's menu, for the next tours: the chosen set menu
+    updated, or a new one (its prices stay as the catalogue has them)."""
+    v = _vendor(db, ctx, vendor_id)
+    raw = [x.model_dump() for x in body.dishes]
+    svc = next((s for s in v.services if s.id == body.menu_id and not s.code), None) if body.menu_id else None
+    if svc is None:
+        word = {"breakfast": "Breakfast", "lunch": "Lunch", "dinner": "Dinner"}[body.meal]
+        taken = {s.name for s in v.services}
+        n = 1
+        while f"{v.name} · {word} {n}" in taken:
+            n += 1
+        svc = Service(vendor_id=v.id, code=None, name=(body.name or f"{v.name} · {word} {n}")[:200], category="meal",
+                      unit="person", notes="", is_active=True)
+        v.services.append(svc)
+    svc.dishes = dishes.normalize(raw)
+    db.commit()
+    return MenuSaved(id=svc.id, name=svc.name)

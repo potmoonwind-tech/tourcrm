@@ -321,15 +321,22 @@ def _plan(t: Tour, services: dict[str, Service], ctx: _Ctx) -> list[_Plan]:
             crew = seat.staff
             with_us = sum(n for r, n in seat.group_roles.items() if r != "leader")     # staff at the group's table
             if vendor and pax:
-                if crew:
-                    # Their own table: leader + driver + guide, at the restaurant's staff price when it has one.
+                staff_price = bool(crew) and catalog.service_by_code(vendor, "staff_meal") is not None
+                if staff_price:
+                    # Their own table at the restaurant's staff price: a line of its own.
                     plans.append(_Plan(f"{meal}_staff:{d.id}", vendor, "meal", f"{meal} · staff table × {crew}", d.date, None,
-                                       Decimal(crew), "staff_meal" if catalog.service_by_code(vendor, "staff_meal") else meal))
-                n = seat.group
-                what = f"{meal} × {n}" + (f" ({n - with_us} + {with_us} staff)" if with_us else "")
+                                       Decimal(crew), "staff_meal"))
+                    n = seat.group
+                    what = f"{meal} × {n}" + (f" ({n - with_us} + {with_us} staff)" if with_us else "")
+                else:
+                    # One price for everyone: one line (the tables only decide the plates).
+                    n = seat.group + crew
+                    staff = with_us + crew
+                    what = f"{meal} × {n}" + (f" ({n - staff} + {staff} staff)" if staff else "")
                 if menu is not None and menu.vendor_id == vendor.id:
-                    shared = dish_util.plate_total(menu.dishes, int(n), t.plate_share, ctx.plate_share) \
-                        if dish_util.sharing(menu.dishes, t.plate_share, ctx.plate_share) else None
+                    served = dish_util.served(d, meal, menu)      # this tour's own dishes, else the menu's
+                    shared = dish_util.plate_total(served, int(n), t.plate_share, ctx.plate_share) \
+                        if dish_util.sharing(served, t.plate_share, ctx.plate_share) else None
                     if shared is not None:
                         # Family style: so many plates of each dish, not a price per person.
                         share = t.plate_share or ctx.plate_share or 1

@@ -111,7 +111,8 @@ def test_staff_on_the_tour_eat_with_the_group(make_client):
         mk(c, f"{base}/tours/{tid}/staff", {"vendor_id": v["id"], "role": role})
     c.post(f"{base}/tours/{tid}/costs/generate")
     lines = c.get(f"{base}/tours/{tid}/costs").json()["lines"]
-    assert any(x["description"] == "dinner × 15 (13 + 2 staff)" for x in lines)
+    # Two tables by default (12 tourists; leader, guide and driver): one price, so one line of 15.
+    assert any(x["description"] == "dinner × 15 (12 + 3 staff)" for x in lines)
     dinner = next(x for x in c.get(f"{base}/tours/{tid}/budget").json()["lines"] if x["name"] == "Dinner: Supra")
     assert dinner["status"] == "on_budget"
 

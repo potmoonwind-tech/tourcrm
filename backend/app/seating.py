@@ -17,14 +17,16 @@ SEATED = MEAL_STAFF | {"transport"}
 SEATS = ("group", "staff", "none")
 
 
+# The usual: two tables - the group, and the staff's (tour leaders, guide, driver). A bus company's driver
+# eats with us only when seated. A meal can seat anyone elsewhere (the day's `seating`).
 def leader_seat(t) -> str:
-    return t.leader_seat or ("staff" if t.staff_table else "group")
+    return t.leader_seat or "staff"
 
 
 def seat_of(a, t) -> str:
     if a.role == "transport":
         return a.meal_seat or "none"
-    return a.meal_seat or ("staff" if t.staff_table else "group")
+    return a.meal_seat or "staff"
 
 
 def _role(a) -> str:
@@ -45,9 +47,14 @@ class Seating:
 
 
 def changed(t, day: int, meal: str | None) -> dict:
-    """Who sits elsewhere than usual at this meal."""
+    """Who sits elsewhere than usual at this meal (and its extra guests, under "_extra")."""
     d = next((x for x in t.days if x.day_number == day), None) if meal else None
     return dict(((d.seating or {}).get(meal) or {})) if d is not None else {}
+
+
+def extras(o: dict) -> list[dict]:
+    """A meal's extra guests: [{"name": "Photographer", "seat": "staff"}]."""
+    return [x for x in (o.get("_extra") or []) if isinstance(x, dict) and x.get("seat") in ("group", "staff")]
 
 
 def people(t, day: int, meal: str | None, pax: int) -> list[dict]:
@@ -61,6 +68,8 @@ def people(t, day: int, meal: str | None, pax: int) -> list[dict]:
         if a.role in SEATED and a.covers(day):
             out.append({"key": a.id, "role": a.role, "name": a.vendor.name if a.vendor else "", "count": 1,
                         "seat": o.get(a.id) or seat_of(a, t), "usual": seat_of(a, t)})
+    for i, x in enumerate(extras(o)):
+        out.append({"key": f"_extra:{i}", "role": "guest", "name": str(x.get("name") or ""), "count": 1, "seat": x["seat"], "usual": x["seat"]})
     return out
 
 
@@ -85,4 +94,6 @@ def tables(t, day: int, pax: int, meal: str | None = None) -> Seating:
     for a in t.staff:
         if a.role in SEATED and a.covers(day):
             put(o.get(a.id) or seat_of(a, t), _role(a), 1)
+    for x in extras(o):
+        put(x["seat"], "guest", 1)
     return s

@@ -237,20 +237,21 @@ def booking_values(t, b, u, lang: str, *, my_name: str, agency: str, signature: 
             if getattr(d, f"{meal}_id") == b.vendor_id and (getattr(d, f"{meal}_mode") or "included") not in ("own", "hotel"):
                 extra = f" ({w['tourists_pay']})" if getattr(d, f"{meal}_mode") == "tourists" else ""
                 menu = getattr(d, f"{meal}_menu")
+                served = dish_util.served(d, meal, menu)       # this tour's own dishes, else the menu's
                 # Who sits where: the group's table (with the staff who eat with them), and the staff table.
                 seat = seating.tables(t, d.day_number, people, meal)
                 plates = lambda share: " + ".join(str(dish_util.plates(n, share)) for n in seat.tables)    # noqa: E731
-                if menu is not None and dish_util.sharing(menu.dishes, t.plate_share, agency_share):
+                if served and dish_util.sharing(served, t.plate_share, agency_share):
                     # Family style: the restaurant needs the plates, dish by dish (each table its own).
                     share = t.plate_share or agency_share
                     extra += f" · {w['plate_rule'].format(n=share, plates=plates(share))}"
                 if seat.staff:
                     extra += f" · {w['staff_table']} × {seat.staff}"
                 lines.append(f"{w[meal]}: {d_(d.date, lang)} · {seat.group} {w['people']}{extra}")
-                if menu is not None:
-                    for x in dish_util.normalize(menu.dishes):
+                if served:
+                    for x in dish_util.normalize(served):
                         s = dish_util.share_of(x, t.plate_share, agency_share)
-                        lines.append(f"   – {x['name']}" + (f": {plates(s)} {w['plates']}" if s > 1 or share_any(menu, t, agency_share) else ""))
+                        lines.append(f"   – {x['name']}" + (f": {plates(s)} {w['plates']}" if s > 1 or dish_util.sharing(served, t.plate_share, agency_share) else ""))
     for name, days in (det.get("services") or {}).items():
         lines.append(f"{name} × {days} {w['days']}")
     for s in det.get("staff") or []:

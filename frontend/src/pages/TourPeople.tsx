@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { SeatGrid, type SeatRow } from '../components/SeatGrid'
 import { ask, Dialog, toast } from '../components/overlay'
 import { AlertTriangle, ArrowRightLeft, BedDouble, Copy, Download, MessageCircle, Plus, Smartphone, Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
@@ -13,7 +12,7 @@ import { Tooltip } from '../components/Tooltip'
 import { QuickVendorDialog } from '../components/QuickAdd'
 import { Button, Card, ErrorText, Input, SegmentedControl, Select } from '../components/ui'
 import { RoomsBoard } from '../components/RoomsBoard'
-import { api, ROLE_VENDOR_TYPES, ROOM_TYPES, STAFF_ROLES, type Participant, type RoomingSummary, type StaffAssignment, type StaffRole, type Tour, MEAL_STAFF_ROLES, type MealSeat } from '../lib/api'
+import { api, ROLE_VENDOR_TYPES, ROOM_TYPES, STAFF_ROLES, type Participant, type RoomingSummary, type StaffAssignment, type StaffRole, type Tour } from '../lib/api'
 import { useVendors, wsPath } from '../lib/data'
 import { addDays, diffDays } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
@@ -301,7 +300,6 @@ export function StaffTab({ tour }: { tour: Tour }) {
         {handFor && <HandOver tour={tour} staff={handFor} onClose={() => setHandFor(null)} onDone={refresh} />}
         {linkFor && <PhoneLinkDialog tourId={tour.id} staff={linkFor} live={links.data?.find((x) => x.staff_id === linkFor.id)} onClose={() => setLinkFor(null)} />}
       </Card>
-      <EatsWhere tour={tour} onSaved={refresh} />
       <TeamChanges tourId={tour.id} code={tour.code} />
 
       {quickAdd && <QuickVendorDialog type={ROLE_VENDOR_TYPES[form.role][0]} onCreated={(v) => setForm({ ...form, vendor_id: v.id })} onClose={() => setQuickAdd(false)} />}
@@ -396,36 +394,3 @@ function PhoneLinkDialog({ tourId, staff, live, onClose }: { tourId: string; sta
   )
 }
 
-
-/** Where each person usually eats - the tour leaders, each guide, driver, assistant. One meal can differ
- * (Meals tab); costs, plates and the restaurant's email count each table from this. */
-function EatsWhere({ tour, onSaved }: { tour: Tour; onSaved: () => void }) {
-  const ws = useWorkspace()!
-  const { t } = useI18n()
-  const usual = (tour.staff_table ? 'staff' : 'group') as MealSeat
-  const save = useMutation({
-    mutationFn: ({ key, seat }: { key: string; seat: MealSeat }) => key === 'leader'
-      ? api(wsPath(ws.id, `/tours/${tour.id}`), { method: 'PATCH', body: { leader_seat: seat } })
-      : api(wsPath(ws.id, `/tours/${tour.id}/staff/${key}`), { method: 'PATCH', body: { meal_seat: seat } }),
-    onSuccess: onSaved,
-  })
-  const rows: SeatRow[] = [
-    ...(tour.leaders ? [{ key: 'leader', label: t('seatLeaders', { n: tour.leaders }), sub: t('seatLeadersSub'), seat: tour.leader_seat ?? usual }] : []),
-    ...tour.staff.filter((a) => MEAL_STAFF_ROLES.includes(a.role) || a.role === 'transport')
-      .map((a) => ({
-        key: a.id, label: a.vendor.name, sub: a.role === 'transport' ? t('seatBusDriver') : t(`staffRole_${a.role}`),
-        // The bus company's driver eats with us only when chosen.
-        seat: a.meal_seat ?? (a.role === 'transport' ? 'none' : usual),
-      })),
-  ]
-  return (
-    <Card className="p-5">
-      <h3 className="font-semibold text-slate-900">{t('seatTitle')}</h3>
-      <p className="mb-2 text-sm text-slate-500">{t('seatHelp')}</p>
-      {rows.length
-        ? <SeatGrid rows={rows} disabled={save.isPending} onChange={(key, seat) => save.mutate({ key, seat })} />
-        : <p className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">{t('seatNobody')}</p>}
-      <ErrorText error={save.error} />
-    </Card>
-  )
-}

@@ -36,18 +36,18 @@ LABELS: dict[str, dict[str, str]] = {
            "activities": "Activities and tickets", "optional": "optional", "own": "own arrangements",
            "tourists": "paid on the spot", "at_hotel": "at the hotel", "arrival": "Arrival", "departure": "Departure",
            "border": "Border crossing", "notes": "Notes", "km": "km", "h": "h", "min": "min", "total": "Total distance",
-           "days": "{n} days", "checkin": "Check-in", "free": "Free time", "transfer": "Transfer", "no_hotel": "End of the tour", "tab_days": "Days", "tab_menu": "Menu", "map": "Map", "day_map": "The day on the map", "today": "Today", "no_menu": "Menu not chosen yet", "people": "{n} people", "jump": "Go to day", "table_group": "Group", "table_staff": "Staff", "role_leader": "tour leader", "role_guide": "guide", "role_driver": "driver", "role_assistant": "assistant", "plates_word": "plates", "portions_word": "portions", "plates": "{n} plates", "portions": "{n} portions"},
+           "days": "{n} days", "checkin": "Check-in", "free": "Free time", "transfer": "Transfer", "no_hotel": "End of the tour", "tab_days": "Days", "tab_menu": "Menu", "map": "Map", "day_map": "The day on the map", "today": "Today", "no_menu": "Menu not chosen yet", "people": "{n} people", "jump": "Go to day", "table_group": "Group", "table_staff": "Staff", "role_leader": "tour leader", "role_guide": "guide", "role_driver": "driver", "role_assistant": "assistant", "role_guest": "guest", "plates_word": "plates", "portions_word": "portions", "plates": "{n} plates", "portions": "{n} portions"},
     "ka": {"day": "დღე {n}", "programme": "პროგრამა", "route": "მარშრუტი", "distance": "მანძილი", "driving": "გზაში",
            "overnight": "ღამისთევა", "meals": "კვება", "breakfast": "საუზმე", "lunch": "სადილი", "dinner": "ვახშამი",
            "activities": "აქტივობები და ბილეთები", "optional": "სურვილისამებრ", "own": "საკუთარი ხარჯით",
            "tourists": "ადგილზე გადახდით", "at_hotel": "სასტუმროში", "arrival": "ჩამოფრენა", "departure": "გაფრენა",
            "border": "საზღვრის კვეთა", "notes": "შენიშვნები", "km": "კმ", "h": "სთ", "min": "წთ", "total": "სულ მანძილი",
-           "days": "{n} დღე", "checkin": "განთავსება", "free": "თავისუფალი დრო", "transfer": "გადაადგილება", "no_hotel": "ტურის დასასრული", "tab_days": "დღეები", "tab_menu": "მენიუ", "map": "რუკა", "day_map": "დღის მარშრუტი რუკაზე", "today": "დღეს", "no_menu": "მენიუ ჯერ არ არის არჩეული", "people": "{n} ადამიანი", "jump": "დღეზე გადასვლა", "table_group": "ჯგუფი", "table_staff": "პერსონალი", "role_leader": "ტურლიდერი", "role_guide": "გიდი", "role_driver": "მძღოლი", "role_assistant": "ასისტენტი", "plates_word": "თეფში", "portions_word": "პორცია", "plates": "{n} თეფში", "portions": "{n} პორცია"},
+           "days": "{n} დღე", "checkin": "განთავსება", "free": "თავისუფალი დრო", "transfer": "გადაადგილება", "no_hotel": "ტურის დასასრული", "tab_days": "დღეები", "tab_menu": "მენიუ", "map": "რუკა", "day_map": "დღის მარშრუტი რუკაზე", "today": "დღეს", "no_menu": "მენიუ ჯერ არ არის არჩეული", "people": "{n} ადამიანი", "jump": "დღეზე გადასვლა", "table_group": "ჯგუფი", "table_staff": "პერსონალი", "role_leader": "ტურლიდერი", "role_guide": "გიდი", "role_driver": "მძღოლი", "role_assistant": "ასისტენტი", "role_guest": "სტუმარი", "plates_word": "თეფში", "portions_word": "პორცია", "plates": "{n} თეფში", "portions": "{n} პორცია"},
     "zh": {"day": "第{n}天", "programme": "行程", "route": "路线", "distance": "距离", "driving": "车程",
            "overnight": "住宿", "meals": "餐食", "breakfast": "早餐", "lunch": "午餐", "dinner": "晚餐",
            "activities": "活动与门票", "optional": "自选", "own": "自理", "tourists": "现场自付", "at_hotel": "酒店内",
            "arrival": "抵达", "departure": "离开", "border": "过境", "notes": "备注", "km": "公里", "h": "小时", "min": "分钟",
-           "total": "总里程", "days": "{n}天", "checkin": "入住", "free": "自由活动", "transfer": "交通", "no_hotel": "行程结束", "tab_days": "行程", "tab_menu": "菜单", "map": "地图", "day_map": "当天路线图", "today": "今天", "no_menu": "尚未选定菜单", "people": "{n}人", "jump": "跳转到某天", "table_group": "团队", "table_staff": "工作人员", "role_leader": "领队", "role_guide": "导游", "role_driver": "司机", "role_assistant": "助理", "plates_word": "盘", "portions_word": "份", "plates": "{n}盘", "portions": "{n}份"},
+           "total": "总里程", "days": "{n}天", "checkin": "入住", "free": "自由活动", "transfer": "交通", "no_hotel": "行程结束", "tab_days": "行程", "tab_menu": "菜单", "map": "地图", "day_map": "当天路线图", "today": "今天", "no_menu": "尚未选定菜单", "people": "{n}人", "jump": "跳转到某天", "table_group": "团队", "table_staff": "工作人员", "role_leader": "领队", "role_guide": "导游", "role_driver": "司机", "role_assistant": "助理", "role_guest": "客人", "plates_word": "盘", "portions_word": "份", "plates": "{n}盘", "portions": "{n}份"},
 }
 
 
@@ -533,7 +533,7 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
             return ""
         own = menus.get(vid, [])
         m = next((s for s in own if s.id == mid), None) or next((s for s in own if s.code == meal), None)
-        names = [x["name"] for x in dish_util.normalize(m.dishes)] if m else []
+        names = [x["name"] for x in dish_util.normalize(dish_util.served(d, meal, m))]
         return ", ".join(T(n) for n in names)
 
     def menu_of(d: DayFields, meal: str) -> Service | None:
@@ -555,7 +555,7 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
 
     def roles(c) -> list[str]:
         """["tour leader", "guide", "2 drivers"]: who is at a table besides the group."""
-        return [f"{c[r]} {L['role_' + r]}" if c[r] > 1 else L["role_" + r] for r in ("leader", "guide", "driver", "assistant") if c[r]]
+        return [f"{c[r]} {L['role_' + r]}" if c[r] > 1 else L["role_" + r] for r in ("leader", "guide", "driver", "assistant", "guest") if c[r]]
 
     def tables(n: int, meal: str) -> list[PTable]:
         if not group:
@@ -572,7 +572,7 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
         """The meal's set menu dish by dish, with how many plates at each table."""
         m = menu_of(d, meal)
         out = []
-        for x in dish_util.normalize(m.dishes) if m else []:
+        for x in dish_util.normalize(dish_util.served(d, meal, m)):
             per = dish_util.share_of(x, plate_share, ws.plate_share)
             each = [dish_util.plates(t.people, per) for t in at]
             out.append(PDish(name=T(x["name"]), per_plate=per, plates=sum(each) if at else None, plates_at=each))

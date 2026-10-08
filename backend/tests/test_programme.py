@@ -353,8 +353,10 @@ def test_plates_for_the_group_table_and_the_staff_table(make_client):
     khinkali, soup = step["dishes"]
     assert (khinkali["plates_at"], khinkali["plates"]) == ([4, 1], 5)        # 18 at 1 per 5 -> 4; 3 -> 1
     assert (soup["plates_at"], soup["plates"]) == ([18, 3], 21)
-    # Without the staff table: everyone at one table, 19 + guide + driver.
-    c.patch(url, json={"staff_table": False})
+    # Everyone with the group: one table, 19 + guide + driver.
+    c.patch(url, json={"leader_seat": "group"})
+    for a in c.get(f"{url}/staff").json():
+        c.patch(f"{url}/staff/{a['id']}", json={"meal_seat": "group"})
     q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
     assert q["days"][0]["steps"][0]["tables"] == [{"who": "all", "people": 21, "roles": ["tour leader", "guide", "driver"]}]
     assert q["days"][0]["steps"][0]["dishes"][0]["plates_at"] == [5]

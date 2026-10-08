@@ -113,7 +113,7 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
             if vendor is None or (getattr(d, f"{meal}_mode", None) or "included") in ("own", "hotel"):
                 continue
             menu = next((s for s in vendor.services if s.id == menu_id), None)
-            ds = dish_util.normalize(menu.dishes if menu else [])
+            ds = dish_util.normalize(dish_util.served(d, meal, menu))      # this tour's own dishes, else the menu's
             meals.append((meal, vendor, menu, ds))
         today: dict[str, int] = defaultdict(int)
         for _, _, _, ds in meals:
@@ -126,9 +126,9 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
             price = rate.price if rate else None
             total = (price * people).quantize(Decimal("0.01")) if price is not None else None
             # Family style: so many plates of each dish (12 people, 1 plate per 4 → 3 plates).
-            shared = bool(menu) and dish_util.sharing(menu.dishes, t.plate_share, share_all)
+            shared = bool(ds) and dish_util.sharing(ds, t.plate_share, share_all)
             if shared:
-                each = [dish_util.plate_total(menu.dishes, n, t.plate_share, share_all) for n in seat.tables]
+                each = [dish_util.plate_total(ds, n, t.plate_share, share_all) for n in seat.tables]
                 total = None if None in each else sum(each)        # plates are set table by table
                 price = (total / people).quantize(Decimal("0.01")) if total is not None and people else None
             paid_by_them = (getattr(d, f"{meal}_mode", None) or "included") == "tourists"
@@ -143,7 +143,7 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
                                 plates=sum(dish_util.plates(n, dish_util.share_of(x, t.plate_share, share_all)) for n in seat.tables),
                                 prev_day=x["name"].lower() in prev) for x in ds],
                 people=people, price_pp=price if money else None,
-                dish_sum=dish_util.total(menu.dishes) if (money and menu) else None,
+                dish_sum=dish_util.total(ds) if (money and ds) else None,
                 currency=rate.currency if (rate and money) else None, total=total if money else None,
                 tourists_pay=paid_by_them, tables=seat.tables,
                 seats=[SeatOut(**x) for x in seating.people(t, d.day_number, meal, pax)]))
@@ -151,7 +151,7 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
                 s = summary.setdefault(x["name"].lower(), {"name": x["name"], "days": set(), "servings": 0, "places": {}})
                 s["days"].add(d.day_number)
                 s["servings"] += 1
-                s["places"][(vendor.id, menu.name)] = DishPlace(vendor=VendorRef.model_validate(vendor), menu_name=menu.name,
+                s["places"][(vendor.id, menu.name if menu else "")] = DishPlace(vendor=VendorRef.model_validate(vendor), menu_name=menu.name if menu else "",
                                                                 price=x["price"] if money else None)
         prev = set(today)
     dishes = []

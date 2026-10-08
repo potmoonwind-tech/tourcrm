@@ -59,7 +59,7 @@ def test_staff_table(make_client):
     c, base, _ = agency(make_client)
     t, hotel, guest, cafe = setup(c, base, lambda gh: {})
     meal = [x for x in lines(c, base, t) if x["category"] == "meal"]
-    assert [(x["quantity"], x["unit_price"]) for x in meal] == [(22, 50)]                  # 20 + guide + driver, one table
+    assert [(x["quantity"], x["unit_price"]) for x in meal] == [(2, 20), (20, 50)]         # guide + driver at their table, staff price
     c.patch(f"{base}/tours/{t['id']}", json={"leaders": 1, "staff_table": True})
     meal = sorted((x["quantity"], x["unit_price"]) for x in lines(c, base, t) if x["category"] == "meal")
     assert meal == [(3, 20), (19, 50)]                                                      # 19 tourists · leader + 2 staff
@@ -99,6 +99,8 @@ def test_one_meal_seats_people_differently(make_client):
     t, hotel, guest, cafe = setup(c, base, lambda gh: {})
     staff = {a["role"]: a for a in c.get(f"{base}/tours/{t['id']}/staff").json()}
     c.patch(f"{base}/tours/{t['id']}", json={"leaders": 1, "leader_seat": "group"})
+    for a in staff.values():
+        c.patch(f"{base}/tours/{t['id']}/staff/{a['id']}", json={"meal_seat": "group"})
     [row] = [r for r in c.get(f"{base}/tours/{t['id']}/meals").json()["rows"] if r["meal"] == "dinner"]
     assert row["tables"] == [22] and {s["key"]: s["seat"] for s in row["seats"]} == {
         "leader": "group", staff["guide"]["id"]: "group", staff["driver"]["id"]: "group"}
@@ -120,9 +122,39 @@ def test_the_bus_driver_eats_only_when_chosen(make_client):
     bus = mk(c, f"{base}/vendors", {"name": "Caucasus Coaches", "type": "transport"})
     a = mk(c, f"{base}/tours/{t['id']}/staff", {"vendor_id": bus["id"], "role": "transport"})
     meal = sorted((x["quantity"], x["unit_price"]) for x in lines(c, base, t) if x["category"] == "meal")
-    assert meal == [(22, 50)]                                                # not counted until chosen
+    assert meal == [(2, 20), (20, 50)]                                       # the bus driver: not counted until chosen
     [row] = [r for r in c.get(f"{base}/tours/{t['id']}/meals").json()["rows"] if r["meal"] == "dinner"]
     assert {s["key"]: s["seat"] for s in row["seats"]}[a["id"]] == "none"     # but in the grid
     c.patch(f"{base}/tours/{t['id']}/staff/{a['id']}", json={"meal_seat": "group"})
     meal = sorted((x["quantity"], x["unit_price"]) for x in lines(c, base, t) if x["category"] == "meal")
-    assert meal == [(23, 50)]
+    assert meal == [(2, 20), (21, 50)]
+
+
+def test_a_meal_composed_in_the_tour(make_client):
+    """The manager writes the dinner's dishes in the tour (this tour only), seats a photographer at the
+    staff table, sees the plates per table, and keeps the menu for the restaurant's next tours."""
+    c, base, _ = agency(make_client)
+    t, hotel, guest, cafe = setup(c, base, lambda gh: {})
+    url = f"{base}/tours/{t['id']}"
+    tour = c.get(url).json()
+    from app.programme import ProgrammeIn  # noqa: F401 - the same fields as the builder sends
+    days = [{k: v for k, v in d.items() if k in ("city", "km", "notes", "border_crossing", "extras", "stops", "schedule",
+                                                  "lunch_menu_id", "dinner_menu_id", "breakfast_mode", "lunch_mode", "dinner_mode")}
+            | {"hotel_id": (d["hotel"] or {}).get("id"), "dinner_id": (d["dinner"] or {}).get("id"), "lunch_id": None}
+            for d in tour["days"]]
+    days[0]["meal_dishes"] = {"dinner": [{"name": "Khinkali", "per_plate": 5}, {"name": "Soup"}]}
+    days[0]["seating"] = {"dinner": {"_extra": [{"name": "Photographer", "seat": "staff"}]}}
+    r = c.put(f"{url}/itinerary", json={"days": days})
+    assert r.status_code == 200, r.text
+    saved = r.json()["days"][0]
+    assert saved["meal_dishes"]["dinner"][0]["name"] == "Khinkali" and saved["seating"]["dinner"]["_extra"][0]["seat"] == "staff"
+    [row] = [x for x in c.get(f"{url}/meals").json()["rows"] if x["meal"] == "dinner"]
+    # 20 tourists; guide, driver and the photographer at the staff table.
+    assert row["tables"] == [20, 3] and [d["name"] for d in row["dishes"]] == ["Khinkali", "Soup"]
+    assert row["dishes"][0]["plates"] == 4 + 1                                   # 20/5 -> 4, 3/5 -> 1
+    assert any(s["role"] == "guest" and s["name"] == "Photographer" for s in row["seats"])
+    # Kept as the restaurant's menu for the next tours.
+    m = c.post(f"{base}/vendors/{cafe['id']}/menu", json={"meal": "dinner", "dishes": saved["meal_dishes"]["dinner"]}).json()
+    assert m["name"] == "Cafe · Dinner 1"
+    menus = [x for x in c.get(f"{base}/vendors/{cafe['id']}/services").json() if x["id"] == m["id"]]
+    assert [(d["name"], d["per_plate"]) for d in menus[0]["dishes"]] == [("Khinkali", 5), ("Soup", None)]

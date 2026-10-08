@@ -4,6 +4,7 @@
  * Every slot is also a normal dropdown, and on phones you tap a palette item and then
  * the slot ("tap to place"), so nothing depends on dragging.
  */
+import { MealPlan, type Crew } from './MealPlan'
 import {
   closestCenter, DndContext, DragOverlay, KeyboardSensor, pointerWithin, PointerSensor, rectIntersection, TouchSensor,
   useDraggable, useDroppable, useSensor, useSensors, type CollisionDetection, type DragEndEvent, type DragStartEvent,
@@ -58,8 +59,9 @@ export const blankDay = (city = ''): DayFields =>
   ({ city, hotel_id: null, lunch_id: null, dinner_id: null, border_crossing: '', notes: '', extras: [], km: null, stops: [],
      lunch_mode: 'included', dinner_mode: 'included', flights: [], schedule: [] })
 
-export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn }: {
+export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, crew }: {
   days: DayFields[]; onChange: (days: DayFields[]) => void
+  crew?: Crew                 // a tour's group and staff: each meal's tables and plates
   busReturn?: BusReturn | null; onBusReturn?: (b: BusReturn | null) => void   // the bus back to its garage
   dates?: string[]            // a tour's dates; a route has none
   fixedLength?: boolean       // a tour: days come from its dates (reorder only)
@@ -187,7 +189,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               <DayCard key={keys.current[i]} id={keys.current[i]} index={i} day={d} date={dates?.[i]} last={i === days.length - 1}
                 prevCity={i > 0 ? days[i - 1].city : undefined} prevHotel={i > 0 ? days[i - 1].hotel_id : null}
                 vendors={vs} byId={byId} disabled={disabled} fixedLength={fixedLength} dragging={dragging} picked={picked}
-                menus={services.data ?? []} canCreate={canCreate}
+                menus={services.data ?? []} canCreate={canCreate} crew={crew}
                 onNewVendor={(type, then) => setNewVendor({ type, city: d.city, then })}
                 onNewService={(vendorId, menu, then, meal) => setNewService({ vendorId, menu, then, meal })}
                 alerts={alerts.filter((a) => a.day === i + 1)}
@@ -461,13 +463,13 @@ function Chip({ item, selected, lifted }: { item: Item; selected?: boolean; lift
 // --- day card --------------------------------------------------------------------------------
 
 function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLength, dragging, picked, alerts,
-  menus, canCreate, onNewVendor, onNewService, prevCity, prevHotel,
+  menus, canCreate, onNewVendor, onNewService, prevCity, prevHotel, crew,
   onSet, onPlace, onDuplicate, onInsert, onRemove, onHotelNext }: {
   id: string; index: number; day: DayFields; date?: string; last: boolean; vendors: Vendor[]; byId: Map<string, Vendor>
   prevCity?: string
   prevHotel?: string | null
   disabled?: boolean; fixedLength?: boolean; dragging: Item | null; picked: Item | null; alerts: TourAlert[]
-  menus: ServiceBrief[]; canCreate: boolean
+  menus: ServiceBrief[]; canCreate: boolean; crew?: Crew
   onNewVendor: (type: VendorType, then: (v: Vendor) => void) => void
   onNewService: (vendorId: string | undefined, menu: boolean, then: (s: Service) => void, meal?: 'breakfast' | 'lunch' | 'dinner') => void
   onSet: (p: Partial<DayFields>) => void; onPlace: (slot: Slot, item: Item) => void
@@ -479,7 +481,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   const hotel = day.hotel_id ? byId.get(day.hotel_id) : undefined
   // Dishes served twice today (lunch and dinner) are shown in red - the chosen menu's, or the usual one's.
   const dishesOf = (menuId: string | null | undefined, vendorId: string | null | undefined, meal: 'lunch' | 'dinner') =>
-    (menus.find((m) => m.id === menuId) ?? usualMenu(menus, vendorId, meal))?.dishes.map((x) => x.name.toLowerCase()) ?? []
+    (day.meal_dishes?.[meal] ?? menuOf(menus, menuId, vendorId, meal)?.dishes ?? []).map((x) => x.name.toLowerCase())
   const lunchDishes = dishesOf(day.lunch_menu_id, day.lunch_id, 'lunch')
   const twiceToday = new Set(dishesOf(day.dinner_menu_id, day.dinner_id, 'dinner').filter((x) => lunchDishes.includes(x)))
   const [more, setMore] = useState(false)
@@ -580,9 +582,11 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             cities={[...(day.stops ?? []), day.city]}
             onChange={(v) => onSet({ lunch_id: v, lunch_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ lunch_id: v.id, lunch_menu_id: null })) : undefined} />
-          <MenuPick meal="lunch" vendorId={day.lunch_id} value={day.lunch_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
-            onChange={(m) => onSet({ lunch_menu_id: m })}
+          <MenuPick meal="lunch" vendorId={day.lunch_id} value={day.lunch_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday} compact
+            onChange={(m) => onSet({ lunch_menu_id: m, meal_dishes: withoutMeal(day, 'lunch') })}
             onAddNew={canCreate && day.lunch_id ? () => onNewService(day.lunch_id!, true, (s) => onSet({ lunch_menu_id: s.id ?? null }), 'lunch') : undefined} />
+          <MealPlan meal="lunch" day={day} dayNumber={index + 1} crew={crew} disabled={disabled} twice={twiceToday} onSet={onSet}
+            menu={menuOf(menus, day.lunch_menu_id, day.lunch_id, 'lunch')} />
           {day.lunch_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
         </SlotBox>
@@ -594,9 +598,11 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             cities={[day.city, ...(day.stops ?? [])]}
             onChange={(v) => onSet({ dinner_id: v, dinner_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ dinner_id: v.id, dinner_menu_id: null })) : undefined} />
-          <MenuPick meal="dinner" vendorId={day.dinner_id} value={day.dinner_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday}
-            onChange={(m) => onSet({ dinner_menu_id: m })}
+          <MenuPick meal="dinner" vendorId={day.dinner_id} value={day.dinner_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday} compact
+            onChange={(m) => onSet({ dinner_menu_id: m, meal_dishes: withoutMeal(day, 'dinner') })}
             onAddNew={canCreate && day.dinner_id ? () => onNewService(day.dinner_id!, true, (s) => onSet({ dinner_menu_id: s.id ?? null }), 'dinner') : undefined} />
+          <MealPlan meal="dinner" day={day} dayNumber={index + 1} crew={crew} disabled={disabled} twice={twiceToday} onSet={onSet}
+            menu={menuOf(menus, day.dinner_menu_id, day.dinner_id, 'dinner')} />
           {day.dinner_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
         </SlotBox>
@@ -890,8 +896,20 @@ const dishPreview = (m?: ServiceBrief) => {
   return d.length ? ` — ${d.slice(0, 3).map((x) => x.name).join(', ')}${d.length > 3 ? '…' : ''}` : ''
 }
 
-function MenuPick({ meal, vendorId, value, menus, disabled, twice, onChange, onAddNew }: {
+/** The menu a meal serves: the chosen set menu, else the place's usual one. */
+const menuOf = (menus: ServiceBrief[], menuId: string | null | undefined, vendorId: string | null | undefined, meal: string) =>
+  menus.find((m) => m.id === menuId) ?? usualMenu(menus, vendorId, meal)
+
+/** The day's own dishes without this meal's (another menu was chosen). */
+const withoutMeal = (day: DayFields, meal: 'lunch' | 'dinner') => {
+  const next = { ...(day.meal_dishes ?? {}) }
+  delete next[meal]
+  return next
+}
+
+function MenuPick({ meal, vendorId, value, menus, disabled, twice, onChange, onAddNew, compact }: {
   meal: 'breakfast' | 'lunch' | 'dinner'
+  compact?: boolean      // the dishes are shown under it (the meal card), not as chips here
   vendorId: string | null; value: string | null; menus: ServiceBrief[]; disabled?: boolean; twice: Set<string>
   onChange: (id: string | null) => void; onAddNew?: () => void
 }) {
@@ -913,8 +931,8 @@ function MenuPick({ meal, vendorId, value, menus, disabled, twice, onChange, onA
         {options.map((m) => <option key={m.id} value={m.id}>{m.name}{dishPreview(m)}</option>)}
         {onAddNew && <option value="__new__">{t('addNewMenuOption')}</option>}
       </Select>
-      {chosen && !chosen.dishes.length && <p className="text-[11px] text-slate-500">{t('menuNoDishes')}</p>}
-      {chosen && chosen.dishes.length > 0 && (
+      {!compact && chosen && !chosen.dishes.length && <p className="text-[11px] text-slate-500">{t('menuNoDishes')}</p>}
+      {!compact && chosen && chosen.dishes.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {chosen.dishes.map(({ name: d }) => (
             <span key={d} title={twice.has(d.toLowerCase()) ? t('dishTwiceToday') : undefined}

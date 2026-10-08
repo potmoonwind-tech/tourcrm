@@ -157,10 +157,11 @@ class FieldView(BaseModel):
     meals: list[MealRow] = []
 
 
-def _place(v: Vendor | None, menu: Service | None = None) -> Place | None:
+def _place(v: Vendor | None, menu: Service | None = None, served: list | None = None) -> Place | None:
     if v is None:
         return None
-    dishes = [d if isinstance(d, str) else str(d.get("name", "")) for d in (menu.dishes or [])] if menu else []
+    raw = served if served is not None else (menu.dishes or [] if menu else [])
+    dishes = [d if isinstance(d, str) else str(d.get("name", "")) for d in raw]
     return Place(name=v.name, address=v.address, city=v.city, phone=v.phone,
                  menu=menu.name if menu else None, dishes=[d for d in dishes if d])
 
@@ -235,8 +236,8 @@ def field_page(token: str, request: Request, lang: str = "en", db: Session = Dep
         breakfast_mode=d.breakfast_mode or "hotel",
         breakfast=(_place(slept.get(d.day_number - 1)) if (d.breakfast_mode or "hotel") == "hotel"
                    else None if d.breakfast_mode == "own" else _place(d.breakfast, services.get(d.breakfast_menu_id))),
-        hotel=_place(d.hotel), lunch=_place(d.lunch, services.get(d.lunch_menu_id)),
-        dinner=_place(d.dinner, services.get(d.dinner_menu_id)),
+        hotel=_place(d.hotel), lunch=_place(d.lunch, services.get(d.lunch_menu_id), (d.meal_dishes or {}).get("lunch")),
+        dinner=_place(d.dinner, services.get(d.dinner_menu_id), (d.meal_dishes or {}).get("dinner")),
         extras=_extras(d.extras, services)) for d in days]
     guide = s.role in SEES_GROUP
     mine = {d.day_number for d in days}

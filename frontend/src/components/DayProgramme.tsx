@@ -49,6 +49,7 @@ export const toFields = (d: TourDay): DayFields => ({
   stops: d.stops ?? [], lunch_mode: d.lunch_mode ?? 'included', dinner_mode: d.dinner_mode ?? 'included',
   flights: d.flights ?? [], schedule: d.schedule ?? [],
   staff_stay: d.staff_stay ?? 'none', staff_hotel_id: d.staff_hotel?.id ?? null, staff_twin: !!d.staff_twin,
+  meal_dishes: d.meal_dishes ?? {}, seating: d.seating ?? {},
 })
 
 /** What the day has, in a sensible order with usual times. */

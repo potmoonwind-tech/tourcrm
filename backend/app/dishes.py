@@ -55,3 +55,11 @@ def plate_total(raw, people: int, tour_share: int | None, agency_share: int | No
     if not ds or any(d["price"] is None for d in ds):
         return None
     return sum((Decimal(str(d["price"])) * plates(people, share_of(d, tour_share, agency_share)) for d in ds), Decimal(0))
+
+
+def served(day, meal: str, menu) -> list:
+    """What this meal serves: the tour's own dishes for it (changed in the tour), else its menu's."""
+    own = (getattr(day, "meal_dishes", None) or {}).get(meal)
+    if own is not None:
+        return [x.model_dump() if hasattr(x, "model_dump") else x for x in own]
+    return list(menu.dishes or []) if menu is not None else []

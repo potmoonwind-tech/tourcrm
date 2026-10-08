@@ -402,6 +402,21 @@ def _unique_slots(v: list[DayExtra] | None) -> list[DayExtra] | None:
     return v
 
 
+class MealDish(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    price: float | None = Field(default=None, ge=0, le=100000)   # one plate, in the menu's currency
+    per_plate: int | None = Field(default=None, ge=1, le=20)      # people sharing one plate (None = the tour's / agency's)
+
+
+def _per_meal(v: dict) -> dict:
+    """Only breakfast / lunch / dinner, and not too much of anything."""
+    if any(k not in ("breakfast", "lunch", "dinner") for k in v):
+        raise ValueError("meals are breakfast, lunch or dinner")
+    if any(isinstance(x, list) and len(x) > 40 for x in v.values()) or len(str(v)) > 20000:
+        raise ValueError("too many dishes or people")
+    return v
+
+
 class DayFields(BaseModel):
     city: str = Field(default="", max_length=100)
     hotel_id: str | None = None
@@ -427,9 +442,14 @@ class DayFields(BaseModel):
     staff_stay: StaffStay = "none"
     staff_hotel_id: str | None = None
     staff_twin: bool = False
+    # Per meal: this tour's own dishes (instead of the menu's), and who sits elsewhere than usual
+    # (app/seating.py) - {"dinner": {"<staff id>": "group", "_extra": [{"name": "Photographer", "seat": "staff"}]}}.
+    meal_dishes: dict[str, list[MealDish]] = Field(default_factory=dict)
+    seating: dict[str, dict] = Field(default_factory=dict)
 
     _stops_ok = field_validator("stops")(_stops)
     _slots = field_validator("extras")(_unique_slots)
+    _meals = field_validator("meal_dishes", "seating")(_per_meal)
 
 
 class SeriesDayOut(DayFields, _Out):
@@ -577,6 +597,8 @@ class TourDayOut(_Out):
     staff_stay: str = "none"
     staff_hotel: VendorRef | None = None
     staff_twin: bool = False
+    meal_dishes: dict = {}
+    seating: dict = {}
 
 
 class TourSummary(BaseModel):

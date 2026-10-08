@@ -368,6 +368,7 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
       </div>
       {exporting && <ProgrammeDialog title={tour.name || tour.code} startDate={tour.start_date} days={days} people={tour.pax} tourId={tour.id} onClose={() => setExporting(false)} />}
       <ItineraryBuilder days={days} dates={tour.days.map((d) => d.date)} fixedLength disabled={!canEdit}
+        crew={{ pax: tour.pax, leaders: tour.leaders ?? 0, leaderSeat: tour.leader_seat, staff: tour.staff, share: tour.plate_share || ws.plate_share || 1 }}
         alerts={dirty ? [] : alerts.data ?? []} onChange={setDraft}
         busReturn={busReturn} onBusReturn={(b) => setBack(b)} />
       {canEdit && !tour.closed_at && (
