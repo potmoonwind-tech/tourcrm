@@ -1034,6 +1034,19 @@ class DishPriceChange(Base):
     changed_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
 
+class DayTemplate(Base):
+    """A saved day for a city ("Kutaisi day"): its hotel, meals, activities and timeline, to fill a day of
+    another tour in one tap (app/routers/day_templates.py). `data` is the builder's day as it was saved."""
+    __tablename__ = "day_templates"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    name: Mapped[str] = mapped_column(String(120))
+    city: Mapped[str] = mapped_column(String(120), default="", server_default="")
+    data: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 class ProgrammeShare(Base):
     """A programme shared by link (/p/<token>): anyone with it sees the programme as it was made - the
     request is kept and built again on each visit (no prices or team details are in a programme)."""

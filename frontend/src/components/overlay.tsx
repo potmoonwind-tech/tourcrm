@@ -96,7 +96,7 @@ interface AskOptions {
   message?: string
   confirmLabel?: string
   danger?: boolean
-  input?: { placeholder?: string; required?: boolean }
+  input?: { placeholder?: string; required?: boolean; value?: string }
 }
 type Pending = AskOptions & { resolve: (v: string | null) => void }
 
@@ -182,7 +182,7 @@ export function ConfirmHost() {
   const p = useSyncExternalStore((l) => { listeners.add(l); return () => listeners.delete(l) }, () => pending)
   const [text, setText] = useState('')
   const ref = useRef<HTMLButtonElement>(null)
-  useEffect(() => { setText(''); if (p && !p.input) setTimeout(() => ref.current?.focus(), 0) }, [p])
+  useEffect(() => { setText(p?.input?.value ?? ''); if (p && !p.input) setTimeout(() => ref.current?.focus(), 0) }, [p])
   if (!p) return null
   const done = (v: string | null) => { const r = p.resolve; pending = null; emit(); r(v) }
   const blocked = !!p.input?.required && !text.trim()
@@ -290,8 +290,8 @@ export function Menu({ items, label, kind = 'more', icon, trigger, triggerClassN
       {open && createPortal(
         <ul ref={list} role="menu" onKeyDown={onKey} style={at ?? { top: -9999, left: -9999 }}
           className="animate-pop fixed z-[70] max-h-[min(24rem,80vh)] min-w-52 overflow-y-auto rounded-xl border border-slate-200 bg-white py-1 shadow-lg">
-          {shown.map((i) => (
-            <li key={i.label}>
+          {shown.map((i, n) => (
+            <li key={`${n}-${i.label}`}>
               <button type="button" role="menuitem" disabled={i.disabled} onClick={() => { setOpen(false); i.onClick() }}
                 className={cn('flex h-9 w-full items-center gap-2 px-3 text-left text-sm hover:bg-slate-100 focus:bg-slate-100 focus:outline-none disabled:opacity-40',
                   i.danger ? 'text-red-600' : 'text-slate-700')}>

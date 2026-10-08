@@ -6,7 +6,7 @@ in the background after each message; the screen polls the session to show its p
 import logging
 from datetime import timedelta
 
-import anthropic
+from ..ai.lazy import anthropic
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, HTTPException, Request, UploadFile, status
 from pydantic import BaseModel, Field

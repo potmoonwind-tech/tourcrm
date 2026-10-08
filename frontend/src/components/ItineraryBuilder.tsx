@@ -12,17 +12,17 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, BedDouble, Bus, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronDown, ChevronRight, Download, ListChecks } from 'lucide-react'
-import { useMutation } from '@tanstack/react-query'
+import { AlertTriangle, BedDouble, Bookmark, Bus, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronDown, ChevronRight, Download, ListChecks } from 'lucide-react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { api, type BreakfastMode, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
+import { api, type BreakfastMode, type DayTemplate, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
 import { fmt, weekday } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
 import { DayServices } from './DayServices'
 import { DayProgramme, relayDay } from './DayProgramme'
-import { Dialog, toast, Menu } from './overlay'
+import { Dialog, toast, Menu, askText } from './overlay'
 import { InfoTip, Tooltip } from './Tooltip'
 import { VendorSelect } from './tour'
 import { QuickServiceDialog, QuickVendorDialog } from './QuickAdd'
@@ -597,6 +597,25 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
     const v = !disabled && id ? byId.get(id) : undefined
     return v ? { kind: 'vendor', vendor: v } : undefined
   }
+  // Saved days ("Kutaisi day"): this day kept to fill another tour's day; or one of them filling this day.
+  const ws = useWorkspace()!
+  const qc = useQueryClient()
+  const saveTemplate = async () => {
+    const city = day.city.trim()
+    const name = await askText({ title: t('saveDayTitle'), message: t('saveDayMsg'), confirmLabel: t('save'),
+      input: { value: city ? t('saveDayDefault', { city }) : '', required: true } })
+    if (!name?.trim()) return
+    try {
+      await api(wsPath(ws.id, '/day-templates'), { method: 'POST', body: { name: name.trim(), city, data: day } })
+      void qc.invalidateQueries({ queryKey: ['day-templates', ws.id] })
+      toast('savedDaySaved')
+    } catch { toast('savedDayFailed', 'error') }
+  }
+  const applyTemplate = (tpl: DayTemplate) => {
+    const before = day
+    onSet({ ...blankDay(), ...tpl.data, city: day.city.trim() || tpl.city })
+    toast('savedDayApplied', 'ok', { label: t('undo'), onClick: () => onSet(before) })
+  }
   const missing = [!day.city.trim(), hotelState === 'todo', mealState('lunch') === 'todo', mealState('dinner') === 'todo'].filter(Boolean).length
   // Meals: restaurants, and the hotels that serve them (a meal on their price list) — not every hotel.
   const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
@@ -615,6 +634,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
         <span className="sr-only">{t('day')} {index + 1}</span>
         <PlaceInput disabled={disabled} value={day.city} onChange={(city) => onSet({ city })} placeholder={t('cityNight')}
           title={t('cityNightHelp')} className={cn(field, 'h-9 w-52 font-semibold')} aria-label={t('city')} />
+        {!disabled && <SavedDays city={day.city} onApply={applyTemplate} />}
         {(show || (day.stops ?? []).length > 0) && <Stops stops={day.stops ?? []} disabled={disabled} onChange={(stops) => onSet({ stops })}
           own={vendors.filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
             .map((v) => ({ name: v.name, detail: v.city, kind: '', lat: 0, lon: 0, own: true }))} />}
@@ -647,11 +667,12 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           {missing ? t('gridMissingN', { n: missing }) : <><Check size={12} aria-hidden />{t('gridReadyShort')}</>}
         </span>
         {!disabled && (
-          <span className="flex items-center gap-0.5">
-            {!fixedLength && <IconBtn title={t('duplicateDay')} onClick={onDuplicate}><CopyPlus size={15} /></IconBtn>}
-            {!fixedLength && <IconBtn title={t('insertDayAfter')} onClick={onInsert}><Plus size={15} /></IconBtn>}
-            {!fixedLength && <IconBtn title={t('delete')} danger onClick={onRemove}><Trash2 size={15} /></IconBtn>}
-          </span>
+          <Menu kind="icon" label={t('dayActions', { n: index + 1 })} items={[
+            { label: t('saveDayAsTemplate'), icon: <Bookmark size={16} />, onClick: () => void saveTemplate() },
+            { label: t('duplicateDay'), icon: <CopyPlus size={16} />, onClick: onDuplicate, hidden: fixedLength },
+            { label: t('insertDayAfter'), icon: <Plus size={16} />, onClick: onInsert, hidden: fixedLength },
+            { label: t('delete'), icon: <Trash2 size={16} />, onClick: onRemove, danger: true, hidden: fixedLength },
+          ]} />
         )}
       </header>
       {alerts.length > 0 && (
@@ -1165,13 +1186,6 @@ function MenuPick({ meal, vendorId, value, menus, disabled, twice, onChange, onA
   )
 }
 
-function IconBtn({ title, onClick, danger, children }: { title: string; onClick: () => void; danger?: boolean; children: ReactNode }) {
-  return (
-    <button type="button" title={title} aria-label={title} onClick={onClick}
-      className={cn('rounded-md p-1.5 text-slate-400 hover:bg-slate-100', danger ? 'hover:text-red-600' : 'hover:text-slate-700')}>{children}</button>
-  )
-}
-
 /** Places visited during the day before the night's city: "via Mtskheta, Gori". */
 function Stops({ stops, disabled, onChange, own }: { stops: string[]; disabled?: boolean; onChange: (s: string[]) => void; own?: PlaceSuggestion[] }) {
   const { t } = useI18n()
@@ -1311,5 +1325,21 @@ function Flights({ flights, disabled, onChange }: { flights: Flight[]; disabled?
           className="rounded-md px-1.5 py-1 font-medium text-slate-500 hover:bg-slate-100 hover:text-brand-700">+ {t('addFlight')}</button>
       ))}
     </span>
+  )
+}
+
+/** The saved days for the day's city ("2 saved Kutaisi days ▾"); with no city yet, every saved day. */
+function SavedDays({ city, onApply }: { city: string; onApply: (d: DayTemplate) => void }) {
+  const { t } = useI18n()
+  const ws = useWorkspace()!
+  const all = useQuery({ queryKey: ['day-templates', ws.id], queryFn: () => api<DayTemplate[]>(wsPath(ws.id, '/day-templates')), staleTime: 60_000 })
+  const c = city.trim().toLowerCase()
+  const list = (all.data ?? []).filter((x) => !c || x.city.trim().toLowerCase() === c)
+  if (!list.length) return null
+  return (
+    <Menu label={t('savedDaysPick')}
+      trigger={<><Bookmark size={13} aria-hidden />{c ? t('savedDaysFor', { n: list.length, city: city.trim() }) : t('savedDaysAny', { n: list.length })}<ChevronDown size={13} aria-hidden /></>}
+      triggerClassName="inline-flex h-7 items-center gap-1 rounded-full bg-brand-50 px-2.5 text-xs font-medium text-brand-800 hover:bg-brand-100"
+      items={list.map((x) => ({ label: c ? x.name : `${x.name}${x.city ? ` · ${x.city}` : ''}`, icon: <Bookmark size={16} />, onClick: () => onApply(x) }))} />
   )
 }

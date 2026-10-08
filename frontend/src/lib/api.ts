@@ -559,3 +559,6 @@ export interface TaskItem {
 }
 export type TaskStage = 'todo' | 'doing' | 'waiting' | 'done'
 export interface TaskSummary { mine: number; late: number; nobody: number }
+
+/** A saved day ("Kutaisi day"): a day's hotel, meals, activities and timeline, to fill another tour's day. */
+export interface DayTemplate { id: string; name: string; city: string; data: Partial<DayFields>; created_at: string }

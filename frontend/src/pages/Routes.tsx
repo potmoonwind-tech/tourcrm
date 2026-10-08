@@ -1,13 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SetupNudge } from '../components/GetStarted'
-import { Drawer, ask } from '../components/overlay'
-import { Plus } from 'lucide-react'
+import { Drawer, Menu, ask, askText } from '../components/overlay'
+import { Bookmark, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { blankDay, ItineraryBuilder } from '../components/ItineraryBuilder'
 import { ProgrammeDialog } from '../components/ProgrammeDialog'
 import { COLOR, CodeChip, EmptyState } from '../components/tour'
 import { Button, Card, ErrorText, Field, Input } from '../components/ui'
-import { api, SERIES_COLORS, type DayFields, type Series, type TourSummary, can } from '../lib/api'
+import { api, SERIES_COLORS, type DayFields, type DayTemplate, type Series, type TourSummary, can } from '../lib/api'
 import { useOpenFromUrl, useSeries, wsPath } from '../lib/data'
 import { useI18n } from '../lib/i18n'
 import { today } from '../lib/dates'
@@ -77,6 +77,7 @@ export function RoutesPage() {
             ))}
           </div>
         )}
+        <SavedDaysList canEdit={canEdit} />
       </div>
       {editing && <RouteEditor series={editing === 'new' ? null : editing} canEdit={canEdit} onClose={() => setEditing(null)} />}
     </>
@@ -160,5 +161,53 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
         {!canEdit && <ErrorText error={save.error || remove.error} />}
       </form>
     </Drawer>
+  )
+}
+
+/** Saved days ("Kutaisi day"), made from a tour's day ("⋯ → Save this day as a template"): used from a day's
+ *  city in any tour; renamed or deleted here. */
+function SavedDaysList({ canEdit }: { canEdit: boolean }) {
+  const ws = useWorkspace()!
+  const { t } = useI18n()
+  const qc = useQueryClient()
+  const list = useQuery({ queryKey: ['day-templates', ws.id], queryFn: () => api<DayTemplate[]>(wsPath(ws.id, '/day-templates')) })
+  const done = () => qc.invalidateQueries({ queryKey: ['day-templates', ws.id] })
+  const rename = async (d: DayTemplate) => {
+    const name = await askText({ title: t('savedDayRename'), confirmLabel: t('save'), input: { value: d.name, required: true } })
+    if (name?.trim()) { await api(wsPath(ws.id, `/day-templates/${d.id}`), { method: 'PATCH', body: { name: name.trim() } }); void done() }
+  }
+  const remove = async (d: DayTemplate) => {
+    if (!(await ask({ title: t('savedDayDeleteQ', { name: d.name }), confirmLabel: t('delete'), danger: true }))) return
+    await api(wsPath(ws.id, `/day-templates/${d.id}`), { method: 'DELETE' }); void done()
+  }
+  return (
+    <section className="pt-4">
+      <h2 className="text-base font-semibold text-slate-800">{t('savedDays')}</h2>
+      <p className="mt-0.5 text-sm text-slate-500">{t('savedDaysHelp')}</p>
+      {list.isSuccess && list.data.length === 0 ? (
+        <p className="mt-3 rounded-xl border border-dashed border-slate-300 px-4 py-3 text-sm text-slate-500">{t('savedDaysEmpty')}</p>
+      ) : (
+        <ul className="mt-3 divide-y divide-slate-100 rounded-xl border border-slate-200 bg-white">
+          {list.data?.map((d) => {
+            const steps = d.data.schedule?.length ?? 0
+            return (
+              <li key={d.id} className="flex min-h-14 items-center gap-3 px-3 py-2">
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700"><Bookmark size={15} aria-hidden /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate text-sm font-medium text-slate-800">{d.name}</span>
+                  <span className="block truncate text-xs text-slate-500">{[d.city, steps ? t('progSteps', { n: steps }) : ''].filter(Boolean).join(' · ')}</span>
+                </span>
+                {canEdit && (
+                  <Menu kind="icon" label={t('moreActions')} items={[
+                    { label: t('savedDayRename'), icon: <Pencil size={16} />, onClick: () => void rename(d) },
+                    { label: t('delete'), icon: <Trash2 size={16} />, onClick: () => void remove(d), danger: true },
+                  ]} />
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
+    </section>
   )
 }

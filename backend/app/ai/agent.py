@@ -12,7 +12,7 @@ the session's plan with proposals (app/ai/tools.py). It never saves anything its
 import logging
 from datetime import date, datetime
 
-import anthropic
+from .lazy import anthropic
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -62,7 +62,7 @@ refer to earlier ones by their plan id (p1, p2...).
 what you proposed, what you skipped and why, and what they should check before confirming."""
 
 
-def make_client(ws: Workspace) -> anthropic.Anthropic:
+def make_client(ws: Workspace) -> "anthropic.Anthropic":
     """Tests replace this. The agency's own key from Settings, else the server's (ANTHROPIC_API_KEY)."""
     return anthropic.Anthropic(api_key=keys.key_for(ws), max_retries=3, default_headers=keys.headers_for(ws) or None)
 
