@@ -318,7 +318,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
       <span className="block min-w-0">
         <span className="block px-1 text-sm font-medium text-slate-800">{t(m)}</span>
         <span className="block min-w-0">
-          <VendorSelect className="h-7 border-transparent bg-transparent px-1 text-xs text-slate-600 hover:border-slate-200" placeholder={t('chooseRestaurant')} vendors={vendorList} types={['restaurant', 'hotel']} only={(v) => v.type !== 'hotel' || serving.has(v.id)}
+          <VendorSelect className="h-7 w-auto max-w-full border-transparent bg-transparent px-1 text-xs text-slate-600 hover:border-slate-200" placeholder={t('chooseRestaurant')} vendors={vendorList} types={['restaurant', 'hotel']} only={(v) => v.type !== 'hotel' || serving.has(v.id)}
             value={(m === 'lunch' ? day.lunch_id : day.dinner_id) ?? null} cities={[...(day.stops ?? []), day.city]}
             onChange={(v) => onSetDay(m === 'lunch' ? { lunch_id: v, lunch_menu_id: null } : { dinner_id: v, dinner_menu_id: null })} />
         </span>
@@ -478,7 +478,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
                     onSamePlace={(place) => set(x.id, { place })} />}
                   {gap >= 60 && (
                     <li className="flex gap-3">
-                      <span className="w-16 shrink-0 pt-1.5 text-right text-xs tabular-nums text-slate-400">{hm(arrive!)}</span>
+                      <span className="w-20 shrink-0 pt-1.5 text-right text-xs tabular-nums text-slate-400">{hm(arrive!)}</span>
                       <span className="flex w-8 shrink-0 justify-center" aria-hidden><span className="border-l-2 border-dotted border-slate-300" /></span>
                       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 py-1.5">
                         <span className="text-sm text-slate-500">{t('progFree', { time: dur(gap) })}</span>
@@ -535,7 +535,7 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   return (
     <Tooltip label={t('progTimePickTip')}>
       <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}
-        className="h-7 w-16 shrink-0 cursor-pointer appearance-none rounded-md bg-transparent px-1 text-right text-[15px] font-medium tabular-nums text-slate-800 hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100">
+        className="h-7 w-16 shrink-0 cursor-pointer appearance-none rounded-md bg-transparent px-1 text-right text-[15px] font-medium tabular-nums text-slate-800 hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 [&>option]:bg-white [&>option]:text-slate-800">
         <option value="">--:--</option>
         {value && !QUARTERS.includes(value) && <option value={value}>{value}</option>}
         {QUARTERS.map((q) => <option key={q} value={q}>{q}</option>)}
@@ -566,11 +566,14 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex gap-3', isDragging && 'relative z-10')}>
       {/* The time column: when it starts, and how long. */}
-      <div className="w-16 shrink-0 pt-2 text-right">
+      <div className="flex w-20 shrink-0 flex-col items-end pt-2">
         {disabled ? <span className="text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
           : <TimeSelect value={x.time} label={t('progStartOf', { name })}
             onChange={(v) => onSet(x.time && x.end && v ? { time: v, fixed: true, end: shift(v, minutesBetween(x.time, x.end)) } : { time: v, fixed: !!v })} />}
-        {x.time && length > 0 && x.kind !== 'flight' && <span className="block pr-1 text-xs tabular-nums text-slate-500">{dur(length)}</span>}
+        {x.kind !== 'flight' && (disabled
+          ? x.time && length > 0 && <span className="block pr-1 text-xs tabular-nums text-slate-500">{dur(length)}</span>
+          : <DurationPick start={x.time} end={x.end} name={name} usual={length} usualFrom={x.end ? undefined : sight?.name}
+            onChange={(e) => onSet({ end: e })} />)}
       </div>
       {/* The line of the day, with the step's icon in its colour. */}
       <div className="flex w-8 shrink-0 flex-col items-center">
@@ -621,10 +624,6 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
               </span></span>
             )}
           </div>
-          {!disabled && x.kind !== 'flight' && (
-            <DurationPick start={x.time} end={x.end} name={name} usual={length} usualFrom={x.end ? undefined : sight?.name}
-              onChange={(e) => onSet({ end: e })} />
-          )}
           {!disabled && x.fixed && x.kind !== 'flight' && (
             <Tooltip label={t('progPinnedTip')}>
               <button type="button" aria-pressed onClick={() => onSet({ fixed: false })} aria-label={t('progUnpin', { name })}
@@ -886,9 +885,11 @@ function DurationPick({ start, end, name, usual, usualFrom, onChange }: {
     <Tooltip label={!start ? t('progDurationNeedsStart') : usualFrom ? t('progDurationSight', { place: usualFrom }) : t('progDurationTip')}>
       <select value={current === null ? '' : String(current)} disabled={!start} aria-label={t('progDurationOf', { name })}
         onChange={(e) => onChange(e.target.value === '' ? '' : shift(start, Number(e.target.value)))}
-        className={cn('select-chevron h-7 shrink-0 cursor-pointer rounded-full border-0 bg-slate-100 pl-2.5 pr-7 text-xs tabular-nums [background-size:14px]',
-          'hover:bg-slate-200 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-50',
-          current === null ? 'text-slate-600' : 'text-slate-800')}>
+        className={cn('select-chevron h-6 cursor-pointer rounded-md border-0 bg-transparent pl-1 pr-5 text-right text-xs tabular-nums [background-position:right_4px_center] [background-size:12px]',
+          'hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-50',
+          // The open list is the browser's own: always white, whatever the field looks like.
+          '[&>option]:bg-white [&>option]:text-slate-800',
+          current === null ? 'text-slate-500' : 'text-slate-700')}>
         <option value="">{usual ? `≈ ${dur(usual)}` : t('progDurationPh')}</option>
         {custom && <option value={String(current)}>{dur(current!)}</option>}
         {DURATIONS.map((m) => <option key={m} value={String(m)}>{dur(m)}</option>)}
@@ -907,7 +908,7 @@ function DriveRow({ leg, depart, samePlace, onSamePlace }: {
   const to = leg.to.split(',')[0]
   return (
     <li className="flex gap-3">
-      <span className="w-16 shrink-0" />
+      <span className="w-20 shrink-0" />
       <span className="flex w-8 shrink-0 justify-center" aria-hidden><span className="border-l-2 border-dashed border-slate-300" /></span>
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 py-2 text-sm text-slate-600">
         <Car size={15} aria-hidden className="shrink-0 text-slate-500" />
