@@ -2926,6 +2926,7 @@ const en = {
   savedDaysEmpty: "No saved days yet. In a tour's day, open ⋯ and choose “Save this day as a template”.",
   savedDayRename: "Rename",
   savedDayDeleteQ: "Delete “{name}”?",
+  noMealPrice: "no meal price yet",
 }
 
 type Dict = typeof en
@@ -5848,6 +5849,7 @@ const ka: Dict = {
   savedDaysEmpty: "შენახული დღეები ჯერ არ არის. ტურის დღეში გახსენით ⋯ და აირჩიეთ „დღის შენახვა შაბლონად“.",
   savedDayRename: "სახელის შეცვლა",
   savedDayDeleteQ: "წავშალოთ „{name}“?",
+  noMealPrice: "კვების ფასი ჯერ არ არის",
 }
 
 export type Lang = 'en' | 'ka'

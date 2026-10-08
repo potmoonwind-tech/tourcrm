@@ -329,7 +329,8 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
 }) {
   const { t, lang } = useI18n()
   const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
-  const eats = (v: Vendor) => v.type !== 'hotel' || serving.has(v.id)
+  // Every hotel can serve a meal; one with no meal price yet says so (its price is added in the catalogue).
+  const mealNote = (v: Vendor) => (v.type === 'hotel' && !serving.has(v.id) ? ` · ${t('noMealPrice')}` : '')
   const extrasOf = (d: DayFields) => [...new Set(d.extras.map((x) => menus.find((s) => s.id === x.service_id)?.vendor.name).filter(Boolean))].join(', ')
   // Stays: runs of nights in the same hotel (the last day has no night).
   const stays: { from: number; to: number }[] = []
@@ -347,7 +348,7 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
     if (mode === 'own') return <span className="text-xs text-slate-500">{t('mealOwn')}</span>
     const id = which === 'lunch' ? d.lunch_id : d.dinner_id
     return (
-      <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={id}
+      <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} note={mealNote} value={id}
         cities={which === 'lunch' ? [...(d.stops ?? []), d.city] : [d.city, ...(d.stops ?? [])]}
         onChange={(v) => onSet(i, which === 'lunch' ? { lunch_id: v, lunch_menu_id: null } : { dinner_id: v, dinner_menu_id: null })}
         onAddNew={onNewVendor && (() => onNewVendor('restaurant', (v) => onSet(i, which === 'lunch' ? { lunch_id: v.id, lunch_menu_id: null } : { dinner_id: v.id, dinner_menu_id: null })))} />
@@ -619,7 +620,8 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   const missing = [!day.city.trim(), hotelState === 'todo', mealState('lunch') === 'todo', mealState('dinner') === 'todo'].filter(Boolean).length
   // Meals: restaurants, and the hotels that serve them (a meal on their price list) — not every hotel.
   const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
-  const eats = (v: Vendor) => v.type !== 'hotel' || serving.has(v.id)
+  // Every hotel can serve a meal; one with no meal price yet says so (its price is added in the catalogue).
+  const mealNote = (v: Vendor) => (v.type === 'hotel' && !serving.has(v.id) ? ` · ${t('noMealPrice')}` : '')
   return (
     <article ref={setNodeRef} id={`day-card-${index}`} style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn('scroll-mt-28 rounded-xl border bg-white', isDragging ? 'z-10 border-brand-400 shadow-lg' : 'border-slate-200',
@@ -706,7 +708,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
               <InfoTip label={index === 0 ? t('breakfastHotelFirstDay') : t('breakfastHotelHelp')} />
             </p>
           ) : day.breakfast_mode === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
-            <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.breakfast_id ?? null}
+            <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} note={mealNote} value={day.breakfast_id ?? null}
               cities={[prevCity ?? '', ...(day.stops ?? []), day.city].filter(Boolean)}
               onChange={(v) => onSet({ breakfast_id: v, breakfast_menu_id: null })}
               onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ breakfast_id: v.id, breakfast_menu_id: null })) : undefined} />
@@ -721,7 +723,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           aside={(show || (day.lunch_mode ?? 'included') !== 'included') && <MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { lunch_mode: m, lunch_id: null, lunch_menu_id: null } : { lunch_mode: m })} />}>
           {(day.lunch_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
-          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.lunch_id} placeholder={t('chooseRestaurant')}
+          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} note={mealNote} value={day.lunch_id} placeholder={t('chooseRestaurant')}
             cities={[...(day.stops ?? []), day.city]}
             onChange={(v) => onSet({ lunch_id: v, lunch_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ lunch_id: v.id, lunch_menu_id: null })) : undefined} />
@@ -743,7 +745,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           aside={(show || (day.dinner_mode ?? 'included') !== 'included') && <MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { dinner_mode: m, dinner_id: null, dinner_menu_id: null } : { dinner_mode: m })} />}>
           {(day.dinner_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
-          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.dinner_id} placeholder={t('chooseRestaurant')}
+          <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} note={mealNote} value={day.dinner_id} placeholder={t('chooseRestaurant')}
             cities={[day.city, ...(day.stops ?? [])]}
             onChange={(v) => onSet({ dinner_id: v, dinner_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ dinner_id: v.id, dinner_menu_id: null })) : undefined} />

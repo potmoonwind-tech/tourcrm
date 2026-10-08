@@ -318,7 +318,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
       <span className="block min-w-0">
         <span className="block px-1 text-sm font-medium text-slate-800">{t(m)}</span>
         <span className="block min-w-0">
-          <VendorSelect className="h-7 w-auto max-w-full border-transparent bg-transparent px-1 text-xs text-slate-600 hover:border-slate-200" placeholder={t('chooseRestaurant')} vendors={vendorList} types={['restaurant', 'hotel']} only={(v) => v.type !== 'hotel' || serving.has(v.id)}
+          <VendorSelect className="h-7 w-auto max-w-full border-transparent bg-transparent px-1 text-xs text-slate-600 hover:border-slate-200" placeholder={t('chooseRestaurant')} vendors={vendorList} types={['restaurant', 'hotel']} note={(v) => (v.type === 'hotel' && !serving.has(v.id) ? ` · ${t('noMealPrice')}` : '')}
             value={(m === 'lunch' ? day.lunch_id : day.dinner_id) ?? null} cities={[...(day.stops ?? []), day.city]}
             onChange={(v) => onSetDay(m === 'lunch' ? { lunch_id: v, lunch_menu_id: null } : { dinner_id: v, dinner_menu_id: null })} />
         </span>
