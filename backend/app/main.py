@@ -110,4 +110,6 @@ if _dist.is_dir():
         file = _dist / path
         if path and file.is_file() and _dist in file.resolve().parents:
             return FileResponse(file)
-        return FileResponse(_dist / "index.html")
+        # The page that loads the app is always checked anew, so a new version shows without Ctrl+F5
+        # (its scripts have new names each build and may be kept).
+        return FileResponse(_dist / "index.html", headers={"Cache-Control": "no-cache"})
