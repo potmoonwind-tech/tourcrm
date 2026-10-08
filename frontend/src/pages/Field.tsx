@@ -5,7 +5,7 @@
  * opened and scrolled to. Big tap targets, readable in a bus.
  */
 import { useQuery } from '@tanstack/react-query'
-import { BedDouble, Car, ChevronDown, ChevronRight, MapPin, Navigation, Phone as PhoneIcon, Plane, Ticket, Users, Utensils } from 'lucide-react'
+import { BedDouble, Cake, Car, ChevronDown, ChevronRight, MapPin, Navigation, Phone as PhoneIcon, Plane, Ticket, Users, Utensils } from 'lucide-react'
 import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'react-router-dom'
 import { api } from '../lib/api'
@@ -21,11 +21,12 @@ interface FieldDay {
   flights?: { direction: string; number: string; time: string; airport: string; other: string }[];
   schedule?: { id: string; kind: string; time: string; end: string; title: string; ref: string | null; place: string }[]; border: string; notes: string
   hotel: Place | null; breakfast?: Place | null; lunch: Place | null; dinner: Place | null; extras: string[]
+  birthdays?: string[]      // whose birthday it is today (guides)
 }
 interface FieldView {
   agency: string; office_phone: string; team: { role: string; name: string; phone: string; days: string }[]; tour_code: string; start_date: string; end_date: string; role: string; person: string
   changes?: { id: string; day: number | null; text: string; at: string }[]
-  days: FieldDay[]; pax: number | null; group: { name: string; room: string; phone: string; notes: string }[] | null
+  days: FieldDay[]; pax: number | null; group: { name: string; room: string; phone: string; notes: string; birthday?: string | null }[] | null
   timeline?: PDay[]; meals?: MealOrder[]
 }
 /** What was ordered at a meal (guides): the menu, each dish with its plates and price, the total. */
@@ -166,6 +167,9 @@ export function FieldPage() {
                     {d.dinner_mode === 'own' && <Note icon={<Utensils size={16} />}>{t('dinner')}: {t('mealOwn')}</Note>}
                     <PlaceCard icon={<BedDouble size={16} />} label={t('hotel')} place={d.hotel} />
                     {d.extras.length > 0 && <Note icon={<Ticket size={16} />}>{d.extras.join(' · ')}</Note>}
+                    {(d.birthdays?.length ?? 0) > 0 && (
+                      <p className="flex items-center gap-2 rounded-xl bg-pink-50 px-3 py-2 text-sm font-medium text-pink-900"><Cake size={16} />{t('birthdayToday', { names: d.birthdays!.join(', ') })}</p>
+                    )}
                     {d.notes && <p className="whitespace-pre-line rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-900">{d.notes}</p>}
                     {!d.hotel && !d.lunch && !d.dinner && !d.notes && !d.extras.length && !d.border && (
                       <p className="px-1 py-2 text-sm text-slate-500">{t('fieldNothingPlanned')}</p>
@@ -183,7 +187,8 @@ export function FieldPage() {
               <li key={i} className="flex items-center gap-3 px-4 py-3">
                 <span className="w-6 shrink-0 text-right text-sm tabular-nums text-slate-400">{i + 1}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block font-medium text-slate-900">{p.name}</span>
+                  <span className="block font-medium text-slate-900">{p.name}
+                    {p.birthday && <span className="ml-2 inline-flex items-center gap-1 rounded-full bg-pink-50 px-2 py-0.5 text-xs font-medium text-pink-800"><Cake size={12} />{fmt(p.birthday, lang)}</span>}</span>
                   {(p.room || p.notes) && <span className="block text-sm text-slate-500">{[p.room, p.notes].filter(Boolean).join(' · ')}</span>}
                 </span>
                 {p.phone && <CallButton phone={p.phone} />}

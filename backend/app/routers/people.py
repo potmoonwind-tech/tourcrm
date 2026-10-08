@@ -222,6 +222,20 @@ def room_label(code: str) -> str:
     return m.group(1) if m else code.strip()
 
 
+def birthday_on_tour(birth, start, end):
+    """The date a traveller turns a year older during the tour (29 Feb: the 28th in other years), else None."""
+    if birth is None:
+        return None
+    for y in range(start.year, end.year + 1):
+        try:
+            d = birth.replace(year=y)
+        except ValueError:
+            d = birth.replace(year=y, day=28)
+        if start <= d <= end:
+            return d
+    return None
+
+
 def rooming_text(t: Tour) -> str:
     """Room by room, for the hotel's email: "1. TWN (2 single beds): ZHANG San, LI Si - needs a cot"."""
     rooms: dict[str, list[Participant]] = defaultdict(list)

@@ -58,3 +58,16 @@ export function lengthLabel(min: number, t: (k: 'durMin' | 'durH' | 'durHM', v?:
   const h = Math.floor(min / 60), m = min % 60
   return h === 0 ? t('durMin', { n: m }) : m === 0 ? t('durH', { h }) : t('durHM', { h, m })
 }
+
+
+/** The day (ISO) a traveller has a birthday during the tour, else null (29 Feb: the 28th in other years). */
+export function birthdayOn(birth: string | null | undefined, start: string, end: string): string | null {
+  if (!birth) return null
+  const [, m, dd] = birth.split('-')
+  for (let y = Number(start.slice(0, 4)); y <= Number(end.slice(0, 4)); y++) {
+    let d = `${y}-${m}-${dd}`
+    if (m === '02' && dd === '29' && !(y % 4 === 0 && (y % 100 !== 0 || y % 400 === 0))) d = `${y}-02-28`
+    if (d >= start && d <= end) return d
+  }
+  return null
+}

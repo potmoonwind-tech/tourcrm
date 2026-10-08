@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, Dialog, toast } from '../components/overlay'
-import { AlertTriangle, ArrowRightLeft, BedDouble, Copy, Download, Mail, MessageCircle, Plus, Smartphone, Trash2, Upload } from 'lucide-react'
+import { AlertTriangle, ArrowRightLeft, BedDouble, Cake, Copy, Download, Mail, MessageCircle, Plus, Smartphone, Trash2, Upload } from 'lucide-react'
 import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { RoomingEmailDialog } from '../components/EmailDialog'
@@ -15,7 +15,7 @@ import { Button, Card, ErrorText, Input, SegmentedControl, Select } from '../com
 import { RoomsBoard } from '../components/RoomsBoard'
 import { api, ROLE_VENDOR_TYPES, ROOM_TYPES, STAFF_ROLES, type Participant, type RoomingSummary, type StaffAssignment, type StaffRole, type Tour } from '../lib/api'
 import { useVendors, wsPath } from '../lib/data'
-import { addDays, diffDays } from '../lib/dates'
+import { addDays, diffDays, birthdayOn, fmt } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
@@ -54,6 +54,12 @@ export function ParticipantsTab({ tour }: { tour: Tour }) {
   const clear = useMutation({ mutationFn: () => api(`${base}/participants`, { method: 'DELETE' }), onSuccess: refresh })
   const list = people.data ?? []
   const r = rooming.data
+  // Each room its colour, in the order the rooms first appear (roommates share it wherever they stand).
+  const roomIndex = new Map<string, number>()
+  for (const p of list) {
+    const g = p.room_group.trim().toLowerCase()
+    if (g && !roomIndex.has(g)) roomIndex.set(g, roomIndex.size)
+  }
   // Passports should outlive the trip by ~6 months.
   const passportLimit = addDays(tour.end_date, 183)
 
@@ -103,7 +109,8 @@ export function ParticipantsTab({ tour }: { tour: Tour }) {
         <p className="text-sm text-slate-600">{t('roomsSendHint')}{' '}
           <Link to="?tab=bookings" className="font-medium text-brand-700 hover:underline">{t('roomsSendLink')}</Link></p>
       )}
-      {view === 'rooms' && list.length > 0 ? <RoomsBoard people={list} base={base} onChange={refresh} /> : people.isSuccess && list.length === 0 ? (
+      {view === 'rooms' && list.length > 0 ? <RoomsBoard people={list} base={base} onChange={refresh}
+        birthdays={Object.fromEntries(list.flatMap((p) => { const d = birthdayOn(p.birth_date, tour.start_date, tour.end_date); return d ? [[p.id, d]] : [] }))} /> : people.isSuccess && list.length === 0 ? (
         <EmptyState title={t('noParticipants')} hint={t('noParticipantsHint')} action={<AddParticipant tourId={tour.id} />} />
       ) : (
         <Card>
@@ -112,7 +119,7 @@ export function ParticipantsTab({ tour }: { tour: Tour }) {
               <thead className="bg-slate-50 text-left text-xs font-medium text-slate-500">
                 <tr>
                   <th className="w-10 px-3 py-2">#</th>
-                  <th className="px-2 py-2">{t('fullName')}</th>
+                  <th className="min-w-56 px-2 py-2">{t('fullName')}</th>
                   <th className="w-20 px-2 py-2">{t('gender')}</th>
                   <th className="w-36 px-2 py-2">{t('birthDate')}</th>
                   <th className="w-32 px-2 py-2">{t('nationality')}</th>
@@ -125,7 +132,8 @@ export function ParticipantsTab({ tour }: { tour: Tour }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {list.map((p, i) => <ParticipantRow key={p.id} n={i + 1} p={p} base={base} passportLimit={passportLimit} onChange={refresh} />)}
+                {list.map((p, i) => <ParticipantRow key={p.id} n={i + 1} p={p} base={base} passportLimit={passportLimit} onChange={refresh}
+                  room={roomLook(list, i, roomIndex)} birthday={birthdayOn(p.birth_date, tour.start_date, tour.end_date)} tourStart={tour.start_date} />)}
               </tbody>
             </table>
           </div>
@@ -157,10 +165,29 @@ function AddParticipant({ tourId }: { tourId: string }) {
 
 const cell = 'h-9 border-transparent bg-transparent shadow-none hover:border-slate-300 focus:bg-white'
 
-function ParticipantRow({ n, p, base, passportLimit, onChange }: {
-  n: number; p: Participant; base: string; passportLimit: string; onChange: () => void
+/** Roommates look like one block: a colour bar on the left (the room's own), a shared light band, no line
+ * between them, and the room's label and size on its first row. */
+const ROOM_BARS = ['border-l-sky-400', 'border-l-amber-400', 'border-l-emerald-500', 'border-l-violet-400', 'border-l-rose-400', 'border-l-teal-500']
+const ROOM_DOTS = ['bg-sky-400', 'bg-amber-400', 'bg-emerald-500', 'bg-violet-400', 'bg-rose-400', 'bg-teal-500']
+interface RoomLook { bar: string; dot: string; band: boolean; joinsAbove: boolean; first: boolean; size: number; label: string }
+
+function roomLook(list: Participant[], i: number, index: Map<string, number>): RoomLook | null {
+  const g = list[i].room_group.trim().toLowerCase()
+  if (!g) return null
+  const k = index.get(g) ?? 0
+  const same = (j: number) => j >= 0 && j < list.length && list[j].room_group.trim().toLowerCase() === g
+  return {
+    bar: ROOM_BARS[k % ROOM_BARS.length], dot: ROOM_DOTS[k % ROOM_DOTS.length], band: k % 2 === 0,
+    joinsAbove: same(i - 1), first: !list.slice(0, i).some((x) => x.room_group.trim().toLowerCase() === g),
+    size: list.filter((x) => x.room_group.trim().toLowerCase() === g).length, label: list[i].room_group.trim(),
+  }
+}
+
+function ParticipantRow({ n, p, base, passportLimit, onChange, room, birthday, tourStart }: {
+  n: number; p: Participant; base: string; passportLimit: string; onChange: () => void; room?: RoomLook | null
+  birthday?: string | null; tourStart?: string     // their birthday falls on the tour: a cake, on that day
 }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   // Opened from search ("?p=<id>"): bring this tourist into view and mark the row for a moment.
   const [params] = useSearchParams()
   const found = params.get('p') === p.id
@@ -191,10 +218,25 @@ function ParticipantRow({ n, p, base, passportLimit, onChange }: {
   const expiring = !!p.passport_expiry && p.passport_expiry < passportLimit
 
   return (
-    <tr ref={row} className={cn('transition-colors duration-700', save.isPending && 'opacity-60', save.isError && 'bg-red-50', flash && 'bg-amber-100')}>
-      <td className="px-3 text-slate-400">{n}</td>
+    <tr ref={row} style={room?.joinsAbove ? { borderTopWidth: 0 } : undefined}
+      className={cn('transition-colors duration-700', room && cn('border-l-4', room.bar, room.band && 'bg-slate-50/70'),
+        save.isPending && 'opacity-60', save.isError && 'bg-red-50', flash && 'bg-amber-100')}>
+      <td className="px-3 text-slate-400">
+        {n}
+        {room?.first && room.size > 1 && (
+          <span className="mt-0.5 flex items-center gap-1 whitespace-nowrap text-[10px] font-medium text-slate-500" title={t('roomTogether', { n: room.size })}>
+            <span className={cn('h-1.5 w-1.5 rounded-full', room.dot)} />{room.label} · {room.size}
+          </span>
+        )}
+      </td>
       <td className="px-1 py-1">{txt('full_name', 'font-medium')}
-        {p.local_name && <span className="block px-2 text-[11px] text-slate-500">{p.local_name}</span>}</td>
+        {p.local_name && <span className="block px-2 text-[11px] text-slate-500">{p.local_name}</span>}
+        {birthday && tourStart && (
+          <span className="ml-2 mt-0.5 inline-flex items-center gap-1 whitespace-nowrap rounded-full bg-pink-50 px-2 py-0.5 text-[11px] font-medium text-pink-800"
+            title={t('birthdayOnTour')}>
+            <Cake size={12} aria-hidden />{t('birthdayDay', { date: fmt(birthday, lang), n: diffDays(tourStart, birthday) + 1 })}
+          </span>
+        )}</td>
       <td className="px-1 py-1">
         <Select className={cell} value={p.gender} onChange={(e) => save.mutate({ gender: e.target.value })}>
           <option value="">—</option><option value="M">{t('genderM')}</option><option value="F">{t('genderF')}</option>

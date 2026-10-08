@@ -1,8 +1,9 @@
 import { DndContext, KeyboardSensor, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
-import { AlertTriangle, BedDouble, Check, GripVertical, Plus, Wand2, X } from 'lucide-react'
-import { useState } from 'react'
+import { AlertTriangle, BedDouble, Cake, Check, GripVertical, Plus, Wand2, X } from 'lucide-react'
+import { createContext, useContext, useState } from 'react'
 import { api, ROOM_TYPES, type Participant, type RoomType } from '../lib/api'
 import { useI18n, type TKey } from '../lib/i18n'
+import { fmt } from '../lib/dates'
 import { cn } from '../lib/utils'
 import { Button, Select } from './ui'
 
@@ -16,7 +17,12 @@ interface Room { id: string; type: RoomType; people: Participant[] }
  * picker, from the keyboard too); a room says when it holds more or fewer people than its beds. Saved in
  * each person's room type and room code — the same fields the rooming list (Excel) and the room count read.
  */
-export function RoomsBoard({ people, base, onChange }: { people: Participant[]; base: string; onChange: () => void }) {
+/** Whose birthday falls on the tour: a cake on their chip ({ participant id: date }). */
+const Birthdays = createContext<Record<string, string>>({})
+
+export function RoomsBoard({ people, base, onChange, birthdays = {} }: {
+  people: Participant[]; base: string; onChange: () => void; birthdays?: Record<string, string>
+}) {
   const { t } = useI18n()
   const [busy, setBusy] = useState(false)
   const [empty, setEmpty] = useState<{ id: string; type: RoomType }[]>([])   // made here, nobody in them yet
@@ -82,6 +88,7 @@ export function RoomsBoard({ people, base, onChange }: { people: Participant[]; 
   const typedLoose = loose.filter((p) => p.room_type).length
 
   return (
+    <Birthdays.Provider value={birthdays}>
     <DndContext sensors={sensors} onDragEnd={onDragEnd}>
       <div className={cn('space-y-4', busy && 'pointer-events-none opacity-70')} aria-busy={busy}>
         <div className="flex flex-wrap items-center gap-2">
@@ -111,6 +118,7 @@ export function RoomsBoard({ people, base, onChange }: { people: Participant[]; 
         )}
       </div>
     </DndContext>
+    </Birthdays.Provider>
   )
 }
 
@@ -176,7 +184,8 @@ function RoomCard({ room, loose, onPut, onOut, onType, onDrop, onNote }: {
 }
 
 function Person({ p, onOut }: { p: Participant; onOut?: () => void }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
+  const bday = useContext(Birthdays)[p.id]
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: p.id })
   return (
     <span ref={setNodeRef} style={transform ? { transform: `translate(${transform.x}px, ${transform.y}px)` } : undefined}
@@ -186,6 +195,7 @@ function Person({ p, onOut }: { p: Participant; onOut?: () => void }) {
         className="cursor-grab touch-none rounded-full p-0.5 text-slate-400 hover:bg-white active:cursor-grabbing"><GripVertical size={14} /></button>
       <span className="truncate">{p.full_name}</span>
       {p.gender && <span className="text-xs text-slate-500">{p.gender}</span>}
+      {bday && <span title={t('birthdayOnTour')} className="inline-flex items-center gap-0.5 rounded-full bg-pink-50 px-1.5 text-xs font-medium text-pink-800"><Cake size={12} aria-hidden />{fmt(bday, lang)}</span>}
       {onOut && <button type="button" onClick={onOut} aria-label={t('roomsTakeOut', { name: p.full_name })}
         className="rounded-full p-0.5 text-slate-400 hover:bg-white hover:text-red-600"><X size={13} /></button>}
     </span>

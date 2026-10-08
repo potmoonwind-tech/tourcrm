@@ -47,7 +47,7 @@ def test_driver_and_guide_pages(make_client):
     gl = mk(c, f"{url}/staff/{g['id']}/field-link", {})
     gp = c.get(f"/api/field/{gl['token']}").json()
     assert [x["number"] for x in gp["days"]] == [1, 2, 3] and gp["pax"] == 1
-    assert gp["group"] == [{"name": "Anna Berg", "room": "DBL", "phone": "+46 1", "notes": ""}]
+    assert gp["group"] == [{"name": "Anna Berg", "room": "DBL", "phone": "+46 1", "notes": "", "birthday": None}]
     assert "X123" not in str(gp)
     assert [(x["name"], x["days"]) for x in gp["team"]] == [("Gia", "2–3")]                                         # never passports
 
@@ -131,3 +131,15 @@ def test_the_guide_gets_the_timeline_and_the_orders(make_client):
     # A driver: the timeline of his days, no orders and prices.
     dp = c.get(f"/api/field/{mk(c, f'{url}/staff/{d['id']}/field-link', {})['token']}").json()
     assert [x["number"] for x in dp["timeline"]] == [2, 3] and dp["meals"] == []
+
+
+def test_the_guide_sees_birthdays_on_the_tour(make_client):
+    c, base, _ = agency(make_client)
+    t, url, g, d = tour_with_staff(c, base)
+    day2 = date.fromisoformat(c.get(url).json()["days"][1]["date"])
+    mk(c, f"{url}/participants", {"full_name": "PARK Mina", "birth_date": day2.replace(year=1990).isoformat()})
+    gp = c.get(f"/api/field/{mk(c, f'{url}/staff/{g['id']}/field-link', {})['token']}").json()
+    assert next(p for p in gp["group"] if p["name"] == "PARK Mina")["birthday"] == day2.isoformat()
+    assert gp["days"][1]["birthdays"] == ["PARK Mina"] and gp["days"][0]["birthdays"] == []
+    dp = c.get(f"/api/field/{mk(c, f'{url}/staff/{d['id']}/field-link', {})['token']}").json()
+    assert all(x["birthdays"] == [] for x in dp["days"])            # drivers: no names

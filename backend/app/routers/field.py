@@ -26,6 +26,7 @@ from ..models import (COST_CATEGORIES, FieldExpense, FieldLink, Service, StaffAs
                       Vendor, VendorPayment, Workspace, utcnow)
 from ..schemas import DayFields, _currency
 from .meals import MealRow, meals_of
+from .people import birthday_on_tour
 from ..scoping import get_owned
 
 router = APIRouter(tags=["field"])
@@ -122,6 +123,7 @@ class FieldDay(BaseModel):
     lunch: Place | None
     dinner: Place | None
     extras: list[str]
+    birthdays: list[str] = []            # whose birthday it is that day (guides)
 
 
 class GroupMember(BaseModel):
@@ -129,6 +131,7 @@ class GroupMember(BaseModel):
     room: str
     phone: str
     notes: str
+    birthday: date | None = None        # their birthday falls on the tour (a cake, a toast)
 
 
 class Colleague(BaseModel):
@@ -239,6 +242,9 @@ def field_page(token: str, request: Request, lang: str = "en", db: Session = Dep
         hotel=_place(d.hotel), lunch=_place(d.lunch, services.get(d.lunch_menu_id), (d.meal_dishes or {}).get("lunch")),
         dinner=_place(d.dinner, services.get(d.dinner_menu_id), (d.meal_dishes or {}).get("dinner")),
         extras=_extras(d.extras, services)) for d in days]
+    guide_sees = s.role in SEES_GROUP
+    for fd in out_days if guide_sees else []:
+        fd.birthdays = [p.full_name for p in t.participants if birthday_on_tour(p.birth_date, t.start_date, t.end_date) == fd.date]
     guide = s.role in SEES_GROUP
     mine = {d.day_number for d in days}
     team = []
@@ -248,7 +254,8 @@ def field_page(token: str, request: Request, lang: str = "en", db: Session = Dep
             continue
         span = str(shared[0]) if len(shared) == 1 else f"{shared[0]}–{shared[-1]}"
         team.append(Colleague(role=o.role, name=o.vendor.name, phone=o.vendor.phone or o.vendor.phone2, days=span))
-    group = [GroupMember(name=p.full_name, room=" ".join(x for x in (p.room_type, p.room_group) if x), phone=p.phone, notes=p.notes)
+    group = [GroupMember(name=p.full_name, room=" ".join(x for x in (p.room_type, p.room_group) if x), phone=p.phone, notes=p.notes,
+                         birthday=birthday_on_tour(p.birth_date, t.start_date, t.end_date))
              for p in sorted(t.participants, key=lambda p: (p.position, p.full_name))] if guide else None
     ws = db.get(Workspace, t.workspace_id)
     meals = [m for m in meals_of(t, ws.plate_share or 1, money=True).rows if m.day in mine] if guide else []

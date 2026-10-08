@@ -2818,6 +2818,10 @@ const en = {
   roomingNoAddress: "Tick a hotel and give it an email address",
   roomingNoHotels: "This tour has no hotel nights yet.",
   importByAi: "AI recognised the columns of this list (only the first rows, numbers hidden). Check the preview before saving.",
+  roomTogether: "{n} people in this room",
+  birthdayOnTour: "Birthday during the tour",
+  birthdayDay: "{date} · day {n}",
+  birthdayToday: "Birthday today: {names}",
 }
 
 type Dict = typeof en
@@ -5632,6 +5636,10 @@ const ka: Dict = {
   roomingNoAddress: "მონიშნეთ სასტუმრო და მიუთითეთ ელფოსტა",
   roomingNoHotels: "ამ ტურს ჯერ არ აქვს სასტუმროს ღამეები.",
   importByAi: "ამ სიის სვეტები AI-მ ამოიცნო (მხოლოდ პირველი რიგები, ციფრები დამალული). შენახვამდე შეამოწმეთ.",
+  roomTogether: "ამ ოთახში {n} ადამიანია",
+  birthdayOnTour: "დაბადების დღე ტურის დროს",
+  birthdayDay: "{date} · დღე {n}",
+  birthdayToday: "დღეს დაბადების დღე აქვს: {names}",
 }
 
 export type Lang = 'en' | 'ka'
