@@ -2904,8 +2904,8 @@ const en = {
   dragToDay: "Drag to another day (hold Ctrl to copy)",
   dragMove: "Move",
   dragCopy: "Copy",
-  dragMoved: "Moved to the other day",
-  dragCopied: "Copied to the other day",
+  dragMoved: "Moved",
+  dragCopied: "Copied",
 }
 
 type Dict = typeof en
@@ -5806,8 +5806,8 @@ const ka: Dict = {
   dragToDay: "გადაიტანეთ სხვა დღეზე (Ctrl - კოპირება)",
   dragMove: "გადატანა",
   dragCopy: "კოპირება",
-  dragMoved: "გადატანილია სხვა დღეზე",
-  dragCopied: "დაკოპირდა სხვა დღეზე",
+  dragMoved: "გადატანილია",
+  dragCopied: "დაკოპირდა",
 }
 
 export type Lang = 'en' | 'ka'
