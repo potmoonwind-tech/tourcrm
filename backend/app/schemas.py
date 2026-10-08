@@ -252,6 +252,7 @@ class VendorUpdate(BaseModel):
     vat_invoice: bool | None = None
     visit_minutes: int | None = Field(default=None, ge=5, le=720)   # how long a visit usually takes
     company_id: str | None = None      # a driver's (or guide's) company: the transport supplier that sends them
+    category: str | None = Field(default=None, max_length=40)        # activity places: museum, cable_car... or the agency's own
 
     _cur = field_validator("currency")(_opt_currency)
     _terms = field_validator("cancel_terms")(_scale)
@@ -299,6 +300,7 @@ class VendorOut(_Out):
     vat_invoice: bool = False
     visit_minutes: int | None = None
     company_id: str | None = None
+    category: str = ""
 
 
 class VendorRef(_Out):

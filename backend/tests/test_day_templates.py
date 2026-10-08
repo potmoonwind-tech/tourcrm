@@ -33,3 +33,12 @@ def test_a_meal_to_be_decided_keeps_its_town(make_client):
         {"city": "Yerevan", "meal_tbd": {"lunch": "  Yerevan ", "dinner": "", "snack": "x"}}, {"city": "Yerevan"}]})
     d = c.get(f"{base}/series/{route['id']}").json()["days"][0]
     assert d["meal_tbd"] == {"lunch": "Yerevan"}
+
+
+
+def test_an_activity_place_has_a_category(make_client):
+    c, base, _ = agency(make_client)
+    v = mk(c, f"{base}/vendors", {"name": "Tbilisi cable car", "type": "activity", "city": "Tbilisi", "category": "cable_car"})
+    assert v["category"] == "cable_car"
+    assert c.patch(f"{base}/vendors/{v['id']}", json={"category": "Sky ride"}).json()["category"] == "Sky ride"   # the agency's own word
+    assert mk(c, f"{base}/vendors", {"name": "Hotel", "type": "hotel"})["category"] == ""

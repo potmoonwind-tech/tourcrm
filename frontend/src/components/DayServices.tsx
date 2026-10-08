@@ -3,6 +3,7 @@ import { MapPin, Plus, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import type { DayExtra, ServiceBrief, Vendor } from '../lib/api'
 import { useServiceList, useVendors } from '../lib/data'
+import { catLabel, catOf } from '../lib/activities'
 import { useI18n } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
 import { Tooltip } from './Tooltip'
@@ -75,7 +76,11 @@ export function DayServices({ value, onChange, disabled, onAddNew, grip, visits 
           <div key={vid} className="rounded-lg border border-slate-200 bg-white">
             <div className="flex items-center gap-2 px-2.5 py-1.5">
               {grip && on.length > 0 && grip(vid, on.map((x) => x.id))}
-              <MapPin size={14} className="shrink-0 text-brand-700" aria-hidden />
+              {(() => {
+                const k = catOf(vendors.data?.find((x) => x.id === vid)?.category)
+                return k ? <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full', k.tone)} title={catLabel(t, k.key)}><k.icon size={13} aria-hidden /></span>
+                  : <MapPin size={14} className="shrink-0 text-brand-700" aria-hidden />
+              })()}
               <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-800">{vendor?.name}</span>
               {!single && <span className="shrink-0 text-xs text-slate-500">{t('placeActivitiesOn', { n: on.length, of: list.length })}</span>}
               {!disabled && (

@@ -74,6 +74,7 @@ export interface Vendor {
   languages?: string[]; unavailable?: Away[]     // guides / drivers
   vat_invoice?: boolean         // gives VAT invoices: its costs carry the agency's VAT rate
   visit_minutes?: number | null // a sight or activity: how long a visit usually takes
+  category?: string             // an activity place: museum, cable_car... (lib/activities.tsx) or the agency's own word
   company_id?: string | null    // a driver's (or guide's) company: the bus company that sends them
 }
 /** Dates a guide or driver can't work, both days included. */

@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
 import { airportName } from '../lib/airports'
+import { catOf, type ActivityCat } from '../lib/activities'
 import { wsPath } from '../lib/data'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
@@ -503,6 +504,9 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
                   )}
                   <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
                     length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)} end={i === items.length - 1 && !after.length}
+                    cat={x.kind === 'visit' ? catOf((x.ref?.startsWith('extra:')
+                      ? byId.get(services.find((s) => s.id === day.extras.find((e) => e.id === x.ref!.slice(6))?.service_id)?.vendor.id ?? '')
+                      : sightOf(x, byId))?.category) : null}
                     onSet={(patch) => set(x.id, patch)} onRemove={() => removeStep(x)}
                     onLink={onSetDay ? (serviceId) => linkActivity(x.id, serviceId) : undefined} />
                 </Fragment>
@@ -566,7 +570,8 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   )
 }
 
-function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, end, onSet, onRemove, onLink }: {
+function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, end, cat, onSet, onRemove, onLink }: {
+  cat?: ActivityCat | null   // a visit at a catalogue place: its kind (museum, cable car...) as the bubble
   x: ScheduleItem; label: { text: string; missing: boolean }; picker?: ReactNode; disabled?: boolean; issue?: StepIssue; onFix: (time: string) => void
   length: number; sights: PlaceSuggestion[]; sight?: Vendor
   end?: boolean   // the day's last step: the line stops here
@@ -600,8 +605,8 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
       {/* The line of the day, with the step's icon in its colour. */}
       <div className="flex w-8 shrink-0 flex-col items-center">
         <Tooltip label={kind}>
-          <span className={cn('mt-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full', label.missing ? 'bg-amber-100 text-amber-800' : KIND_STYLE[x.kind])}
-            role="img" aria-label={kind}>{ICON[x.kind]}</span>
+          <span className={cn('mt-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full', label.missing ? 'bg-amber-100 text-amber-800' : cat ? cat.tone : KIND_STYLE[x.kind])}
+            role="img" aria-label={kind}>{cat ? <cat.icon size={16} aria-hidden /> : ICON[x.kind]}</span>
         </Tooltip>
         {!end && <span className="w-0.5 flex-1 bg-slate-200" aria-hidden />}
       </div>

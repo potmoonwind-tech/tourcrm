@@ -1,6 +1,7 @@
+import { ACTIVITY_CATS, catLabel, catOf, ownCats } from '../lib/activities'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SetupNudge } from '../components/GetStarted'
-import { Drawer, ask, useGuardedClose, useUnsaved, toast } from '../components/overlay'
+import { Drawer, ask, askText, useGuardedClose, useUnsaved, toast } from '../components/overlay'
 import { ChevronDown, Landmark, Plus, Search, ChefHat } from 'lucide-react'
 import { useRef, useState, type FormEvent, type ReactNode } from 'react'
 import { PaymentTermsEditor } from '../components/PaymentTermsEditor'
@@ -16,7 +17,7 @@ import {
   api, VENDOR_TYPES,
   type Client, type Vendor, type VendorType, can } from '../lib/api'
 import { useClients, useOpenFromUrl, useVendors, wsPath } from '../lib/data'
-import { useI18n } from '../lib/i18n'
+import { useI18n, type TKey } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
 import { CURRENCIES } from './Onboarding'
@@ -59,7 +60,10 @@ export function VendorsPage() {
   const canEdit = can(ws, 'operations')   // suppliers and all their prices
 
   const all = vendors.data ?? []
-  const rows = all.filter((v) => (!type || v.type === type) && matches(q, v.name, v.city, v.contact_person, v.phone))
+  const [cat, setCat] = useState('')
+  const rows = all.filter((v) => (!type || v.type === type) && (type !== 'activity' || !cat || v.category === cat)
+    && matches(q, v.name, v.city, v.contact_person, v.phone))
+  const cats = [...new Set(all.filter((v) => v.type === 'activity' && v.category).map((v) => v.category!))]
   const counts = Object.fromEntries(VENDOR_TYPES.map((ty) => [ty, all.filter((v) => v.type === ty).length]))
 
   return (
@@ -75,6 +79,19 @@ export function VendorsPage() {
             <FilterChip key={ty} active={type === ty} onClick={() => setType(ty)}>{t(`vendorType_${ty}`)} · {counts[ty]}</FilterChip>
           ))}
         </div>
+        {type === 'activity' && cats.length > 0 && (
+          <div className="flex flex-wrap gap-2" aria-label={t('activityCategory')}>
+            <FilterChip active={!cat} onClick={() => setCat('')}>{t('all')}</FilterChip>
+            {cats.map((c) => {
+              const k = catOf(c)!
+              return (
+                <FilterChip key={c} active={cat === c} onClick={() => setCat(c)}>
+                  <span className="inline-flex items-center gap-1"><k.icon size={13} aria-hidden />{catLabel(t, c)} · {all.filter((v) => v.type === 'activity' && v.category === c).length}</span>
+                </FilterChip>
+              )
+            })}
+          </div>
+        )}
         <div className="flex flex-wrap items-center gap-3">
           <div className="relative min-w-48 flex-1">
             <Search size={16} className="absolute left-3 top-3 text-slate-400" />
@@ -108,7 +125,8 @@ export function VendorsPage() {
                       {v.name}
                       {v.company_id && <span className="block text-xs font-normal text-slate-600">{all.find((c) => c.id === v.company_id)?.name}</span>}
                     </td>
-                    <td className="px-4 py-3"><TypePill type={v.type} /></td>
+                    <td className="px-4 py-3"><TypePill type={v.type} />
+                      {v.category && <span className="mt-1 block text-xs text-slate-500">{catLabel(t, v.category)}</span>}</td>
                     <td className="px-4 py-3 text-slate-600">{v.city}</td>
                     <td className="px-4 py-3 text-slate-600">{v.contact_person}</td>
                     <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}><Phone phone={v.phone} /></td>
@@ -176,6 +194,7 @@ function VendorModal({ vendor, defaultType, canEdit, onClose: close, onCreated, 
     vat_invoice: vendor?.vat_invoice ?? false,
     visit_minutes: vendor?.visit_minutes != null ? String(vendor.visit_minutes) : '',
     company_id: vendor?.company_id ?? '',
+    category: vendor?.category ?? '',
   }))
   const allVendors = useVendors().data ?? []
   const companies = allVendors.filter((v) => (v.type === 'transport' || v.type === 'other') && v.id !== vendor?.id)
@@ -257,6 +276,21 @@ function VendorModal({ vendor, defaultType, canEdit, onClose: close, onCreated, 
               </Select>
             </Field>
           </div>
+          {['activity', 'other'].includes(f.type) && (
+            <Field label={t('activityCategory')} hint={t('activityCategoryHint')}>
+              <Select value={f.category} disabled={!canEdit} className="w-64" onChange={async (e) => {
+                if (e.target.value !== '__new__') { setF({ ...f, category: e.target.value }); return }
+                const own = await askText({ title: t('activityCategoryNew'), confirmLabel: t('save'), input: { placeholder: t('activityCategoryNewPh'), required: true } })
+                if (own?.trim()) setF({ ...f, category: own.trim().slice(0, 40) })
+              }}>
+                <option value="">{t('activityCategoryNone')}</option>
+                {ACTIVITY_CATS.map((c) => <option key={c.key} value={c.key}>{t(`actCat_${c.key}` as TKey)}</option>)}
+                {ownCats(allVendors).map((c) => <option key={c} value={c}>{c}</option>)}
+                {f.category && !ACTIVITY_CATS.some((c) => c.key === f.category) && !ownCats(allVendors).includes(f.category) && <option value={f.category}>{f.category}</option>}
+                <option value="__new__">{t('activityCategoryAdd')}</option>
+              </Select>
+            </Field>
+          )}
           {['activity', 'other'].includes(f.type) && (
             <Field label={t('visitLength')} hint={t('visitLengthHint')}>
               <Select value={f.visit_minutes} onChange={set('visit_minutes')} className="w-40">

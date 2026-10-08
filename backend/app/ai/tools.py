@@ -117,7 +117,9 @@ TOOLS: list[dict[str, Any]] = [
             "type": {"type": "string", "enum": ["hotel", "restaurant", "transport", "guide", "driver", "activity", "other"]},
             "city": {"type": "string"}, "address": {"type": "string"}, "phone": {"type": "string"}, "email": {"type": "string"},
             "contact_person": {"type": "string"}, "currency": {"type": "string", "description": "Currency of their prices"},
-            "notes": {"type": "string"}, "languages": {"type": "array", "items": {"type": "string"}, "description": "Guides/drivers"}},
+            "notes": {"type": "string"}, "languages": {"type": "array", "items": {"type": "string"}, "description": "Guides/drivers"},
+            "category": {"type": "string", "description": "Activity places only - what kind: museum, church (church & monastery), fortress (fortress & castle), cable_car, winery (winery & tasting), nature (nature & park), cave (cave & canyon), workshop (workshop & class), show (show & folklore), boat (boat & rafting), other; or a short word of the "
+                                                         "agency's own when none fits"}},
             "required": ["name", "type"]}}}, "required": ["vendors"]},
     },
     {
@@ -387,7 +389,7 @@ def _list(db: Session, ctx: WorkspaceCtx, s: AiSession, a: dict):
     def hit(*xs):
         return not q or any(q in (x or "").lower() for x in xs)
     if kind == "vendors":
-        rows = [{"id": v.id, "name": v.name, "type": v.type, "city": v.city, "currency": v.currency, "services": len(v.services)}
+        rows = [{"id": v.id, "name": v.name, "type": v.type, "category": v.category, "city": v.city, "currency": v.currency, "services": len(v.services)}
                 for v in db.scalars(select(Vendor).where(Vendor.workspace_id == ws).options(selectinload(Vendor.services))
                                     .order_by(Vendor.name)) if hit(v.name, v.city, v.type)]
     elif kind == "clients":
