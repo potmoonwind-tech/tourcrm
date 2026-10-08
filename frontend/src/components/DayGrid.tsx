@@ -13,7 +13,7 @@ import { cn } from '../lib/utils'
 import type { Crew } from './MealPlan'
 
 type State = 'ok' | 'todo' | 'soft' | 'none'      // done · missing · worth a look · not needed
-interface Line { icon: ReactNode; label: string; text: string; state: State; sub?: string }
+interface Line { icon: ReactNode; label: string; text: string; state: State; sub?: string; wrap?: boolean }
 
 export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
   days: DayFields[]; dates?: string[]; byId: Map<string, Vendor>; menus: ServiceBrief[]; alerts: TourAlert[]
@@ -51,9 +51,11 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
       const menu = menuOf(d, meal)
       out.push({ icon: <Utensils size={13} />, label: t(meal), text: name(id), sub: menu || t('gridNoMenu'), state: menu ? 'ok' : 'soft' })
     }
-    // Activities and tickets
-    const extras = [...new Set(d.extras.map((x) => menus.find((s) => s.id === x.service_id)?.vendor.name).filter(Boolean))]
-    out.push({ icon: <Ticket size={13} />, label: t('gridActivities'), text: extras.length ? extras.join(', ') : '—', state: extras.length ? 'ok' : 'none' })
+    // What they do: the places with activities and the free visits of the day's timeline - as "what they do" shows it.
+    const paid = d.extras.map((x) => menus.find((s) => s.id === x.service_id)?.vendor.name)
+    const free = (d.schedule ?? []).filter((x) => x.kind === 'visit' && !x.ref && x.title.trim()).map((x) => x.title.trim())
+    const extras = [...new Set([...paid, ...free].filter((x): x is string => !!x))]
+    out.push({ icon: <Ticket size={13} />, label: t('gridActivities'), text: extras.length ? extras.join(', ') : '—', state: extras.length ? 'ok' : 'none', wrap: true })
     // The day hour by hour
     const timed = (d.schedule ?? []).some((x) => x.time)
     out.push({ icon: <Clock size={13} />, label: t('gridProgramme'), text: timed ? t('gridTimed', { n: d.schedule!.length }) : t('gridSuggested'), state: timed ? 'ok' : 'none' })
@@ -121,7 +123,7 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
                     l.state === 'ok' ? 'text-emerald-600' : l.state === 'todo' ? 'text-amber-600' : l.state === 'soft' ? 'text-sky-600' : 'text-slate-300')}>{l.icon}</span>
                   <span className={cn('whitespace-nowrap py-1 text-slate-500', k > 0 && 'border-t border-slate-100')}>{l.label}</span>
                   <span className={cn('min-w-0 py-1', k > 0 && 'border-t border-slate-100')} title={l.sub ? `${l.text} · ${l.sub}` : l.text}>
-                    <span className={cn('block truncate', l.state === 'todo' ? 'font-semibold text-amber-800' : l.state === 'none' ? 'text-slate-400' : 'text-slate-800')}>{l.text}</span>
+                    <span className={cn('block', l.wrap ? 'line-clamp-2' : 'truncate', l.state === 'todo' ? 'font-semibold text-amber-800' : l.state === 'none' ? 'text-slate-400' : 'text-slate-800')}>{l.text}</span>
                     {l.sub && <span className={cn('block truncate text-[11px]', l.state === 'soft' ? 'text-sky-700' : 'text-slate-500')}>{l.sub}</span>}
                   </span>
                 </li>
