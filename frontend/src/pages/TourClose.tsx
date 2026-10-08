@@ -48,6 +48,7 @@ export function ClosePanel({ tour, onTab }: { tour: Tour; onTab: (tab: string) =
     queryFn: () => api<CloseCheck>(wsPath(ws.id, `/tours/${tour.id}/close-check`)),
   })
   const [note, setNote] = useState('')
+  const [open, setOpen] = useState(false)      // a short bar until opened: the tour's work stays in view
   const done = () => { for (const k of ['tour', 'tours', 'closeCheck', 'toClose']) qc.invalidateQueries({ queryKey: [k, ws.id] }) }
   const close = useMutation({
     mutationFn: (force: boolean) => api<CloseCheck>(wsPath(ws.id, `/tours/${tour.id}/close`), { method: 'POST', body: { note, force } }),
@@ -94,7 +95,9 @@ export function ClosePanel({ tour, onTab }: { tour: Tour; onTab: (tab: string) =
         <span className="text-sm text-slate-500">{t('closeProgress', { done: done_n, total: blocking.length })}</span>
         <div className="flex-1" />
         <span className="text-sm">{t('profit')} <b className="tabular-nums">{money(c.profit, cur)}</b></span>
+        <Button size="sm" variant="secondary" aria-expanded={open} onClick={() => setOpen(!open)}>{open ? t('hideChecklist') : t('showChecklist')}</Button>
       </div>
+      {open && <>
       <ul className="grid gap-x-6 gap-y-1.5 px-5 py-3 text-sm sm:grid-cols-2">
         {c.items.map((i) => (
           <li key={i.key} className="flex items-start gap-2">
@@ -121,6 +124,7 @@ export function ClosePanel({ tour, onTab }: { tour: Tour; onTab: (tab: string) =
         ) : <span className="text-sm text-slate-500">{t('notReadyToClose')}</span>}
       </div>
       <div className="px-5 pb-3"><ErrorText error={close.error} /></div>
+      </>}
     </Card>
   )
 }

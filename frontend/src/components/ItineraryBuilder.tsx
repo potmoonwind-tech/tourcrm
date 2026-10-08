@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, BedDouble, Bus, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X } from 'lucide-react'
+import { AlertTriangle, BedDouble, Bus, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronDown, ChevronRight } from 'lucide-react'
 import { useMutation } from '@tanstack/react-query'
 import { Fragment, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, type BreakfastMode, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
@@ -88,6 +88,9 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   })
   const setView = (v: 'overview' | 'days' | 'check') => { setViewState(v); try { localStorage.setItem('itineraryView', v) } catch { /* private window */ } }
   const [listOpen, setListOpen] = useState(false)   // the drag-and-drop list: on demand, so the days get the width
+  // Simple day cards (the four questions; the rest under "More for this day") unless "Show everything" is on.
+  const [full, setFullState] = useState(() => { try { return localStorage.getItem('builderFull') === '1' } catch { return false } })
+  const setFull = (v: boolean) => { setFullState(v); try { localStorage.setItem('builderFull', v ? '1' : '0') } catch { /* private window */ } }
   const openDay = (i: number) => {
     setView('days')
     setTimeout(() => document.getElementById(`day-card-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
@@ -170,6 +173,12 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             <div className="flex flex-wrap items-center gap-2">
               <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView}
                 options={[['check', t('viewCheck')], ['overview', t('viewOverview')], ['days', t('viewDays')]]} />
+              {view === 'days' && (
+                <label className="flex items-center gap-2 text-sm text-slate-600" title={t('showEverythingHelp')}>
+                  <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={full} onChange={(e) => setFull(e.target.checked)} />
+                  {t('showEverything')}
+                </label>
+              )}
               {view === 'days' && !disabled && (
                 <Button type="button" size="sm" variant={listOpen ? 'secondary' : 'tertiary'} aria-pressed={listOpen}
                   onClick={() => { setListOpen(!listOpen); setPicked(null) }}>
@@ -179,6 +188,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             </div>
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} />
           </div>
+          {view === 'days' && <BuildSteps days={days} onOpen={openDay} />}
           {view === 'days' && <DayStrip days={days} dates={dates} />}
           {view === 'check' && (
             // Every day on one screen: what is done, what is missing, days side by side.
@@ -194,7 +204,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               <DayCard key={keys.current[i]} id={keys.current[i]} index={i} day={d} date={dates?.[i]} last={i === days.length - 1}
                 prevCity={i > 0 ? days[i - 1].city : undefined} prevHotel={i > 0 ? days[i - 1].hotel_id : null}
                 vendors={vs} byId={byId} disabled={disabled} fixedLength={fixedLength} dragging={dragging} picked={picked}
-                menus={services.data ?? []} canCreate={canCreate} crew={crew}
+                menus={services.data ?? []} canCreate={canCreate} crew={crew} simple={!full}
                 onNewVendor={(type, then) => setNewVendor({ type, city: d.city, then })}
                 onNewService={(vendorId, menu, then, meal) => setNewService({ vendorId, menu, then, meal })}
                 alerts={alerts.filter((a) => a.day === i + 1)}
@@ -468,13 +478,14 @@ function Chip({ item, selected, lifted }: { item: Item; selected?: boolean; lift
 // --- day card --------------------------------------------------------------------------------
 
 function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLength, dragging, picked, alerts,
-  menus, canCreate, onNewVendor, onNewService, prevCity, prevHotel, crew,
+  menus, canCreate, onNewVendor, onNewService, prevCity, prevHotel, crew, simple,
   onSet, onPlace, onDuplicate, onInsert, onRemove, onHotelNext }: {
   id: string; index: number; day: DayFields; date?: string; last: boolean; vendors: Vendor[]; byId: Map<string, Vendor>
   prevCity?: string
   prevHotel?: string | null
   disabled?: boolean; fixedLength?: boolean; dragging: Item | null; picked: Item | null; alerts: TourAlert[]
   menus: ServiceBrief[]; canCreate: boolean; crew?: Crew
+  simple?: boolean      // the four questions; the rest under "More for this day" (what a day already uses stays shown)
   onNewVendor: (type: VendorType, then: (v: Vendor) => void) => void
   onNewService: (vendorId: string | undefined, menu: boolean, then: (s: Service) => void, meal?: 'breakfast' | 'lunch' | 'dinner') => void
   onSet: (p: Partial<DayFields>) => void; onPlace: (slot: Slot, item: Item) => void
@@ -490,6 +501,9 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   const lunchDishes = dishesOf(day.lunch_menu_id, day.lunch_id, 'lunch')
   const twiceToday = new Set(dishesOf(day.dinner_menu_id, day.dinner_id, 'dinner').filter((x) => lunchDishes.includes(x)))
   const [more, setMore] = useState(false)
+  const [details, setDetails] = useState(false)
+  const show = !simple || details          // the less used parts of the day
+  const [mealOpen, setMealOpen] = useState<Record<string, boolean>>({})
   // Meals: restaurants, and the hotels that serve them (a meal on their price list) — not every hotel.
   const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
   const eats = (v: Vendor) => v.type !== 'hotel' || serving.has(v.id)
@@ -507,12 +521,12 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
         <span className="sr-only">{t('day')} {index + 1}</span>
         <PlaceInput disabled={disabled} value={day.city} onChange={(city) => onSet({ city })} placeholder={t('cityNight')}
           title={t('cityNightHelp')} className={cn(field, 'h-9 w-52 font-semibold')} aria-label={t('city')} />
-        <Stops stops={day.stops ?? []} disabled={disabled} onChange={(stops) => onSet({ stops })}
+        {(show || (day.stops ?? []).length > 0) && <Stops stops={day.stops ?? []} disabled={disabled} onChange={(stops) => onSet({ stops })}
           own={vendors.filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
-            .map((v) => ({ name: v.name, detail: v.city, kind: '', lat: 0, lon: 0, own: true }))} />
-        <Flights flights={day.flights ?? []} disabled={disabled} onChange={(flights) => onSet({ flights })} />
+            .map((v) => ({ name: v.name, detail: v.city, kind: '', lat: 0, lon: 0, own: true }))} />}
+        {(show || (day.flights ?? []).length > 0) && <Flights flights={day.flights ?? []} disabled={disabled} onChange={(flights) => onSet({ flights })} />}
         {date && <span className="text-xs text-slate-500">{weekday(date, lang)} {fmt(date, lang)}</span>}
-        {index > 0 && (
+        {index > 0 && (show || !!day.km) && (
           <label className="flex items-center gap-1 text-xs text-slate-500" title={prevCity ? t('kmFrom', { city: prevCity }) : t('kmDriven')}>
             <Car size={14} className="shrink-0" />
             <input type="number" min={0} max={5000} disabled={disabled} value={day.km ?? ''} placeholder="—"
@@ -547,15 +561,15 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
         </ul>
       )}
       <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SlotBox day={index} slot="hotel" label={last ? t('lastDayNoHotel') : t('hotel')} icon={<BedDouble size={14} />}
+        <SlotBox day={index} slot="hotel" label={last ? t('lastDayNoHotel') : simple ? t('whereSleep') : t('hotel')} icon={<BedDouble size={14} />}
           dragging={dragging} picked={picked} onTap={(item) => onPlace('hotel', item)}
           footer={!disabled && hotel && !last && <button type="button" onClick={onHotelNext} className="text-xs text-brand-700 hover:underline">{t('sameHotelNextNight')}</button>}>
           <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['hotel']} value={day.hotel_id} onChange={(v) => onSet({ hotel_id: v })}
             cities={[day.city]}
             onAddNew={canCreate ? () => onNewVendor('hotel', (v) => onSet({ hotel_id: v.id, city: day.city || v.city })) : undefined} />
-          {!last && <StaffStayPick day={day} vendors={vendors} disabled={disabled} onSet={onSet} />}
+          {!last && (show || (day.staff_stay ?? 'none') !== 'none') && <StaffStayPick day={day} vendors={vendors} disabled={disabled} onSet={onSet} />}
         </SlotBox>
-        <SlotBox day={index} slot="breakfast" label={t('breakfast')} icon={<Coffee size={14} />} dragging={dragging} picked={picked}
+        {(show || (day.breakfast_mode ?? 'hotel') !== 'hotel') && <SlotBox day={index} slot="breakfast" label={t('breakfast')} icon={<Coffee size={14} />} dragging={dragging} picked={picked}
           onTap={(item) => onPlace('breakfast', item)}
           aside={<BreakfastModePick value={day.breakfast_mode ?? 'hotel'} disabled={disabled}
             onChange={(m) => onSet(m === 'hotel' || m === 'own' ? { breakfast_mode: m, breakfast_id: null, breakfast_menu_id: null } : { breakfast_mode: m })} />}>
@@ -578,47 +592,57 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
               onAddNew={canCreate && day.breakfast_id ? () => onNewService(day.breakfast_id!, true, (s) => onSet({ breakfast_menu_id: s.id ?? null }), 'breakfast') : undefined} />
             {day.breakfast_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
-        </SlotBox>
+        </SlotBox>}
         <SlotBox day={index} slot="lunch" label={t('lunch')} icon={<Utensils size={14} />} dragging={dragging} picked={picked} onTap={(item) => onPlace('lunch', item)}
-          aside={<MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
+          aside={(show || (day.lunch_mode ?? 'included') !== 'included') && <MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { lunch_mode: m, lunch_id: null, lunch_menu_id: null } : { lunch_mode: m })} />}>
           {(day.lunch_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
           <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.lunch_id}
             cities={[...(day.stops ?? []), day.city]}
             onChange={(v) => onSet({ lunch_id: v, lunch_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ lunch_id: v.id, lunch_menu_id: null })) : undefined} />
+          {day.lunch_id && !show && !mealOpen.lunch ? (
+            <MealSummary meal="lunch" day={day} menu={menuOf(menus, day.lunch_menu_id, day.lunch_id, 'lunch')} crew={crew} dayNumber={index + 1}
+              onOpen={() => setMealOpen({ ...mealOpen, lunch: true })} />
+          ) : <>
           <MenuPick meal="lunch" vendorId={day.lunch_id} value={day.lunch_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday} compact
             onChange={(m) => onSet({ lunch_menu_id: m, meal_dishes: withoutMeal(day, 'lunch') })}
             onAddNew={canCreate && day.lunch_id ? () => onNewService(day.lunch_id!, true, (s) => onSet({ lunch_menu_id: s.id ?? null }), 'lunch') : undefined} />
           <MealPlan meal="lunch" day={day} dayNumber={index + 1} crew={crew} disabled={disabled} twice={twiceToday} onSet={onSet}
             menu={menuOf(menus, day.lunch_menu_id, day.lunch_id, 'lunch')} />
+          </>}
           {day.lunch_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
         </SlotBox>
         <SlotBox day={index} slot="dinner" label={t('dinner')} icon={<Utensils size={14} />} dragging={dragging} picked={picked} onTap={(item) => onPlace('dinner', item)}
-          aside={<MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
+          aside={(show || (day.dinner_mode ?? 'included') !== 'included') && <MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { dinner_mode: m, dinner_id: null, dinner_menu_id: null } : { dinner_mode: m })} />}>
           {(day.dinner_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
           <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} only={eats} value={day.dinner_id}
             cities={[day.city, ...(day.stops ?? [])]}
             onChange={(v) => onSet({ dinner_id: v, dinner_menu_id: null })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ dinner_id: v.id, dinner_menu_id: null })) : undefined} />
+          {day.dinner_id && !show && !mealOpen.dinner ? (
+            <MealSummary meal="dinner" day={day} menu={menuOf(menus, day.dinner_menu_id, day.dinner_id, 'dinner')} crew={crew} dayNumber={index + 1}
+              onOpen={() => setMealOpen({ ...mealOpen, dinner: true })} />
+          ) : <>
           <MenuPick meal="dinner" vendorId={day.dinner_id} value={day.dinner_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday} compact
             onChange={(m) => onSet({ dinner_menu_id: m, meal_dishes: withoutMeal(day, 'dinner') })}
             onAddNew={canCreate && day.dinner_id ? () => onNewService(day.dinner_id!, true, (s) => onSet({ dinner_menu_id: s.id ?? null }), 'dinner') : undefined} />
           <MealPlan meal="dinner" day={day} dayNumber={index + 1} crew={crew} disabled={disabled} twice={twiceToday} onSet={onSet}
             menu={menuOf(menus, day.dinner_menu_id, day.dinner_id, 'dinner')} />
+          </>}
           {day.dinner_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
         </SlotBox>
-        <SlotBox day={index} slot="extras" label={t('dayServices')} icon={<Ticket size={14} />} wide dragging={dragging} picked={picked}
+        <SlotBox day={index} slot="extras" label={simple ? t('whatTheyDo') : t('dayServices')} icon={<Ticket size={14} />} wide dragging={dragging} picked={picked}
           onTap={(item) => onPlace('extras', item)}>
           <DayServices value={day.extras} disabled={disabled} onChange={(extras) => onSet({ extras })}
             onAddNew={canCreate ? (vendorId) => onNewService(vendorId, false, (s) => s.id && onSet({ extras: [...day.extras, { id: slotId(), service_id: s.id, quantity: null, notes: '' }] })) : undefined} />
         </SlotBox>
-        <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel}
+        {(show || (day.schedule ?? []).length > 0) && <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel}
           onSetDay={onSet}
-          onChange={(schedule) => onSet({ schedule })} />
+          onChange={(schedule) => onSet({ schedule })} />}
         {/* Border crossings and notes are rare: folded away until used. */}
         {more || day.border_crossing || day.notes ? (
           <div className="col-span-full grid gap-2 sm:grid-cols-2">
@@ -627,13 +651,78 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             <Input disabled={disabled} value={day.notes} onChange={(e) => onSet({ notes: e.target.value })}
               placeholder={t('notes')} className="h-8 text-xs" aria-label={t('notes')} />
           </div>
-        ) : !disabled && (
+        ) : !disabled && show && (
           <button type="button" onClick={() => setMore(true)} className="col-span-full justify-self-start text-xs text-slate-500 hover:text-brand-700">
             + {t('dayBorderNotes')}
           </button>
         )}
+        {simple && (
+          // The rest of the day, one tap away.
+          <button type="button" onClick={() => setDetails(!details)} aria-expanded={details}
+            className="col-span-full flex items-center gap-1 justify-self-start text-xs font-medium text-brand-700 hover:underline">
+            <ChevronDown size={14} className={cn('transition-transform', details && 'rotate-180')} aria-hidden />
+            {details ? t('fewerDetails') : t('moreForDay')}
+          </button>
+        )}
       </div>
     </article>
+  )
+}
+
+/** A meal in one line (simple card): its menu and tables - tap to open them. */
+function MealSummary({ meal, day, menu, crew, dayNumber, onOpen }: {
+  meal: 'lunch' | 'dinner'; day: DayFields; menu: ServiceBrief | undefined; crew?: Crew; dayNumber: number; onOpen: () => void
+}) {
+  const { t } = useI18n()
+  const own = day.meal_dishes?.[meal]
+  const what = own ? t('gridOwnMenu') : menu?.name && !menu.code ? menu.name : t('menuUsual')
+  const n = (own ?? menu?.dishes ?? []).length
+  const staff = crew ? crew.staff.filter((a) => ['guide', 'driver', 'assistant'].includes(a.role) && a.start_day <= dayNumber && (a.end_day === null || a.end_day >= dayNumber)).length + (crew.leaders || 0) : 0
+  return (
+    <button type="button" onClick={onOpen} className="mt-1.5 flex w-full items-center gap-1 rounded-md px-1 py-1 text-left text-xs text-slate-600 hover:bg-slate-50">
+      <span className="min-w-0 flex-1 truncate">{what}{n > 0 && ` · ${t('dishesN', { n })}`}{crew && ` · ${staff ? `${crew.pax - (crew.leaders || 0)} + ${staff}` : crew.pax}`}</span>
+      <span className="shrink-0 font-medium text-brand-700">{t('menuAndTables')}</span>
+      <ChevronRight size={13} className="shrink-0 text-brand-700" aria-hidden />
+    </button>
+  )
+}
+
+/** Four steps to a built tour - route, hotels, meals, activities - with what's done, and the next gap. */
+function BuildSteps({ days, onOpen }: { days: DayFields[]; onOpen: (i: number) => void }) {
+  const { t } = useI18n()
+  if (!days.length) return null
+  const nights = days.slice(0, -1)
+  const route = days.filter((d) => d.city.trim()).length
+  const hotels = nights.filter((d) => d.hotel_id).length
+  const mealDone = (d: DayFields, m: 'lunch' | 'dinner') => (m === 'lunch' ? d.lunch_mode : d.dinner_mode) === 'own' || !!(m === 'lunch' ? d.lunch_id : d.dinner_id)
+  const meals = days.reduce((n, d) => n + (mealDone(d, 'lunch') ? 1 : 0) + (mealDone(d, 'dinner') ? 1 : 0), 0)
+  const acts = days.filter((d) => d.extras.length).length
+  const next = days.findIndex((d, i) => !d.city.trim() || (i < days.length - 1 && !d.hotel_id) || !mealDone(d, 'lunch') || !mealDone(d, 'dinner'))
+  const steps: [string, number, number, boolean][] = [
+    [t('stepRoute'), route, days.length, false], [t('stepHotels'), hotels, nights.length, false],
+    [t('stepMeals'), meals, days.length * 2, false], [t('stepActivities'), acts, days.length, true],
+  ]
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {steps.map(([label, n, total, optional], k) => {
+        const done = n >= total
+        return (
+          <span key={label} className={cn('flex items-center gap-1.5 rounded-lg border bg-white px-2.5 py-1 text-sm',
+            done ? 'border-emerald-200' : optional ? 'border-slate-200' : 'border-amber-200')}>
+            {done ? <Check size={14} className="text-emerald-600" aria-hidden /> : <span className="text-xs font-semibold text-slate-400">{k + 1}</span>}
+            <span className="text-slate-700">{label}</span>
+            <span className={cn('rounded px-1.5 text-xs font-semibold tabular-nums', done ? 'bg-emerald-50 text-emerald-800' : optional ? 'text-slate-500' : 'bg-amber-50 text-amber-800')}>
+              {optional && !n ? t('stepOptional') : `${n}/${total}`}
+            </span>
+          </span>
+        )
+      })}
+      {next >= 0 ? (
+        <Button type="button" size="sm" variant="secondary" className="ml-auto" onClick={() => onOpen(next)}>
+          {t('nextMissing', { n: next + 1 })}<ArrowRight size={14} aria-hidden />
+        </Button>
+      ) : <span className="ml-auto flex items-center gap-1 text-sm font-medium text-emerald-700"><Check size={14} aria-hidden />{t('allDaysBuilt')}</span>}
+    </div>
   )
 }
 
