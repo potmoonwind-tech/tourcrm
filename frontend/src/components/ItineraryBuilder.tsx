@@ -765,7 +765,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             onChange={(v) => onSet({ lunch_id: v, lunch_menu_id: null, meal_tbd: withoutTbd(day, 'lunch') })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ lunch_id: v.id, lunch_menu_id: null, meal_tbd: withoutTbd(day, 'lunch') })) : undefined} />
           {!day.lunch_id && !disabled && (
-            <button type="button" onClick={() => onSet({ meal_tbd: { ...day.meal_tbd, lunch: (day.stops?.[0] || day.city).trim() || '?' } })}
+            <button type="button" onClick={() => { lastTbd = Date.now(); onSet({ meal_tbd: { ...day.meal_tbd, lunch: (day.stops?.[0] || day.city).trim() || '?' } }) }}
               className="mt-1 text-xs text-slate-500 hover:text-brand-700 hover:underline">{t('mealTbdSet')}</button>
           )}
           </>}
@@ -796,7 +796,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             onChange={(v) => onSet({ dinner_id: v, dinner_menu_id: null, meal_tbd: withoutTbd(day, 'dinner') })}
             onAddNew={canCreate ? () => onNewVendor('restaurant', (v) => onSet({ dinner_id: v.id, dinner_menu_id: null, meal_tbd: withoutTbd(day, 'dinner') })) : undefined} />
           {!day.dinner_id && !disabled && (
-            <button type="button" onClick={() => onSet({ meal_tbd: { ...day.meal_tbd, dinner: (day.city).trim() || '?' } })}
+            <button type="button" onClick={() => { lastTbd = Date.now(); onSet({ meal_tbd: { ...day.meal_tbd, dinner: (day.city).trim() || '?' } }) }}
               className="mt-1 text-xs text-slate-500 hover:text-brand-700 hover:underline">{t('mealTbdSet')}</button>
           )}
           </>}
@@ -1401,16 +1401,28 @@ function SavedDays({ city, onApply }: { city: string; onApply: (d: DayTemplate) 
   )
 }
 
+let lastTbd = 0      // when a meal was just marked "to be decided" (its location field then takes the focus)
+
 /** A meal whose place isn't known yet: "TBD · Yerevan" (the town can be changed), or pick the place now. */
 function MealTbd({ town, disabled, onTown, onPick }: { town: string; disabled?: boolean; onTown: (x: string) => void; onPick: () => void }) {
   const { t } = useI18n()
+  // Just marked: the town is suggested and selected - type the real location over it.
+  const [fresh] = useState(() => Date.now() - lastTbd < 1500)
+  const box = useRef<HTMLSpanElement>(null)
+  useEffect(() => {
+    if (!fresh) return
+    const el = box.current?.querySelector('input')
+    const id = setTimeout(() => { el?.focus(); el?.select() }, 0)
+    return () => clearTimeout(id)
+  }, [fresh])
   return (
     <div className="flex flex-wrap items-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1.5 text-sm">
       <Clock size={14} aria-hidden className="shrink-0 text-slate-500" />
       <span className="font-medium text-slate-700">{t('mealTbd')}</span>
       <span className="text-slate-400">·</span>
-      <span className="min-w-32 flex-1 [&>span]:w-full">
+      <span ref={box} className="min-w-32 flex-1 [&>span]:w-full">
         <PlaceInput value={town} disabled={disabled} onChange={onTown} maxLength={100} aria-label={t('mealTbdTown')} placeholder={t('mealTbdTownPh')}
+          onFocus={(e) => e.currentTarget.select()}
           title={t('mealTbdRoadTip')}
           className="h-7 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 text-sm text-slate-800 hover:border-slate-300 focus:border-brand-600 focus:bg-white focus:outline-none" />
       </span>

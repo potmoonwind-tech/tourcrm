@@ -10,7 +10,7 @@ import { useI18n } from '../lib/i18n'
 
 export interface PDish { name: string; plates: number | null; per_plate: number; plates_at?: number[] }
 export interface PTable { who: 'all' | 'group' | 'staff'; people: number; roles?: string[] }
-export interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string; kind?: string; meal?: string; map?: string; phone?: string; dishes?: PDish[]; place?: string; menu?: string; tables?: PTable[] }
+export interface PStep { time: string; end: string; text: string; drive?: PLeg | null; note?: string; kind?: string; meal?: string; map?: string; phone?: string; dishes?: PDish[]; place?: string; menu?: string; tables?: PTable[]; memo?: string }
 export interface PLeg { start: string; end: string; km: number | null; drive: string; depart?: string; arrive?: string; map?: string }
 
 // One small icon per kind of step, so the day reads at a glance.
@@ -119,7 +119,8 @@ export function ProgrammeDoc({ d, toolbar }: { d: Programme; toolbar?: ReactNode
                               ? <a href={s.map} target="_blank" rel="noopener noreferrer" className="text-sky-800 no-underline hover:underline print:text-slate-900">{s.text}</a>
                               : s.text}
                               {s.phone && <span className="ml-2 whitespace-nowrap text-xs text-slate-500">☎ {s.phone}</span>}
-                              {s.note && <span className="block text-xs italic text-slate-500">{s.note}</span>}</span>
+                              {s.note && <span className="block text-xs italic text-slate-500">{s.note}</span>}
+                              {s.memo && <span className="block whitespace-pre-line text-xs text-amber-800">{s.memo}</span>}</span>
                           </div>
                         </li>
                       )

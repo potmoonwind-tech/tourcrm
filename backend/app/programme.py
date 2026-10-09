@@ -146,6 +146,7 @@ class PStep(BaseModel):
     place: str = ""                  # the hotel / restaurant / place it is at ("Svan Tower Tavern")
     menu: str = ""                   # the set menu's name ("Georgian supra"), when one is chosen
     tables: list[PTable] = []        # who eats, table by table (the dishes' plates_at follow this order)
+    memo: str = ""                   # the step's own note, written in the timeline ("Bring swimsuits")
 
 
 class PLeg(BaseModel):
@@ -697,6 +698,7 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
                     at = _vendor_of(x, d, prev, vendors, services)
                     p.steps.append(PStep(time=x.time, end=x.end, text=text, drive=to_step.get(x.id), kind=x.kind,
                                          phone=(at.phone or at.phone2) if at and inc.phones else "",
+                                         memo=T(x.notes.strip()) if (x.notes or "").strip() else "",
                                          meal=x.ref if x.ref in ("breakfast", "lunch", "dinner") and x.kind != "free" else "",
                                          map=map_search(_place_of(x, d, prev, vendors, services) or where_of.get(x.id, "")),
                                          note=dishes(d, meal) if meal and inc.meals else "",
@@ -736,7 +738,7 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
         p.activities = [_tr_inside(a, tr) for a in p.activities]
         p.steps = [s.model_copy(update={"text": _tr_inside(s.text, tr), "note": _tr_inside(s.note, tr) if s.note else "",
                                         "dishes": [x.model_copy(update={"name": t(x.name)}) for x in s.dishes],
-                                        "place": t(s.place), "menu": t(s.menu),
+                                        "place": t(s.place), "menu": t(s.menu), "memo": t(s.memo),
                                         "drive": s.drive.model_copy(update={"start": t(s.drive.start), "end": t(s.drive.end)}) if s.drive else None})
                    for s in p.steps]
         p.border, p.notes = t(p.border), t(p.notes)

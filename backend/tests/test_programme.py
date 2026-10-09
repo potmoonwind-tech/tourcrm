@@ -441,3 +441,15 @@ def test_a_meal_still_to_decide_takes_the_road_through_its_place(make_client, mo
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
     assert ["Lunch", "TBD · Ananuri"] in p["days"][1]["meals"]
     assert any("Ananuri" in cities for cities in asked)              # the road is asked through Ananuri
+
+
+
+def test_a_steps_note_goes_into_the_programme(make_client):
+    c, base, _ = agency(make_client)
+    days = [{"city": "Tbilisi"}, {"city": "Kutaisi", "schedule": [
+        {"id": "1", "kind": "visit", "time": "10:00", "end": "", "title": "Prometheus cave", "ref": None, "place": "", "notes": "Bring a jacket"}]}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    step = next(s for s in p["days"][1]["steps"] if "Prometheus" in s["text"])
+    assert step["memo"] == "Bring a jacket"
+    text = docx_text(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en"}).content)
+    assert "Bring a jacket" in text

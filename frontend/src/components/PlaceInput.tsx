@@ -47,7 +47,7 @@ type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> &
   own?: PlaceSuggestion[]
 }
 
-export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDown, onBlur, ...rest }: Props) {
+export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDown, onBlur, onFocus, ...rest }: Props) {
   const ws = useWorkspace()!
   const { t } = useI18n()
   const listId = useId()
@@ -103,7 +103,7 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
       <input {...rest} value={value} role="combobox" aria-autocomplete="list" aria-expanded={items.length > 0}
         aria-controls={listId} aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined} autoComplete="off"
         onChange={(e) => { onChange(e.target.value); setOpen(true); setActive(-1) }}
-        onFocus={() => setOpen(true)}
+        onFocus={(e) => { setOpen(true); onFocus?.(e) }}
         onBlur={(e) => { setOpen(false); onBlur?.(e) }}
         onKeyDown={(e) => {
           if (items.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {

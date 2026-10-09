@@ -9,7 +9,7 @@
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, ArrowDownUp, BedDouble, Car, Coffee, Map as MapIcon, Pin, GripVertical, Landmark, MapPin, Plane, Smile, Truck, Utensils, X } from 'lucide-react'
+import { AlertTriangle, ArrowDownUp, BedDouble, Car, Coffee, Map as MapIcon, Pin, GripVertical, Landmark, MapPin, Plane, Smile, StickyNote, Truck, Utensils, X } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
@@ -589,6 +589,8 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
   const cut = label.text.indexOf(': ')
   const head = cut > 0 ? label.text.slice(0, cut) : label.text
   const where = cut > 0 ? label.text.slice(cut + 2) : ''
+  // The step's note ("Bring swimsuits"): shown when it has one, or after "Add a note"; it goes into what's shared.
+  const [noting, setNoting] = useState(false)
   const field = 'h-8 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 hover:border-slate-200 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100'
   return (
     <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex gap-3', isDragging && 'relative z-10')}>
@@ -639,6 +641,12 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
                 {label.missing && <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-800"><AlertTriangle size={12} aria-hidden />{t('progMissing')}</span>}
               </span>
             )}
+            {(noting || x.notes) && (
+              <input value={x.notes} disabled={disabled} autoFocus={noting && !x.notes} maxLength={300}
+                onChange={(e) => onSet({ notes: e.target.value })} onBlur={() => setNoting(false)}
+                placeholder={t('progNotePh')} aria-label={t('progNoteOf', { name })}
+                className="mt-0.5 h-7 w-full min-w-0 rounded-md border border-transparent bg-amber-50/60 px-1.5 text-xs text-amber-900 placeholder:text-amber-700/60 hover:border-amber-200 focus:border-amber-400 focus:bg-white focus:outline-none" />
+            )}
             {atPlace && (
               <span className="mt-0.5 flex px-1"><span className="inline-flex max-w-full items-center gap-1 rounded-full bg-blue-50 py-0.5 pl-2 pr-1 text-xs text-blue-800">
                 <MapPin size={12} className="shrink-0" aria-hidden /><span className="truncate">{t('progAt', { place: x.place })}</span>
@@ -661,6 +669,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
           )}
           {!disabled && (
             <Menu kind="icon" label={t('progStepMenu', { name })} items={[
+              { label: t('progAddNote'), icon: <StickyNote size={16} />, onClick: () => setNoting(true), hidden: !!x.notes },
               { label: t(x.fixed ? 'progUnpin' : 'progPin', { name }), icon: <Pin size={16} />, onClick: () => onSet({ fixed: !x.fixed }), hidden: x.kind === 'flight' || !x.time },
               { label: t('progRemove', { name }), icon: <X size={16} />, onClick: onRemove, danger: true },
             ]} />

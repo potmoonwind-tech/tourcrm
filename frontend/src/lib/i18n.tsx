@@ -2970,6 +2970,9 @@ const en = {
   placeAddPrice: "+ Add a price or a paid activity",
   mealTbdTownPh: "Town or place",
   mealTbdRoadTip: "The day's road goes via this town or place until you choose the restaurant",
+  progAddNote: "Add a note",
+  progNotePh: "Note for the group and the guide - shown in what you share",
+  progNoteOf: "Note: {name}",
 }
 
 type Dict = typeof en
@@ -5936,6 +5939,9 @@ const ka: Dict = {
   placeAddPrice: "+ ფასის ან ფასიანი აქტივობის დამატება",
   mealTbdTownPh: "ქალაქი ან ადგილი",
   mealTbdRoadTip: "დღის მარშრუტი ამ ქალაქზე ან ადგილზე გადის, სანამ რესტორანს აირჩევთ",
+  progAddNote: "შენიშვნის დამატება",
+  progNotePh: "შენიშვნა ჯგუფისთვის და გიდისთვის - ჩანს გაზიარებულში",
+  progNoteOf: "შენიშვნა: {name}",
 }
 
 export type Lang = 'en' | 'ka'

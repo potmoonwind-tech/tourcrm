@@ -60,7 +60,7 @@ def _timeline(d, L) -> list[tuple[str, str, str, str]]:
     for s in d.steps:
         if s.drive and _hop(s.drive, L):
             rows.append((_span(s.drive.depart, s.drive.arrive), _hop(s.drive, L), "", "drive"))
-        rows.append((_span(s.time, s.end), s.text + (f"  \u260e {s.phone}" if s.phone else ""), s.note, s.kind))
+        rows.append((_span(s.time, s.end), s.text + (f"  \u260e {s.phone}" if s.phone else ""), " · ".join(x for x in (s.note, s.memo) if x), s.kind))
     if not d.steps:
         rows += [("", _leg(g, L), "", "drive") for g in (d.legs if len(d.legs) > 1 else [])]
     return rows
