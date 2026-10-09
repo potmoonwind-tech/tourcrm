@@ -617,7 +617,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
   return (
     <li ref={setNodeRef} id={`step-${x.id}`} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex scroll-mt-48 gap-3', isDragging && 'relative z-10')}>
       {/* The time column: when it starts, and how long. */}
-      <div className="flex w-20 shrink-0 flex-col items-end pt-2">
+      <div className="flex w-20 shrink-0 flex-col items-end pt-1.5">
         {disabled ? <span className="text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
           : <TimeSelect value={x.time} label={t('progStartOf', { name })}
             onChange={(v) => onSet(x.time && x.end && v ? { time: v, fixed: true, end: shift(v, minutesBetween(x.time, x.end)) } : { time: v, fixed: !!v })} />}
@@ -629,19 +629,19 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
       {/* The line of the day, with the step's icon in its colour. */}
       <div className="flex w-8 shrink-0 flex-col items-center">
         <Tooltip label={kind}>
-          <span className={cn('mt-1.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full', label.missing ? 'bg-amber-100 text-amber-800' : cat ? cat.tone : KIND_STYLE[x.kind])}
+          <span className={cn('mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full [&>svg]:h-3.5 [&>svg]:w-3.5', label.missing ? 'bg-amber-100 text-amber-800' : cat ? cat.tone : KIND_STYLE[x.kind])}
             role="img" aria-label={kind}>{cat ? <cat.icon size={16} aria-hidden /> : ICON[x.kind]}</span>
         </Tooltip>
         {!end && <span className="w-0.5 flex-1 bg-slate-200" aria-hidden />}
       </div>
-      <div className="min-w-0 flex-1 pb-2">
-        <div className={cn('flex min-h-12 gap-2 rounded-xl border py-1.5 pl-1.5 pr-1 transition-colors', slot && (open || !slot.summary) ? 'items-start' : 'items-center',
-          isDragging ? 'border-brand-300 bg-white shadow-lg' : slot?.state === 'todo' ? 'border-amber-300 bg-amber-50/50'
+      <div className="min-w-0 flex-1 pb-1.5">
+        <div className={cn('flex min-h-9 gap-2 rounded-lg border py-0.5 pl-1 pr-0.5 transition-colors', slot && (open || !slot.summary) ? 'items-start' : 'items-center',
+          isDragging ? 'border-brand-300 bg-white shadow-lg' : slot?.state === 'todo' ? 'border-amber-300 bg-white'
             : label.missing && !slot ? 'border-amber-300 bg-amber-50' : issue ? 'border-amber-300 bg-white' : 'border-slate-200 bg-white')}>
           {!disabled ? (
             <Tooltip label={t('progDragTip')}>
               <button type="button" {...attributes} {...listeners} aria-label={t('progDragLabel', { name })}
-                className="flex h-8 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-slate-300 opacity-0 hover:text-slate-700 focus:opacity-100 active:cursor-grabbing group-hover:opacity-100">
+                className="flex h-7 w-5 shrink-0 cursor-grab touch-none items-center justify-center rounded-md text-slate-300 opacity-0 hover:text-slate-700 focus:opacity-100 active:cursor-grabbing group-hover:opacity-100">
                 <GripVertical size={16} aria-hidden />
               </button>
             </Tooltip>
@@ -650,7 +650,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
             {slot && slot.summary && !open ? (
               // Folded: "Lunch  Supra House · Set menu 2" - a click opens it (and folds the one open before).
               <button type="button" onClick={onToggle} aria-expanded={false}
-                className="animate-reveal flex w-full min-w-0 items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-slate-50">
+                className="animate-reveal flex w-full min-w-0 items-center gap-2 rounded-md px-1 text-left hover:bg-slate-50">
                 <span className="w-20 shrink-0 text-sm font-medium text-slate-800">{slotTitle(x, t)}</span>
                 <span className={cn('min-w-0 flex-1 truncate text-sm', slot.state === 'todo' ? 'font-medium text-amber-800' : 'text-slate-600')}>{slot.summary}</span>
                 <ChevronDown size={15} aria-hidden className="shrink-0 text-slate-400" />
