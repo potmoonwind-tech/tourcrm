@@ -3006,6 +3006,7 @@ const en = {
   flightArrives: "Arrives",
   flightDeparts: "Departs",
   menuChoose: "Choose a menu",
+  viaShort: "via",
 }
 
 type Dict = typeof en
@@ -6008,6 +6009,7 @@ const ka: Dict = {
   flightArrives: "ჩამოფრენა",
   flightDeparts: "გაფრენა",
   menuChoose: "აირჩიეთ მენიუ",
+  viaShort: "გავლით:",
 }
 
 export type Lang = 'en' | 'ka'

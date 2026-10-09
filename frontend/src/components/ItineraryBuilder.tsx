@@ -609,6 +609,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
   const twiceToday = new Set(dishesOf(day.dinner_menu_id, day.dinner_id, 'dinner').filter((x) => lunchDishes.includes(x)))
   const [more, setMore] = useState(false)
   const [details, setDetails] = useState(false)
+  const [editStops, setEditStops] = useState(false)      // the stops' chips open only while editing them
   const show = !simple || details          // the less used parts of the day
   const [mealOpen, setMealOpen] = useState<Record<string, boolean>>({})
   // What's done and what's missing in this day (the same rules as "Check" and "Next missing").
@@ -720,9 +721,22 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
           </div>
           {/* The day's way and flights, quietly. */}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            {(show || (day.stops ?? []).length > 0) && <Stops stops={day.stops ?? []} disabled={disabled} onChange={(stops) => onSet({ stops })}
-              own={vendors.filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
-                .map((v) => ({ name: v.name, detail: v.city, kind: '', lat: 0, lon: 0, own: true }))} />}
+            {/* The places on the way (the road goes through them): one quiet line; the chips only while editing. */}
+            {(show || (day.stops ?? []).length > 0) && (editStops || !(day.stops ?? []).length ? (
+              <span className="contents" onBlur={(e) => { if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node)) setEditStops(false) }}>
+                <Stops stops={day.stops ?? []} disabled={disabled} onChange={(stops) => { setEditStops(true); onSet({ stops }) }}
+                  own={vendors.filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
+                    .map((v) => ({ name: v.name, detail: v.city, kind: '', lat: 0, lon: 0, own: true }))} />
+                {(day.stops ?? []).length > 0 && (
+                  <button type="button" onClick={() => setEditStops(false)} className="text-xs font-medium text-brand-700 hover:underline">{t('done')}</button>
+                )}
+              </span>
+            ) : (
+              <button type="button" onClick={() => !disabled && setEditStops(true)} title={(day.stops ?? []).join(' → ')}
+                className="max-w-full truncate rounded-md px-1 text-left text-xs text-slate-500 hover:bg-white hover:text-slate-800">
+                {t('viaShort')} {(day.stops ?? []).slice(0, 2).join(' · ')}{(day.stops ?? []).length > 2 && ` +${(day.stops ?? []).length - 2}`}
+              </button>
+            ))}
             {(show || (day.flights ?? []).length > 0) && <Flights flights={day.flights ?? []} disabled={disabled} onChange={(flights) => onSet({ flights })} />}
             {index > 0 && (show || !!day.km) && (
               <label className="flex items-center gap-1 text-xs text-slate-500" title={prevCity ? t('kmFrom', { city: prevCity }) : t('kmDriven')}>
