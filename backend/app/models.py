@@ -982,6 +982,9 @@ class GeoPlace(Base):
     # Google's id for a picked place: its coordinates may be kept 30 days only, the id for ever,
     # so a pinned place is looked up again by its id when its coordinates are old.
     place_id: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    # When it's open, as the map says (a picked place): {"periods": [{"day": 0-6 (Sunday 0), "open": "10:00",
+    # "close": "18:00"}], "text": ["Monday: Closed", ...]} - the day's timeline warns about a visit when it's closed.
+    hours: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 class RoadDistance(Base):

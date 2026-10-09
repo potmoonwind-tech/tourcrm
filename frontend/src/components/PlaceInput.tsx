@@ -14,6 +14,9 @@ import { useMapConfig } from '../lib/maps'
 import { useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
 
+/** Opening hours as the map gives them: per weekday (0 = Sunday) from-to, and the map's own text. */
+export interface OpeningHours { periods: { day: number; open: string; close: string }[]; text: string[] }
+
 export interface PlaceSuggestion {
   name: string; detail: string; kind: string
   lat: number | null; lon: number | null   // null from Google until the place is picked (then looked up)
@@ -22,6 +25,7 @@ export interface PlaceSuggestion {
   city?: string     // the town it is in
   own?: boolean     // one of the agency's own places (a catalogue sight), not from the map
   at?: string       // an activity of one of them: the place it happens at ("KTW")
+  hours?: OpeningHours | null   // when it's open, as the map says (looked up when picked)
   service_id?: string   // the catalogue service it is (priced and booked when picked into a day)
 }
 
@@ -35,7 +39,7 @@ export const addressOf = (p: PlaceSuggestion) => {
 /** Fix a name (an address) to the picked spot for this agency: drives to it use exactly that place. */
 export const pinPlace = (workspaceId: string, name: string, p: PlaceSuggestion) =>
   api(wsPath(workspaceId, '/places/pin'), {
-    method: 'POST', body: { name: name.slice(0, 100), lat: p.lat, lon: p.lon, place_id: p.place_id ?? null, label: [p.name, p.detail].filter(Boolean).join(', ') },
+    method: 'POST', body: { name: name.slice(0, 100), lat: p.lat, lon: p.lon, place_id: p.place_id ?? null, label: [p.name, p.detail].filter(Boolean).join(', '), hours: p.hours ?? null },
   })
 
 type Props = Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange'> & {
@@ -66,7 +70,7 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
   })
   const pin = useMutation({
     mutationFn: (p: PlaceSuggestion) => api(wsPath(ws.id, '/places/pin'), {
-      method: 'POST', body: { name: p.name, lat: p.lat, lon: p.lon, place_id: p.place_id ?? null, label: [p.name, p.detail].filter(Boolean).join(', ') },
+      method: 'POST', body: { name: p.name, lat: p.lat, lon: p.lon, place_id: p.place_id ?? null, label: [p.name, p.detail].filter(Boolean).join(', '), hours: p.hours ?? null },
     }),
     meta: { silent: true },
   })
@@ -84,13 +88,13 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
     if (!p.own && p.place_id && p.lat == null) {
       // A Google suggestion: where it is, its street and town, now that it's picked.
       try {
-        const d = await api<{ lat: number; lon: number; street: string; city: string }>(
+        const d = await api<{ lat: number; lon: number; street: string; city: string; hours?: OpeningHours | null }>(
           wsPath(ws.id, `/places/details?id=${encodeURIComponent(p.place_id)}&session=${session}`))
         // The town as the list showed it ("…, Batumi, Georgia"): Google's address parts are
         // sometimes in the local script or spelling ("ბათუმი", "T'bilisi").
         const shown = p.detail.split(', ')
         const town = shown.length >= 2 ? shown[shown.length - 2] : ''
-        p = { ...p, lat: d.lat, lon: d.lon, street: d.street || p.street, city: town || d.city || p.city }
+        p = { ...p, lat: d.lat, lon: d.lon, street: d.street || p.street, city: town || d.city || p.city, hours: d.hours ?? null }
       } catch { /* typed name still works */ }
       setSession(crypto.randomUUID())
     }

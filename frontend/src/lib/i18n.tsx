@@ -3007,6 +3007,8 @@ const en = {
   flightDeparts: "Departs",
   menuChoose: "Choose a menu",
   viaShort: "via",
+  progClosedThatDay: "Closed on {day} (as the map says) - check before you go",
+  progOpenHours: "Open {hours} that day - check the time",
 }
 
 type Dict = typeof en
@@ -6010,6 +6012,8 @@ const ka: Dict = {
   flightDeparts: "გაფრენა",
   menuChoose: "აირჩიეთ მენიუ",
   viaShort: "გავლით:",
+  progClosedThatDay: "{day} დაკეტილია (რუკის მიხედვით) - გადაამოწმეთ",
+  progOpenHours: "ამ დღეს ღიაა {hours} - გადაამოწმეთ დრო",
 }
 
 export type Lang = 'en' | 'ka'

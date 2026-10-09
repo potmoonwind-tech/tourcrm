@@ -14,6 +14,7 @@ import { useQuery } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
 import { airportName } from '../lib/airports'
+import { fmt } from '../lib/dates'
 import { catOf, type ActivityCat } from '../lib/activities'
 import { wsPath } from '../lib/data'
 import { useI18n, type TKey } from '../lib/i18n'
@@ -21,7 +22,7 @@ import { cn, slotId } from '../lib/utils'
 import { useWorkspace } from '../lib/session'
 import { Label, Menu } from './overlay'
 import { InfoTip, Tooltip } from './Tooltip'
-import { PlaceInput, type PlaceSuggestion } from './PlaceInput'
+import { PlaceInput, type OpeningHours, type PlaceSuggestion } from './PlaceInput'
 import { TripMap, type MapStop } from './TripMap'
 import { VendorSelect } from './VendorSelect'
 import { Button } from './ui'
@@ -154,8 +155,9 @@ export function dayLegs(day: DayFields, from: string | undefined, factor: number
   }))
 }
 
-export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay }: {
+export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay, date }: {
   day: DayFields; index: number; last: boolean; byId: Map<string, Vendor>; services: ServiceBrief[]; disabled?: boolean; startOpen?: boolean
+  date?: string      // the day's date (a tour): visits are checked against the places' opening hours
   from?: string      // where the group slept the night before
   fromHotel?: string | null   // ...and in which hotel: breakfast "at the hotel" is there, and the day's road starts from it
   onChange: (schedule: ScheduleItem[]) => void
@@ -366,6 +368,31 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
       issues.set(x.id, { text: t('progWait', { at: hm(arrive), wait: dur(toMin(x.time) - arrive) }), fix: best })
     else if (x.end && x.end <= x.time) issues.set(x.id, { text: t('progEndBefore') })
     prev = x
+  }
+  // Opening hours (of places picked from the map): a visit on a day it's closed, or outside its hours, is flagged.
+  const placeName = (x: ScheduleItem) => {
+    if (x.ref?.startsWith('extra:')) return services.find((v) => v.id === day.extras.find((e) => e.id === x.ref!.slice(6))?.service_id)?.vendor.name
+    if (x.ref === 'lunch' || x.ref === 'dinner') return byId.get((x.ref === 'lunch' ? day.lunch_id : day.dinner_id) ?? '')?.name
+    return !x.ref && x.kind === 'visit' ? x.title.trim() : undefined
+  }
+  const names = [...new Set(items.map(placeName).filter((n): n is string => !!n))]
+  const hoursQ = useQuery({
+    queryKey: ['place-hours', ws.id, names.join('|')],
+    queryFn: () => api<Record<string, OpeningHours>>(wsPath(ws.id, '/places/hours'), { method: 'POST', body: { names } }),
+    enabled: !!date && names.length > 0, staleTime: 5 * 60_000, meta: { silent: true },
+  })
+  if (date && hoursQ.data) {
+    const wd = new Date(`${date}T00:00:00`).getDay()
+    for (const x of items) {
+      const h = hoursQ.data[placeName(x) ?? '']
+      if (!h || !x.time || issues.has(x.id) || !h.periods.length) continue
+      const today = h.periods.filter((p) => p.day === wd)
+      if (!today.length) { issues.set(x.id, { text: t('progClosedThatDay', { day: fmt(date, lang, { weekday: 'long' }) }) }); continue }
+      const from = toMin(x.time), to = from + lengthOf(x, usual)
+      if (!today.some((p) => toMin(p.open) <= from && to <= toMin(p.close))) {
+        issues.set(x.id, { text: t('progOpenHours', { hours: today.map((p) => `${p.open}–${p.close}`).join(', ') }) })
+      }
+    }
   }
   // "Move to": the step follows the day again (not pinned) from that time.
   const fixTime = (x: ScheduleItem, time: string) => set(x.id, { time, fixed: false, end: x.end ? shift(time, minutesBetween(x.time, x.end)) : '' })

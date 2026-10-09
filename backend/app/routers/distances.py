@@ -1,13 +1,15 @@
 """Suggested road kilometres for a list of day cities (route or tour itinerary)."""
+import re
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from .. import geo, ratelimit
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
+from ..models import GeoPlace
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["distances"])
 office = require_role("staff")
@@ -70,6 +72,7 @@ class PlaceDetails(BaseModel):
     city: str = ""
     detail: str = ""
     place_id: str
+    hours: dict | None = None      # opening hours, when the map has them
 
 
 @router.get("/places/details", response_model=PlaceDetails)
@@ -89,13 +92,41 @@ class PinIn(BaseModel):
     lon: float = Field(ge=-180, le=180)
     label: str = Field(default="", max_length=300)
     place_id: str | None = Field(default=None, max_length=300)
+    hours: dict | None = None
+
+    @field_validator("hours")
+    @classmethod
+    def _hours(cls, v: dict | None) -> dict | None:
+        if v is None:
+            return None
+        ok = re.compile(r"^([01]\d|2[0-4]):[0-5]\d$")
+        periods = [p for p in (v.get("periods") or [])[:30] if isinstance(p, dict) and p.get("day") in range(7)
+                   and ok.match(str(p.get("open", ""))) and ok.match(str(p.get("close", "")))]
+        return {"periods": [{"day": p["day"], "open": p["open"], "close": p["close"]} for p in periods],
+                "text": [str(x)[:80] for x in (v.get("text") or [])[:7]]}
 
 
 @router.post("/places/pin", status_code=204)
 def pin_place(body: PinIn, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
     """The name picked from the suggestions is that spot for km and driving times (this agency only)."""
-    geo.pin(db, ctx.workspace.id, body.name, body.lat, body.lon, body.label or body.name, body.place_id)
+    geo.pin(db, ctx.workspace.id, body.name, body.lat, body.lon, body.label or body.name, body.place_id, body.hours)
     db.commit()
+
+
+class HoursIn(BaseModel):
+    names: list[str] = Field(max_length=60)
+
+
+@router.post("/places/hours")
+def place_hours(body: HoursIn, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)) -> dict[str, dict]:
+    """The opening hours this agency's picked places have ({name: hours}), for a day's timeline - from what was
+    saved when they were picked, no map call."""
+    out: dict[str, dict] = {}
+    for n in {x.strip() for x in body.names if x and x.strip()}:
+        g = db.get(GeoPlace, geo.pin_key(ctx.workspace.id, n[:100]))
+        if g is not None and g.hours:
+            out[n] = g.hours
+    return out
 
 
 # --- maps: where the places are and the roads between them ----------------------------------------

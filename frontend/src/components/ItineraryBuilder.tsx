@@ -910,7 +910,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
             }}
             onAddNew={canCreate ? (vendorId) => onNewService(vendorId, false, (s) => s.id && setExtras([...day.extras, { id: slotId(), service_id: s.id, quantity: null, notes: '' }])) : undefined} />
         </SlotBox>
-        {<DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel}
+        {<DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel} date={date}
           onSetDay={onSet}
           onChange={(schedule) => onSet({ schedule })} />}
         {/* Border crossings and notes are rare: folded away until used. */}

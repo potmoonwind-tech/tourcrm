@@ -529,7 +529,7 @@ def place_details(place_id: str, session: str | None = None, timeout: float = 6.
             data = _google_get(client, GOOGLE_PLACE.format(id=place_id),
                                {"languageCode": lang or "en", **({"sessionToken": session} if session else {})},
                                {"X-Goog-Api-Key": settings.google_maps_key,
-                                "X-Goog-FieldMask": "location,formattedAddress,addressComponents,types"})
+                                "X-Goog-FieldMask": "location,formattedAddress,addressComponents,types,regularOpeningHours"})
     except (httpx.HTTPError, ValueError):
         return None
     loc = data.get("location") or {}
@@ -539,17 +539,36 @@ def place_details(place_id: str, session: str | None = None, timeout: float = 6.
     street = " ".join(x for x in (parts.get("route"), parts.get("street_number")) if x)
     town = parts.get("locality") or parts.get("postal_town") or parts.get("administrative_area_level_2") or ""
     return {"lat": float(loc["latitude"]), "lon": float(loc["longitude"]), "street": street[:150], "city": town[:100],
-            "detail": (data.get("formattedAddress") or "")[:200], "place_id": place_id}
+            "detail": (data.get("formattedAddress") or "")[:200], "place_id": place_id, "hours": opening_hours(data.get("regularOpeningHours"))}
+
+
+def opening_hours(raw: dict | None) -> dict | None:
+    """Google's opening hours as {"periods": [{"day": 0-6 (Sunday 0), "open": "10:00", "close": "18:00"}], "text": [...]}.
+    Open round the clock: one period with no close ("00:00"-"24:00" every day). None when the map doesn't say."""
+    if not raw or not isinstance(raw.get("periods"), list):
+        return None
+    hm = lambda x: f"{int(x.get('hour', 0)):02d}:{int(x.get('minute', 0)):02d}"
+    periods = []
+    for p in raw["periods"][:30]:
+        o, c = p.get("open") or {}, p.get("close")
+        if "day" not in o:
+            continue
+        if c is None:                                     # open 24 hours
+            return {"periods": [{"day": d, "open": "00:00", "close": "24:00"} for d in range(7)], "text": raw.get("weekdayDescriptions") or []}
+        close = hm(c) if c.get("day") == o["day"] else "24:00"    # past midnight: open till the end of that day
+        periods.append({"day": int(o["day"]), "open": hm(o), "close": close})
+    return {"periods": periods, "text": [str(x)[:80] for x in (raw.get("weekdayDescriptions") or [])[:7]]}
 
 
 def pin_key(workspace_id: str, name: str) -> str:
     return f"pin:{workspace_id}:{key(name)}"[:120]
 
 
-def pin(db: Session, workspace_id: str, name: str, lat: float, lon: float, label: str, place_id: str | None = None) -> None:
-    """This agency's name means this exact spot (picked from the suggestions)."""
+def pin(db: Session, workspace_id: str, name: str, lat: float, lon: float, label: str, place_id: str | None = None,
+        hours: dict | None = None) -> None:
+    """This agency's name means this exact spot (picked from the suggestions), with its opening hours if known."""
     db.merge(GeoPlace(key=pin_key(workspace_id, name), name=label[:300], lat=lat, lon=lon, fetched_at=utcnow(),
-                      place_id=place_id))
+                      place_id=place_id, hours=hours))
     db.flush()
 
 
@@ -563,6 +582,7 @@ def pinned(db: Session, workspace_id: str | None, name: str) -> "GeoPlace | None
         if d is None:
             return None
         hit.lat, hit.lon, hit.fetched_at = d["lat"], d["lon"], utcnow()
+        hit.hours = d.get("hours") or hit.hours
         db.flush()
     return hit if hit is not None and hit.lat is not None else None
 
