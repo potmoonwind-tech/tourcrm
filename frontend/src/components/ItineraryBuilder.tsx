@@ -805,8 +805,11 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           <MenuPick meal="lunch" vendorId={day.lunch_id} value={day.lunch_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday} compact
             onChange={(m) => onSet({ lunch_menu_id: m, meal_dishes: withoutMeal(day, 'lunch') })}
             onAddNew={canCreate && day.lunch_id ? () => onNewService(day.lunch_id!, true, (s) => onSet({ lunch_menu_id: s.id ?? null }), 'lunch') : undefined} />
+          {/* Dishes, plates and tables only with a menu (or the tour's own dishes): no menu - just the meal. */}
+          {(day.lunch_menu_id || day.meal_dishes?.lunch) && (
           <MealPlan meal="lunch" day={day} dayNumber={index + 1} crew={crew} disabled={disabled} twice={twiceToday} onSet={onSet}
             menu={menuOf(menus, day.lunch_menu_id, day.lunch_id, 'lunch')} />
+          )}
           </>}
           {day.lunch_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
@@ -839,8 +842,11 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           <MenuPick meal="dinner" vendorId={day.dinner_id} value={day.dinner_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday} compact
             onChange={(m) => onSet({ dinner_menu_id: m, meal_dishes: withoutMeal(day, 'dinner') })}
             onAddNew={canCreate && day.dinner_id ? () => onNewService(day.dinner_id!, true, (s) => onSet({ dinner_menu_id: s.id ?? null }), 'dinner') : undefined} />
+          {/* Dishes, plates and tables only with a menu (or the tour's own dishes): no menu - just the meal. */}
+          {(day.dinner_menu_id || day.meal_dishes?.dinner) && (
           <MealPlan meal="dinner" day={day} dayNumber={index + 1} crew={crew} disabled={disabled} twice={twiceToday} onSet={onSet}
             menu={menuOf(menus, day.dinner_menu_id, day.dinner_id, 'dinner')} />
+          )}
           </>}
           {day.dinner_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
