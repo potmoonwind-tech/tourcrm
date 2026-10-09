@@ -1734,12 +1734,8 @@ function OwnMealWhere({ value, disabled, onChange }: { value: string; disabled?:
 function DateTile({ date, n, active }: { date?: string; n: number; active: boolean }) {
   const { lang } = useI18n()
   return (
-    <span className={cn('flex shrink-0 flex-col items-center rounded-md px-1.5 py-1 text-center leading-none',
-      active ? 'bg-brand-50' : 'bg-slate-100')}>
-      {date ? <>
-        <span className={cn('text-[10px] font-semibold uppercase', active ? 'text-brand-700' : 'text-slate-500')}>{weekday(date, lang)}</span>
-        <span className="mt-0.5 whitespace-nowrap text-xs font-semibold tabular-nums text-slate-900">{Number(date.slice(8))} {fmt(date, lang, { month: 'short' })}</span>
-      </> : <span className="text-sm font-semibold text-slate-900">{n}</span>}
+    <span className={cn('shrink-0 whitespace-nowrap text-sm tabular-nums', active ? 'font-semibold text-brand-700' : 'font-medium text-slate-600')}>
+      {date ? `${weekday(date, lang)} ${Number(date.slice(8))} ${fmt(date, lang, { month: 'short' })}` : n}
     </span>
   )
 }

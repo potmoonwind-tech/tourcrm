@@ -14,14 +14,14 @@
   /* Primary (Vibe --primary-color #0073ea, hover #0060b9, selected #cce5ff) */
   /* The frame around pages (top bar, menu), Google Drive-like: a very light tint; the white page panel stands
      out by colour, without a border. Menu text dark, icons a step softer, the current page a soft pill. */
-  --color-app-bg: #faf9f6;
-  --color-search-bg: #efede8;
-  --color-search-hover: #e5e2db;
+  --color-app-bg: #fafbfc;
+  --color-search-bg: #eef0f3;
+  --color-search-hover: #e4e7ec;
   --color-nav-active: #c2e7ff;
   --color-nav-active-text: #001d35;
-  --color-nav-text: #2c2c2a;
-  --color-nav-icon: #55544f;
-  --color-nav-hover: #efede8;
+  --color-nav-text: #1f242c;
+  --color-nav-icon: #474d59;
+  --color-nav-hover: #eef0f3;
   --color-brand-50: #f0f7ff;
   --color-brand-100: #cce5ff;
   --color-brand-200: #99caff;
@@ -33,18 +33,20 @@
   --color-brand-800: #004d94;
   --color-brand-900: #003a70;
 
-  /* Neutrals: warm greys (paper, not steel). Hairline borders #e6e3dc / controls #d6d3ca, secondary text
-     #6b6a64 (5.4:1 on white), body #2c2c2a, surfaces #f7f6f3. */
-  --color-slate-50: #f7f6f3;
-  --color-slate-100: #efede8;
-  --color-slate-200: #e6e3dc;
-  --color-slate-300: #d6d3ca;
-  --color-slate-400: #a19f97;
-  --color-slate-500: #6b6a64;
-  --color-slate-600: #55544f;
-  --color-slate-700: #444441;
-  --color-slate-800: #2c2c2a;
-  --color-slate-900: #1d1d1b;
+  /* Neutrals: clean, neutral greys (a hint of cool) - colour is kept for what means something (blue = the
+     action / where you are, amber = missing, green = done). Hairline borders #e4e7ec / controls #d0d5dd,
+     quiet text #8a919c (3.3:1, labels only), secondary text #5b6270 (6.2:1 on white), body #1f242c,
+     surfaces #f6f7f9. */
+  --color-slate-50: #f6f7f9;
+  --color-slate-100: #eef0f3;
+  --color-slate-200: #e4e7ec;
+  --color-slate-300: #d0d5dd;
+  --color-slate-400: #8a919c;
+  --color-slate-500: #5b6270;
+  --color-slate-600: #474d59;
+  --color-slate-700: #353a44;
+  --color-slate-800: #1f242c;
+  --color-slate-900: #12161c;
 
   /* Status label colours (Vibe: done green, working orange, stuck red, bright blue, purple) */
   --color-emerald-500: #00c875;
@@ -118,14 +120,14 @@
    and icons (8.6:1 and 5.6:1 on white instead of 5.5:1 and 2.8:1), borders that read as edges (3:1 and up),
    the smallest captions a size up, a thick focus outline, underlined links, and no motion. */
 :root[data-easy="on"] {
-  --color-slate-200: #b0ada4;
-  --color-slate-300: #85837b;
-  --color-slate-400: #67665f;
-  --color-slate-500: #4b4a45;
-  --color-slate-600: #3b3a36;
-  --color-slate-700: #2c2c29;
-  --color-slate-800: #1e1e1c;
-  --color-slate-900: #121211;
+  --color-slate-200: #b4b9c2;
+  --color-slate-300: #7f8692;
+  --color-slate-400: #616875;
+  --color-slate-500: #464c58;
+  --color-slate-600: #363b45;
+  --color-slate-700: #282c34;
+  --color-slate-800: #1b1e24;
+  --color-slate-900: #111317;
   --text-xs: 0.8125rem;
   --text-xs--line-height: 1.35;
 }
@@ -145,7 +147,7 @@
 /* The page panel: no border (the frame's tint sets it apart), except when easier to see. */
 .app-panel { border-color: transparent; }
 :root[data-easy="on"] .app-panel { border-color: var(--color-slate-300); }
-:root[data-easy="on"] { --color-app-bg: #f1efe9; --color-nav-icon: #1f1f1f; }
+:root[data-easy="on"] { --color-app-bg: #f6f7f9; --color-nav-icon: #1f1f1f; }
 
 /* Text size: everything grows together (text, spacing, buttons), like a careful zoom. */
 :root[data-text="large"] { font-size: 112.5%; }
