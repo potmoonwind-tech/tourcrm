@@ -861,6 +861,20 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
       <div className="p-2 sm:p-3">
         <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel} date={date}
           expandAll={!simple}
+          templates={disabled ? undefined : (
+            // Saved days for this town: one click fills the day (undo in the message); or keep this one.
+            <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
+              {savedHere.length > 0 && <span className="flex items-center gap-1 text-slate-500"><Bookmark size={13} aria-hidden />{t('savedDaysHere')}</span>}
+              {savedHere.map((x) => (
+                <button key={x.id} type="button" onClick={() => applyTemplate(x)} title={t('useSavedDay', { name: x.name })}
+                  className="rounded-full border border-brand-200 bg-brand-50 px-2.5 py-0.5 font-medium text-brand-800 hover:bg-brand-100">{x.name}</button>
+              ))}
+              <button type="button" onClick={() => void saveTemplate()}
+                className={cn('rounded-full px-2 py-0.5 text-slate-500 hover:bg-slate-100 hover:text-brand-700', !savedHere.length && '-ml-2')}>
+                {savedHere.length ? '+' : <Bookmark size={12} aria-hidden className="mr-1 inline" />}{t('saveDayAsTemplate')}
+              </button>
+            </div>
+          )}
           bare onSetDay={onSet} onChange={(schedule) => onSet({ schedule })}
           onAddMore={disabled ? undefined : (what) => (what === 'flight' ? setDetails(true) : setMore(true))}
           addAside={whatOpen || ((dragging ?? picked) && accepts('extras', (dragging ?? picked)!)) ? undefined : (

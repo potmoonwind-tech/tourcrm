@@ -39,8 +39,7 @@ const KIND_STYLE: Record<ScheduleKind, string> = {
   checkout: 'bg-violet-100 text-violet-800', flight: 'bg-cyan-100 text-cyan-800', other: 'bg-slate-100 text-slate-700',
 }
 const ADDABLE: ScheduleKind[] = ['visit', 'free', 'transfer', 'other']
-// A drive on the day ribbon: a quiet grey (fixed, so the easy-to-see greys don't make it heavy).
-const DRIVE_BAR = 'bg-[#e4e1d9]'
+
 let seq = 0
 const newId = () => `s${Date.now().toString(36)}${(++seq).toString(36)}`
 
@@ -162,12 +161,13 @@ export interface SlotRow {
 }
 export type SlotRows = Partial<Record<'hotel' | 'breakfast' | 'lunch' | 'dinner', SlotRow>>
 
-export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay, date, slots, footer, bare, onAddMore, addAside, expandAll }: {
+export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay, date, slots, footer, bare, onAddMore, addAside, expandAll, templates }: {
   slots?: SlotRows          // the builder: these rows are where the hotel, breakfast, lunch and dinner are chosen
   footer?: ReactNode        // under the list (the day's activities, notes)
   bare?: boolean            // inside the day's card: no frame of its own
   onAddMore?: (what: 'flight' | 'note') => void   // "+ Flight", "+ Note" in the add line
   addAside?: ReactNode      // at the end of the add line ("What they do ›")
+  templates?: ReactNode     // under the day's line: saved days for this town (one click fills the day)
   expandAll?: boolean       // "Show everything": every row open
   day: DayFields; index: number; last: boolean; byId: Map<string, Vendor>; services: ServiceBrief[]; disabled?: boolean; startOpen?: boolean
   date?: string      // the day's date (a tour): visits are checked against the places' opening hours
@@ -445,24 +445,6 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
   const roadKm = drives.reduce((n, l) => n + (l.km ?? 0), 0)
   const roadMin = drives.reduce((n, l) => n + (l.minutes ?? 0), 0)
   const span = first ? `${first}${lastTime && lastTime !== first ? ` – ${lastTime}` : ''}` : ''
-  // The day ribbon: each step and drive as a coloured block on the hours of the day.
-  const segs: { from: number; to: number; cls: string; title: string }[] = []
-  for (const x of items) {
-    const d = before.get(x.id)
-    const dep = departs.get(x.id)
-    if (d?.minutes && dep != null) segs.push({ from: dep, to: dep + Math.round(d.minutes / 5) * 5, cls: DRIVE_BAR, title: `${t('progDriveTo', { place: d.to })} · ${dur(d.minutes)}` })
-    if (x.time) {
-      const st = toMin(x.time)
-      const lb = label(x)
-      segs.push({ from: st, to: st + lengthOf(x, usual), title: `${x.time} · ${lb.text || x.title || t(`prog_${x.kind}` as TKey)}`,
-        cls: lb.missing ? 'border border-dashed border-red-400 bg-red-50' : KIND_STYLE[x.kind].split(' ')[0] })
-    }
-  }
-  for (const leg of after) if (leg.minutes && lastEnd != null) segs.push({ from: lastEnd, to: lastEnd + Math.round(leg.minutes / 5) * 5, cls: DRIVE_BAR, title: t('progDriveTo', { place: leg.to }) })
-  const r0 = Math.floor(Math.min(7 * 60, ...segs.map((x) => x.from)) / 60) * 60
-  const r1 = Math.ceil(Math.max(22 * 60, ...segs.map((x) => x.to)) / 60) * 60
-  const pct = (m: number) => `${((m - r0) / (r1 - r0)) * 100}%`
-  const ticks = Array.from({ length: Math.floor((r1 - r0) / 180) + 1 }, (_, i) => r0 + i * 180)
   const addChip = (k: ScheduleKind, onClick: () => void, text?: string) => (
     <button key={k + (text ?? '')} type="button" onClick={onClick}
       className="inline-flex h-7 items-center gap-1 rounded-full border border-dashed border-slate-300 bg-white px-2.5 text-xs text-slate-600 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-800">
@@ -503,27 +485,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
           })} />
       )}
 
-      {/* The day ribbon: the shape of the day at a glance (long drives, free hours, a meal still to choose). */}
-      {segs.length > 0 && (
-        <div className="mt-3" aria-hidden>
-          <div className="relative h-6 overflow-hidden rounded-md bg-slate-50">
-            {segs.map((x, i) => (
-              <span key={i} title={x.title} className={cn('absolute inset-y-0 flex items-center justify-center text-slate-600', x.cls)}
-                style={{ left: pct(x.from), width: `calc(${pct(x.to)} - ${pct(x.from)})` }}>
-                {x.cls === DRIVE_BAR && x.to - x.from >= 90 && <Car size={13} />}
-              </span>
-            ))}
-          </div>
-          <div className="relative mt-1 h-4 text-[11px] tabular-nums text-slate-400">
-            {ticks.map((m, i) => (
-              <span key={m} className={cn('absolute', i === 0 ? '' : i === ticks.length - 1 && m === r1 ? '-translate-x-full' : '-translate-x-1/2')} style={{ left: pct(m) }}>
-                {String(Math.floor(m / 60) % 24).padStart(2, '0')}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
+      {templates}
       {drives.length === 0 && path.length > 1 && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500" role="status">
           <Car size={14} aria-hidden className="shrink-0" />{road.isFetching ? t('progRoadAsking') : road.isError ? t('mapUnavailable') : t('progRoadNone')}

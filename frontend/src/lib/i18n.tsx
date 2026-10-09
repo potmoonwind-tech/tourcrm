@@ -3019,6 +3019,7 @@ const en = {
   chooseMenu: "choose a menu",
   recalcTimesAuto: "The times already follow each day by themselves (nothing was set by hand).",
   palette_days: "Days",
+  savedDaysHere: "Saved days:",
 }
 
 type Dict = typeof en
@@ -6034,6 +6035,7 @@ const ka: Dict = {
   chooseMenu: "აირჩიეთ მენიუ",
   recalcTimesAuto: "დროები უკვე ავტომატურად ითვლება ყოველ დღეზე (ხელით არაფერი შეცვლილა).",
   palette_days: "დღეები",
+  savedDaysHere: "შენახული დღეები:",
 }
 
 export type Lang = 'en' | 'ka'
