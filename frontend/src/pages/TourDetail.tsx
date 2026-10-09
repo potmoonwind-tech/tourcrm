@@ -88,7 +88,7 @@ export function TourDetailPage() {
         <TourSummary tour={tr} canEdit={canEdit} onEdit={(f) => setEditing({ focus: f })} />
         {editing && <TourDetailsDrawer tour={tr} focus={editing.focus} onClose={() => setEditing(null)} onSaved={(t2) => qc.setQueryData(key, t2)} />}
         <div role="tablist" aria-label={t('tourSections')} ref={tabsBar}
-          className="sticky top-0 z-30 -mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 bg-slate-50/95 px-4 backdrop-blur md:-mx-8 md:px-8"
+          className="sticky top-0 z-30 -mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:-mx-8 md:px-8"
           onKeyDown={(e) => {
             // Arrow keys move between the tabs (the usual tab keyboard pattern).
             if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return

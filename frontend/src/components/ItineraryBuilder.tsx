@@ -251,7 +251,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd}
       onDragCancel={() => { setDragging(null); setCarrying(null) }}>
         {/* The builder's toolbar, kept in view: how to look at the days, and the days themselves. */}
-        <div ref={toolbar} className={cn('sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8', flush && '-mt-6')}>
+        <div ref={toolbar} className={cn('sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8', flush && '-mt-6')}>
           <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView} className="shrink-0"
             options={[
               ['check', <span key="c" className="flex items-center gap-1.5" title={t('viewCheck')}><ListChecks size={15} aria-hidden /><span className={cn(view !== 'check' && 'sr-only')}>{t('viewCheck')}</span></span>],
@@ -841,7 +841,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
         alerts.some((a) => a.severity === 'error') && 'border-red-300')}>
       {/* The day's head: which day, when, from where to where - pinned while working down the day. */}
       <header className={cn('group/head sticky top-[calc(var(--tabs-h,42px)+var(--bar-h,45px))] z-10 flex items-center gap-2.5 rounded-t-xl border-b px-3 py-1.5 backdrop-blur',
-        active ? 'border-brand-200 bg-brand-50/95' : 'border-slate-100 bg-slate-50/95')}>
+        active ? 'border-brand-200 bg-brand-50/95' : 'border-slate-100 bg-white/95')}>
         {!disabled && (
           <button type="button" {...attributes} {...listeners} aria-label={t('dragToReorder')} title={t('dragToReorder')}
             className="-ml-1 cursor-grab touch-none rounded-md p-0.5 text-slate-400 opacity-0 hover:bg-slate-100 focus:opacity-100 active:cursor-grabbing group-hover/head:opacity-100"><GripVertical size={16} /></button>

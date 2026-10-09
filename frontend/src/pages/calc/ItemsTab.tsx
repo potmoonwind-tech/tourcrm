@@ -61,7 +61,7 @@ export function ItemsTab({ doc, debounced, edit, result }: { doc: QuoteDoc; debo
 
   return (
     <div className="space-y-4">
-      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-3 rounded-lg bg-slate-50/95 px-1 py-2 text-sm backdrop-blur">
+      <div className="sticky top-0 z-10 -mx-1 flex flex-wrap items-center gap-3 rounded-lg bg-white/95 px-1 py-2 text-sm backdrop-blur">
         <span className="text-slate-500">{t('sampleGroup')}</span>
         <Select size="sm" value={n} onChange={(e) => setSample(Number(e.target.value))} className="w-28">
           {sizes.map((s) => <option key={s} value={s}>{sizeLabel(doc, s)}</option>)}
