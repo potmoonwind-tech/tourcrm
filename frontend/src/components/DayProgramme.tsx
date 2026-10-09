@@ -191,7 +191,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
       const mode = r === 'lunch' ? day.lunch_mode : day.dinner_mode
       const id = r === 'lunch' ? day.lunch_id : day.dinner_id
       const word = t(r)
-      if (mode === 'own') return { text: `${word}: ${t('mealOwn')}`, missing: false }
+      if (mode === 'own') return { text: `${word}: ${t('mealOwn')}${day.meal_tbd?.[r] ? ` · ${day.meal_tbd[r]}` : ''}`, missing: false }
       if (!id && day.meal_tbd?.[r]) return { text: `${word}: ${t('mealTbdShort', { town: day.meal_tbd[r]! })}`, missing: false }
       return { text: `${word}: ${byId.get(id ?? '')?.name ?? '—'}${mode === 'tourists' ? ` (${t('mealTourists')})` : ''}`, missing: !id }
     }
@@ -811,7 +811,8 @@ const placeOf = (x: ScheduleItem, day: DayFields, byId?: Map<string, Vendor>) =>
     return v?.address || v?.city || ''
   }
   if (x.ref === 'lunch' || x.ref === 'dinner') {
-    if ((x.ref === 'lunch' ? day.lunch_mode : day.dinner_mode) === 'own') return ''
+    // On their own: where they'll be, if given (the road goes there).
+    if ((x.ref === 'lunch' ? day.lunch_mode : day.dinner_mode) === 'own') return day.meal_tbd?.[x.ref] ?? ''
     const v = byId?.get((x.ref === 'lunch' ? day.lunch_id : day.dinner_id) ?? '')
     // No restaurant yet: the town or place given for it ("TBD · Ananuri") is where the road goes.
     return v ? v.address || v.city || '' : day.meal_tbd?.[x.ref] ?? ''

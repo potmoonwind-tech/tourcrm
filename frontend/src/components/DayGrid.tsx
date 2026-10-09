@@ -45,7 +45,7 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
     for (const meal of ['lunch', 'dinner'] as const) {
       const mode = (meal === 'lunch' ? d.lunch_mode : d.dinner_mode) ?? 'included'
       const id = meal === 'lunch' ? d.lunch_id : d.dinner_id
-      if (mode === 'own') { out.push({ icon: <Utensils size={13} />, label: t(meal), text: t('mealOwn'), state: 'none' }); continue }
+      if (mode === 'own') { out.push({ icon: <Utensils size={13} />, label: t(meal), text: `${t('mealOwn')}${d.meal_tbd?.[meal] ? ` · ${d.meal_tbd[meal]}` : ''}`, state: 'none' }); continue }
       if (!id && d.meal_tbd?.[meal]) { out.push({ icon: <Utensils size={13} />, label: t(meal), text: t('mealTbdShort', { town: d.meal_tbd[meal]! }), state: 'soft' }); continue }
       if (!id) { out.push({ icon: <Utensils size={13} />, label: t(meal), text: t('gridMissing'), state: 'todo' }); continue }
       const menu = menuOf(d, meal)

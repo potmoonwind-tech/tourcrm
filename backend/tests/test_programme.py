@@ -453,3 +453,11 @@ def test_a_steps_note_goes_into_the_programme(make_client):
     assert step["memo"] == "Bring a jacket"
     text = docx_text(c.post(f"{base}/programme.docx", json={"days": days, "lang": "en"}).content)
     assert "Bring a jacket" in text
+
+
+
+def test_a_meal_on_their_own_can_say_where(make_client):
+    c, base, _ = agency(make_client)
+    days = [{"city": "Tbilisi"}, {"city": "Tbilisi", "dinner_mode": "own", "meal_tbd": {"dinner": "Old Tbilisi"}}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    assert ["Dinner", "own arrangements · Old Tbilisi"] in p["days"][1]["meals"]

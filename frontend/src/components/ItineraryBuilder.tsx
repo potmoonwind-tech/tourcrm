@@ -755,7 +755,10 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           carry={day.lunch_mode === 'own' ? undefined : holds(day.lunch_id)}
           aside={(show || (day.lunch_mode ?? 'included') !== 'included') && <MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { lunch_mode: m, lunch_id: null, lunch_menu_id: null } : { lunch_mode: m })} />}>
-          {(day.lunch_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
+          {(day.lunch_mode ?? 'included') === 'own' ? (
+            <OwnMealWhere value={day.meal_tbd?.lunch ?? ''} disabled={disabled}
+              onChange={(x) => onSet({ meal_tbd: x.trim() ? { ...day.meal_tbd, lunch: x } : withoutTbd(day, 'lunch') })} />
+          ) : <>
           {day.meal_tbd?.lunch && !day.lunch_id ? (
             <MealTbd town={day.meal_tbd.lunch} disabled={disabled} onTown={(x) => onSet({ meal_tbd: { ...day.meal_tbd, lunch: x } })}
               onPick={() => onSet({ meal_tbd: withoutTbd(day, 'lunch') })} />
@@ -786,7 +789,10 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
           carry={day.dinner_mode === 'own' ? undefined : holds(day.dinner_id)}
           aside={(show || (day.dinner_mode ?? 'included') !== 'included') && <MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
             onChange={(m) => onSet(m === 'own' ? { dinner_mode: m, dinner_id: null, dinner_menu_id: null } : { dinner_mode: m })} />}>
-          {(day.dinner_mode ?? 'included') === 'own' ? <p className="py-1.5 text-xs text-slate-500">{t('mealOwnHelp')}</p> : <>
+          {(day.dinner_mode ?? 'included') === 'own' ? (
+            <OwnMealWhere value={day.meal_tbd?.dinner ?? ''} disabled={disabled}
+              onChange={(x) => onSet({ meal_tbd: x.trim() ? { ...day.meal_tbd, dinner: x } : withoutTbd(day, 'dinner') })} />
+          ) : <>
           {day.meal_tbd?.dinner && !day.dinner_id ? (
             <MealTbd town={day.meal_tbd.dinner} disabled={disabled} onTown={(x) => onSet({ meal_tbd: { ...day.meal_tbd, dinner: x } })}
               onPick={() => onSet({ meal_tbd: withoutTbd(day, 'dinner') })} />
@@ -1435,4 +1441,22 @@ function MealTbd({ town, disabled, onTown, onPick }: { town: string; disabled?: 
 function withStep(schedule: ScheduleItem[], step: ScheduleItem): ScheduleItem[] {
   const at = schedule.findIndex((x) => x.ref === 'hotel' || x.ref === 'dinner')
   return at < 0 ? [...schedule, step] : [...schedule.slice(0, at), step, ...schedule.slice(at)]
+}
+
+/** A meal on their own: no restaurant, but where - a town or place (the day's road goes there, the programme says it). */
+function OwnMealWhere({ value, disabled, onChange }: { value: string; disabled?: boolean; onChange: (x: string) => void }) {
+  const { t } = useI18n()
+  return (
+    <div className="space-y-1 py-0.5">
+      <p className="text-xs text-slate-500">{t('mealOwnHelp')}</p>
+      <div className="flex items-center gap-2 rounded-md border border-dashed border-slate-300 bg-slate-50 px-2.5 py-1">
+        <MapPinned size={14} aria-hidden className="shrink-0 text-slate-500" />
+        <span className="min-w-0 flex-1 [&>span]:w-full">
+          <PlaceInput value={value} disabled={disabled} onChange={onChange} maxLength={100} aria-label={t('mealOwnWhere')} placeholder={t('mealOwnWherePh')}
+            title={t('mealOwnWhereTip')} onFocus={(e) => e.currentTarget.select()}
+            className="h-7 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 text-sm text-slate-800 placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-600 focus:bg-white focus:outline-none" />
+        </span>
+      </div>
+    </div>
+  )
 }

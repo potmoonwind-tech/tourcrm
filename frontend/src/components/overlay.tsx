@@ -38,6 +38,16 @@ function useEscape(onClose: () => void) {
 
 const DRAWER_WIDTH = { md: 'sm:max-w-lg', lg: 'sm:max-w-2xl', xl: 'sm:max-w-4xl', full: 'sm:max-w-[min(96vw,1500px)]' }   // full: big working screens (route builder)
 
+/** In a drawer (a record with many fields) Enter in a field doesn't save and close it - it only ends the field;
+ * Ctrl+Enter (⌘+Enter) saves. Fields that use Enter themselves (a place suggestion, a list) handle it first. */
+function keepOpenOnEnter(e: React.KeyboardEvent) {
+  if (e.key !== 'Enter' || e.defaultPrevented || e.nativeEvent.isComposing) return
+  const el = e.target as HTMLInputElement
+  if (el.tagName !== 'INPUT' || ['submit', 'button', 'checkbox', 'radio', 'file'].includes(el.type)) return
+  e.preventDefault()
+  if (e.ctrlKey || e.metaKey) el.form?.requestSubmit()
+}
+
 export function Drawer({ title, subtitle, onClose, children, footer, size = 'lg', headerActions }: {
   title: ReactNode; subtitle?: ReactNode; onClose: () => void; children: ReactNode
   footer?: ReactNode; size?: keyof typeof DRAWER_WIDTH; headerActions?: ReactNode
@@ -47,7 +57,7 @@ export function Drawer({ title, subtitle, onClose, children, footer, size = 'lg'
   return (
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="animate-fade absolute inset-0 bg-slate-900/30" onMouseDown={onClose} />
-      <aside role="dialog" aria-modal="true"
+      <aside role="dialog" aria-modal="true" onKeyDown={keepOpenOnEnter}
         className={cn('animate-drawer relative flex h-full w-full flex-col bg-white shadow-xl', DRAWER_WIDTH[size])}>
         <header className="flex items-start gap-3 border-b border-slate-200 px-5 py-4 sm:px-6">
           <div className="min-w-0 flex-1">

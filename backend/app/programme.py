@@ -331,8 +331,8 @@ def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], 
             m = vendors.get(vid or "") if mode != "own" else None
             if m:
                 push(m.address or m.city, m.name, x.id)
-            elif mode != "own" and (d.meal_tbd or {}).get(r):
-                # No restaurant yet: the town or place it will be in counts for the road (the map finds it).
+            elif (d.meal_tbd or {}).get(r):
+                # No restaurant (yet, or they eat on their own): the town or place given counts for the road.
                 push(d.meal_tbd[r], d.meal_tbd[r], x.id)
         elif not r and x.kind == "visit":
             at = None
@@ -386,7 +386,8 @@ def _place_of(x, d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor
     address ("Imereti Family Kitchen, Kutaisi") - more precise than the town."""
     v = _vendor_of(x, d, prev, vendors, services)
     if v is None and x.ref in ("lunch", "dinner"):
-        return tbd_town(d, x.ref)          # still to decide: the town or place given for it
+        # Still to decide, or on their own: the town or place given for it.
+        return tbd_town(d, x.ref) or (d.meal_tbd or {}).get(x.ref, "")
     return ", ".join(p for p in (v.name, v.address or v.city) if p) if v else ""
 
 
@@ -672,7 +673,8 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
                 p.meals.append((L["breakfast"], L["own"]))
             for meal, word, mode, vid in (("lunch", L["lunch"], d.lunch_mode, d.lunch_id), ("dinner", L["dinner"], d.dinner_mode, d.dinner_id)):
                 if mode == "own":
-                    p.meals.append((word, L["own"]))
+                    where = (d.meal_tbd or {}).get(meal)
+                    p.meals.append((word, L["own"] + (f" · {T(where)}" if where else "")))
                 elif vid:
                     menu = dishes(d, meal, summary=True)
                     p.meals.append((word, T(c.name(vid)) + (f" ({L['tourists']})" if mode == "tourists" else "") + (f": {menu}" if menu else "")))
@@ -787,7 +789,8 @@ def _step_text(x, d: DayFields, prev: DayFields | None, c: _Ctx, L: dict[str, st
     if r in ("lunch", "dinner"):
         mode, vid = (d.lunch_mode, d.lunch_id) if r == "lunch" else (d.dinner_mode, d.dinner_id)
         if mode == "own":
-            return f"{L[r]}: {L['own']}"
+            where = (d.meal_tbd or {}).get(r)
+            return f"{L[r]}: {L['own']}" + (f" · {T(where)}" if where else "")
         if not vid and tbd_town(d, r):
             return f"{L[r]}: {L['tbd']} · {T(tbd_town(d, r))}"
         return f"{L[r]}: {T(c.name(vid))}" if vid else ""

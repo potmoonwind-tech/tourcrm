@@ -2973,6 +2973,9 @@ const en = {
   progAddNote: "Add a note",
   progNotePh: "Note for the group and the guide - shown in what you share",
   progNoteOf: "Note: {name}",
+  mealOwnWhere: "Where they'll be",
+  mealOwnWherePh: "Where: town or place (optional)",
+  mealOwnWhereTip: "Free time for this meal here - the day's road goes there and the programme says it",
 }
 
 type Dict = typeof en
@@ -5942,6 +5945,9 @@ const ka: Dict = {
   progAddNote: "შენიშვნის დამატება",
   progNotePh: "შენიშვნა ჯგუფისთვის და გიდისთვის - ჩანს გაზიარებულში",
   progNoteOf: "შენიშვნა: {name}",
+  mealOwnWhere: "სად იქნებიან",
+  mealOwnWherePh: "სად: ქალაქი ან ადგილი (არასავალდებულო)",
+  mealOwnWhereTip: "ამ კვების თავისუფალი დრო აქ - დღის მარშრუტი აქ გადის და პროგრამაში ჩანს",
 }
 
 export type Lang = 'en' | 'ka'
