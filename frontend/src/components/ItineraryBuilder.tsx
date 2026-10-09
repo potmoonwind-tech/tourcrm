@@ -106,7 +106,6 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   const [activeDay, setActiveDay] = useState(0)
   const canMap = days.flatMap((d) => [...(d.stops ?? []), d.city]).filter((x) => x?.trim()).length > 1
   const restaurants = useMemo(() => new Set((vendors.data ?? []).filter((v) => v.type === 'restaurant').map((v) => v.id)), [vendors.data])
-  const nextGap = nextGapOf(days, restaurants)
   const openDay = (i: number) => {
     setView('days')
     setTimeout(() => document.getElementById(`day-card-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
@@ -235,7 +234,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   return (
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd}
       onDragCancel={() => { setDragging(null); setCarrying(null) }}>
-        {/* The builder's one toolbar, kept in view: how to look at the days, the days themselves, the next step. */}
+        {/* The builder's toolbar, kept in view: how to look at the days, and the days themselves. */}
         <div ref={toolbar} className="sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8">
           <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView} className="shrink-0"
             options={[
@@ -244,16 +243,6 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               ['days', <span key="d" className="flex items-center gap-1.5" title={t('viewDays')}><CalendarDays size={15} aria-hidden /><span className={cn(view !== 'days' && 'sr-only')}>{t('viewDays')}</span></span>],
             ]} />
           {view === 'days' ? <DayStrip days={days} dates={dates} at={activeDay} onAt={setActiveDay} /> : <div className="flex-1" />}
-          <Menu kind="icon" label={t('moreActions')} items={[
-            { label: t('programmeDownload'), icon: <Download size={16} />, onClick: () => onDownload?.(), hidden: !onDownload },
-            { label: listOpen ? t('hideList') : t('addFromList'), icon: <PanelLeft size={16} />, hidden: disabled,
-              onClick: () => { setView('days'); setListOpen(!listOpen); setPicked(null) } },
-            { label: full ? t('simpleView') : t('showEverything'), icon: <ListChecks size={16} />,
-              onClick: () => { setView('days'); setFull(!full) } },
-            { label: t('mapOpen'), icon: <MapIcon size={16} />, onClick: () => tools.current.openMap?.(), hidden: !canMap },
-            { label: t('suggestKm'), icon: <MapPinned size={16} />, onClick: () => tools.current.suggestKm?.(), hidden: disabled || !days.some((d) => d.city.trim()) },
-            { label: t('recalcTimes'), icon: <Clock size={16} />, onClick: () => tools.current.recalc?.(), hidden: disabled || !days.some((d) => (d.schedule ?? []).length) },
-          ]} />
         </div>
       <div className={cn('grid gap-4', view === 'days' && !disabled && (listOpen ? 'lg:grid-cols-[16rem_1fr]' : 'lg:grid-cols-[2.75rem_1fr]'))}>
         {view === 'days' && !disabled && !listOpen && <PaletteRail onOpen={(tab) => { setListTab(tab); setListOpen(true) }} />}
@@ -272,16 +261,25 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               <button type="button" className={cn('rounded-md p-1 hover:bg-brand-100', picked.kind !== 'service' && 'ml-auto')} onClick={() => setPicked(null)} aria-label={t('done')} title={t('done')}><X size={14} /></button>
             </p>
           )}
-          {/* Where the tour stands and the one main action (the next thing to fill in), floating at the bottom;
+          {/* Where the tour stands and the builder's tools, floating at the bottom (names on hover);
               it moves up when the "save changes" bar is there. */}
-          <div className="fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-x-4 rounded-full border border-slate-200 bg-white/95 py-1.5 pl-4 pr-1.5 text-sm shadow-lg backdrop-blur transition-[bottom] [body:has([data-savebar])_&]:bottom-20">
+          <div className="fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-x-3 rounded-full border border-slate-200 bg-white/95 py-1 pl-4 pr-1.5 text-sm shadow-lg backdrop-blur transition-[bottom] [body:has([data-savebar])_&]:bottom-20">
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
             <span className="max-md:hidden"><BuildSteps days={days} restaurants={restaurants} /></span>
-            {!disabled && nextGap >= 0 ? (
-              <Button type="button" size="sm" className="shrink-0 rounded-full" onClick={() => openDay(nextGap)}>
-                {t('nextMissing', { n: nextGap + 1 })}<ArrowRight size={15} aria-hidden />
-              </Button>
-            ) : <span className="pr-2.5" />}
+            <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
+            <span className="flex shrink-0 items-center">
+              {([
+                [t('programmeDownload'), <Download size={16} />, () => onDownload?.(), !onDownload, false],
+                [listOpen ? t('hideList') : t('addFromList'), <PanelLeft size={16} />, () => { setView('days'); setListOpen(!listOpen); setPicked(null) }, disabled, listOpen && view === 'days'],
+                [full ? t('simpleView') : t('showEverything'), <ListChecks size={16} />, () => { setView('days'); setFull(!full) }, false, full],
+                [t('mapOpen'), <MapIcon size={16} />, () => tools.current.openMap?.(), !canMap, false],
+                [t('suggestKm'), <MapPinned size={16} />, () => tools.current.suggestKm?.(), disabled || !days.some((d) => d.city.trim()), false],
+                [t('recalcTimes'), <Clock size={16} />, () => tools.current.recalc?.(), disabled || !days.some((d) => (d.schedule ?? []).length), false],
+              ] as [string, ReactNode, () => void, boolean | undefined, boolean][]).filter((x) => !x[3]).map(([label, icon, run, , on]) => (
+                <IconButton key={label} size="sm" label={label} onClick={run} aria-pressed={on || undefined}
+                  className={cn('rounded-full', on && 'bg-brand-50 text-brand-700')}>{icon}</IconButton>
+              ))}
+            </span>
           </div>
           {view === 'check' && (
             // Every day on one screen: what is done, what is missing, days side by side.
@@ -1011,8 +1009,6 @@ const mealDone = (d: DayFields, m: 'lunch' | 'dinner', restaurants?: Set<string>
   if (!id) return false
   return !restaurants?.has(id) || !!(m === 'lunch' ? d.lunch_menu_id : d.dinner_menu_id) || !!d.meal_dishes?.[m]
 }
-const nextGapOf = (days: DayFields[], restaurants?: Set<string>) =>
-  days.findIndex((d, i) => !d.city.trim() || (i < days.length - 1 && !d.hotel_id) || !mealDone(d, 'lunch', restaurants) || !mealDone(d, 'dinner', restaurants))
 
 /** Where the build stands, as plain text: route, hotels, meals, activities (optional). */
 function BuildSteps({ days, restaurants }: { days: DayFields[]; restaurants: Set<string> }) {
@@ -1252,6 +1248,8 @@ function DistanceBar({ days, disabled, onChange, byId, back = 0, tools }: {
   const pending = legs.filter((l) => l.skipped === 'pending').map((l) => l.to_city)
   const far = legs.filter((l) => l.skipped === 'far')
   const [mapOpen, setMapOpen] = useState(false)
+  const [warnOpen, setWarnOpen] = useState(false)
+  const problems = unknown + pending.length + notFound.length + far.length + (suggest.isError ? 1 : 0)
   // The whole trip on a map: each day's stops on the way, then where it sleeps.
   const mapStops: MapStop[] = days.flatMap((d, i) => [
     ...(d.stops ?? []).filter((p) => p.trim()).map((p): MapStop => ({ place: p, label: p, kind: 'stop', day: i + 1 })),
@@ -1261,25 +1259,31 @@ function DistanceBar({ days, disabled, onChange, byId, back = 0, tools }: {
   tools.current.suggestKm = () => suggest.mutate()
   if (days.length < 2) return null
   return (
-    <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2 text-sm">
-      <span className="flex items-center gap-2 font-medium"><Car size={16} className="text-slate-500" />{t('totalKm', { km: (total + back).toLocaleString('en-US') })}
-        {back > 0 && <span className="text-xs font-normal text-slate-500">{t('kmWithBack', { km: back.toLocaleString('en-US') })}</span>}</span>
-      {total > 0 && <span className="text-xs text-slate-500">{t('fuelEstimate', { l: fuel.toLocaleString('en-US'), per: ws.fuel_l_per_100km ?? 30 })}</span>}
-      {driving > 0 && <span className="text-xs text-slate-600">{t('drivingTotal', { h: hours(driving), pct: Math.round((factor - 1) * 100) })}</span>}
-      <div className="flex-1" />
-      {suggest.isError && <span className="text-xs text-red-700">{t('mapUnavailable')}</span>}
-      {unknown > 0 && <span className="text-xs text-amber-800">{t('kmNotFound', { n: unknown })}</span>}
-      {pending.length > 0 && (
-        <p className="basis-full rounded-lg bg-sky-50 px-3 py-2 text-xs text-sky-950"><b>{t('kmPending', { n: pending.length })}</b> {pending.join(', ')}</p>
+    <div className="relative flex shrink-0 items-center gap-2 text-sm">
+      <span className="flex items-center gap-1.5 whitespace-nowrap font-medium"
+        title={[back > 0 && t('kmWithBack', { km: back.toLocaleString('en-US') }), total > 0 && t('fuelEstimate', { l: fuel.toLocaleString('en-US'), per: ws.fuel_l_per_100km ?? 30 }),
+          driving > 0 && t('drivingTotal', { h: hours(driving), pct: Math.round((factor - 1) * 100) })].filter(Boolean).join('\n') || undefined}>
+        <Car size={16} className="text-slate-500" />{t('totalKm', { km: (total + back).toLocaleString('en-US') })}
+      </span>
+      {suggest.isPending && <span className="whitespace-nowrap text-xs text-slate-500">{t('askingMap')}</span>}
+      {problems > 0 && (
+        <button type="button" onClick={() => setWarnOpen(!warnOpen)} aria-expanded={warnOpen}
+          className="flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-900 hover:bg-amber-200">
+          <AlertTriangle size={12} aria-hidden />{problems}
+        </button>
       )}
-      {(notFound.length > 0 || far.length > 0) && (
-        <div className="basis-full space-y-0.5 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-950">
+      {/* What the map couldn't count: opens above the bar, on demand. */}
+      {warnOpen && problems > 0 && (
+        <div className="absolute bottom-full left-0 mb-3 w-[min(36rem,calc(100vw-2rem))] space-y-1 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-950 shadow-lg">
+          <button type="button" onClick={() => setWarnOpen(false)} aria-label={t('close')} className="float-right rounded-md p-0.5 hover:bg-amber-100"><X size={14} /></button>
+          {suggest.isError && <p className="text-red-700">{t('mapUnavailable')}</p>}
+          {unknown > 0 && <p>{t('kmNotFound', { n: unknown })}</p>}
+          {pending.length > 0 && <p><b>{t('kmPending', { n: pending.length })}</b> {pending.join(', ')}</p>}
           {notFound.length > 0 && <p><b>{t('kmSkippedUnknown')}</b> {notFound.join(', ')}</p>}
           {far.length > 0 && <p><b>{t('kmSkippedFar')}</b> {far.map((l) => `${l.to_city} (${l.where.split(',').slice(0, 2).join(',')}…)`).join('; ')}</p>}
-          <p>{t('kmSkippedHint')}</p>
+          {(notFound.length > 0 || far.length > 0) && <p className="text-amber-800">{t('kmSkippedHint')}</p>}
         </div>
       )}
-      {suggest.isPending && <span className="text-xs text-slate-500">{t('askingMap')}</span>}
       {mapOpen && <TripMap stops={mapStops} title={t('mapTrip')} subtitle={t('mapTripSub', { days: days.length, km: total.toLocaleString('en-US') })}
         onClose={() => setMapOpen(false)} />}
       {!disabled && <RecalcTimes days={days} byId={byId} onChange={onChange} tools={tools} />}
@@ -1409,29 +1413,33 @@ function StaffStayPick({ day, vendors, disabled, onSet, people = [] }: {
     const put = (a: StaffAssignment, x: { stay: DayStaffStay; hotel_id?: string | null }) =>
       onSet({ staff_stays: { ...own, [a.id]: { stay: x.stay, hotel_id: x.stay === 'own' ? x.hotel_id ?? null : null } } })
     const together = people.filter((a) => ['same', 'own'].includes(of(a).stay)).length > 1
+    // One quiet line: "Staff: Driver not counted ▾ · Guide with the group ▾" (a hotel picker only for "own hotel").
     return (
-      <div className="mt-2 space-y-1.5 border-t border-slate-100 pt-2">
-        <p className="text-xs text-slate-600">{t('staffStayEach')}</p>
-        {people.map((a) => {
-          const x = of(a)
-          return (
-            <div key={a.id} className="space-y-1">
-              <label className="flex items-center gap-2 text-xs text-slate-600">
-                <span className="w-28 shrink-0 truncate" title={a.vendor.name}>
-                  <b className="font-medium text-slate-700">{t(`staffRole_${a.role}` as TKey)}</b>{!a.vendor.placeholder && ` · ${a.vendor.name}`}
-                </span>
+      <div className="mt-1.5 space-y-1">
+        <div className="flex flex-wrap items-center gap-x-1 gap-y-0.5 text-xs text-slate-500">
+          <span title={t('staffStayEach')}>{t('staffNightsShort')}:</span>
+          {people.map((a, k) => {
+            const x = of(a)
+            return (
+              <span key={a.id} className="flex items-center" title={a.vendor.placeholder ? undefined : a.vendor.name}>
+                {k > 0 && <span className="mr-1 text-slate-300">·</span>}
+                <b className="font-medium text-slate-700">{t(`staffRole_${a.role}` as TKey)}</b>
                 <select disabled={disabled} value={x.stay} onChange={(e) => put(a, { stay: e.target.value as DayStaffStay, hotel_id: x.hotel_id })}
-                  className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs">
+                  aria-label={`${t(`staffRole_${a.role}` as TKey)} · ${t('staffStay')}`}
+                  className={cn('w-auto rounded-md border-0 bg-transparent py-0 pl-1 pr-6 text-xs [field-sizing:content] focus:ring-1 focus:ring-brand-500', x.stay === 'none' ? 'text-slate-400' : 'text-brand-700')}>
                   {STAFF_STAYS.map((v) => <option key={v} value={v}>{t(`dayStaffStay_${v}`)}</option>)}
                 </select>
-              </label>
-              {x.stay === 'own' && (
-                <VendorSelect className="h-8" disabled={disabled} vendors={vendors} types={['hotel']} value={x.hotel_id ?? null}
-                  cities={[day.city]} placeholder={t('chooseHotel')} onChange={(v) => put(a, { stay: 'own', hotel_id: v })} />
-              )}
-            </div>
-          )
-        })}
+              </span>
+            )
+          })}
+        </div>
+        {people.filter((a) => of(a).stay === 'own').map((a) => (
+          <label key={a.id} className="flex items-center gap-2 text-xs text-slate-600">
+            <span className="shrink-0 font-medium text-slate-700">{t(`staffRole_${a.role}` as TKey)}</span>
+            <VendorSelect className="h-8 flex-1" disabled={disabled} vendors={vendors} types={['hotel']} value={of(a).hotel_id ?? null}
+              cities={[day.city]} placeholder={t('chooseHotel')} onChange={(v) => put(a, { stay: 'own', hotel_id: v })} />
+          </label>
+        ))}
         {together && (
           <label className="flex items-center gap-1.5 text-[11px] text-slate-600" title={t('staffRoomPriceHelp')}>
             <input type="checkbox" disabled={disabled} checked={!!day.staff_twin} onChange={(e) => onSet({ staff_twin: e.target.checked })} />{t('staffTwinSameHotel')}
