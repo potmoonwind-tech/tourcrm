@@ -2945,7 +2945,7 @@ const en = {
   mealTbd: "To be decided",
   mealTbdShort: "TBD · {town}",
   mealTbdSet: "Not decided yet - mark as TBD",
-  mealTbdTown: "Town where it will be",
+  mealTbdTown: "Town or place where it will be",
   mealTbdPick: "Choose the place",
   visitFreeInTimeline: "free visit · in the timeline",
   activityCategory: "Category",
@@ -2968,6 +2968,8 @@ const en = {
   visitFree: "free",
   placeFreeHint: "A free visit. Add a price only if they pay here.",
   placeAddPrice: "+ Add a price or a paid activity",
+  mealTbdTownPh: "Town or place",
+  mealTbdRoadTip: "The day's road goes via this town or place until you choose the restaurant",
 }
 
 type Dict = typeof en
@@ -5909,7 +5911,7 @@ const ka: Dict = {
   mealTbd: "დასაზუსტებელია",
   mealTbdShort: "დასაზუსტებელია · {town}",
   mealTbdSet: "ჯერ არ ვიცი - მოინიშნოს როგორც დასაზუსტებელი",
-  mealTbdTown: "ქალაქი, სადაც იქნება",
+  mealTbdTown: "ქალაქი ან ადგილი, სადაც იქნება",
   mealTbdPick: "ადგილის არჩევა",
   visitFreeInTimeline: "უფასო ვიზიტი · განრიგში",
   activityCategory: "კატეგორია",
@@ -5932,6 +5934,8 @@ const ka: Dict = {
   visitFree: "უფასო",
   placeFreeHint: "უფასო ვიზიტი. ფასი დაამატეთ მხოლოდ თუ აქ იხდიან.",
   placeAddPrice: "+ ფასის ან ფასიანი აქტივობის დამატება",
+  mealTbdTownPh: "ქალაქი ან ადგილი",
+  mealTbdRoadTip: "დღის მარშრუტი ამ ქალაქზე ან ადგილზე გადის, სანამ რესტორანს აირჩევთ",
 }
 
 export type Lang = 'en' | 'ka'

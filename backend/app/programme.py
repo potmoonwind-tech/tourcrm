@@ -330,6 +330,9 @@ def _day_path(d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor], 
             m = vendors.get(vid or "") if mode != "own" else None
             if m:
                 push(m.address or m.city, m.name, x.id)
+            elif mode != "own" and (d.meal_tbd or {}).get(r):
+                # No restaurant yet: the town or place it will be in counts for the road (the map finds it).
+                push(d.meal_tbd[r], d.meal_tbd[r], x.id)
         elif not r and x.kind == "visit":
             at = None
             if x.place and x.place.strip().lower() != x.title.strip().lower():
@@ -381,6 +384,8 @@ def _place_of(x, d: DayFields, prev: DayFields | None, vendors: dict[str, Vendor
     """What the map should look for at a step that is a hotel, restaurant or activity place: its name and
     address ("Imereti Family Kitchen, Kutaisi") - more precise than the town."""
     v = _vendor_of(x, d, prev, vendors, services)
+    if v is None and x.ref in ("lunch", "dinner"):
+        return tbd_town(d, x.ref)          # still to decide: the town or place given for it
     return ", ".join(p for p in (v.name, v.address or v.city) if p) if v else ""
 
 

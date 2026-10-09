@@ -771,7 +771,8 @@ const placeOf = (x: ScheduleItem, day: DayFields, byId?: Map<string, Vendor>) =>
   if (x.ref === 'lunch' || x.ref === 'dinner') {
     if ((x.ref === 'lunch' ? day.lunch_mode : day.dinner_mode) === 'own') return ''
     const v = byId?.get((x.ref === 'lunch' ? day.lunch_id : day.dinner_id) ?? '')
-    return v?.address || v?.city || ''
+    // No restaurant yet: the town or place given for it ("TBD · Ananuri") is where the road goes.
+    return v ? v.address || v.city || '' : day.meal_tbd?.[x.ref] ?? ''
   }
   if (x.ref || x.kind !== 'visit') return ''
   // A sight from the catalogue goes to its exact spot (its address, fixed from the map); an activity

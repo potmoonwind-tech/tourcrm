@@ -425,3 +425,19 @@ def test_a_stop_that_is_an_activitys_place_is_one_visit(make_client):
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
     visits = [x for x in p["days"][0]["steps"] if x["kind"] == "visit"]
     assert len(visits) == 1 and "Gelati" in visits[0]["text"], visits
+
+
+
+def test_a_meal_still_to_decide_takes_the_road_through_its_place(make_client, monkeypatch):
+    c, base, _ = agency(make_client)
+    asked: list[list[str]] = []
+
+    def legs(db, cities, **kw):
+        asked.append(list(cities))
+        return [{"from": None, "to": cities[0], "km": 0, "minutes": 0}] + [
+            {"from": x, "to": y, "km": 10, "minutes": 30} for x, y in zip(cities, cities[1:])]
+    monkeypatch.setattr(programme.geo, "legs", legs)
+    days = [{"city": "Tbilisi"}, {"city": "Kazbegi", "meal_tbd": {"lunch": "Ananuri"}}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
+    assert ["Lunch", "TBD · Ananuri"] in p["days"][1]["meals"]
+    assert any("Ananuri" in cities for cities in asked)              # the road is asked through Ananuri

@@ -1409,8 +1409,11 @@ function MealTbd({ town, disabled, onTown, onPick }: { town: string; disabled?: 
       <Clock size={14} aria-hidden className="shrink-0 text-slate-500" />
       <span className="font-medium text-slate-700">{t('mealTbd')}</span>
       <span className="text-slate-400">·</span>
-      <input value={town} disabled={disabled} onChange={(e) => onTown(e.target.value)} maxLength={100} aria-label={t('mealTbdTown')}
-        className="h-7 w-32 min-w-0 flex-1 rounded-md border border-transparent bg-transparent px-1 text-sm text-slate-800 hover:border-slate-300 focus:border-brand-600 focus:bg-white focus:outline-none" />
+      <span className="min-w-32 flex-1 [&>span]:w-full">
+        <PlaceInput value={town} disabled={disabled} onChange={onTown} maxLength={100} aria-label={t('mealTbdTown')} placeholder={t('mealTbdTownPh')}
+          title={t('mealTbdRoadTip')}
+          className="h-7 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 text-sm text-slate-800 hover:border-slate-300 focus:border-brand-600 focus:bg-white focus:outline-none" />
+      </span>
       {!disabled && <button type="button" onClick={onPick} className="ml-auto text-xs font-medium text-brand-700 hover:underline">{t('mealTbdPick')}</button>}
     </div>
   )
