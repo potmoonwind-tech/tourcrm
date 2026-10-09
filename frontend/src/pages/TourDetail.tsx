@@ -348,15 +348,7 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
     onSuccess: (t2) => { onSaved(t2); setDraft(null); setBack(undefined); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
   })
   return (
-    <div className={cn('space-y-3 pb-16', dirty && 'pb-36')}>
-      {dirty && (
-        // Floating at the bottom of the screen: it never stacks with the sticky bars at the top.
-        <div role="status" data-savebar className="fixed inset-x-0 bottom-4 z-40 mx-auto flex w-[min(42rem,calc(100%-2rem))] flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm shadow-lg">
-          <span className="min-w-0 flex-1 font-medium text-brand-900">{t('unsavedItinerary')}</span>
-          <Button size="sm" variant="secondary" onClick={() => { setDraft(null); setBack(undefined) }}>{t('discard')}</Button>
-          <Button size="sm" disabled={save.isPending} onClick={() => save.mutate()}>{t('saveChanges')}</Button>
-        </div>
-      )}
+    <div className="space-y-3 pb-16">
       <ErrorText error={save.error} />
       {tour.route_changed && tour.series_id && (
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-slate-200 bg-slate-50 px-4 py-2.5 text-sm text-slate-600">
@@ -368,7 +360,15 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
       <ItineraryBuilder onDownload={() => setExporting(true)} days={days} dates={tour.days.map((d) => d.date)} fixedLength disabled={!canEdit}
         crew={{ pax: tour.pax, leaders: tour.leaders ?? 0, leaderSeat: tour.leader_seat, staff: tour.staff, share: tour.plate_share || ws.plate_share || 1 }}
         alerts={dirty ? [] : alerts.data ?? []} onChange={setDraft}
-        busReturn={busReturn} onBusReturn={(b) => setBack(b)} />
+        busReturn={busReturn} onBusReturn={(b) => setBack(b)}
+        pending={dirty ? (
+          // Unsaved changes: in the builder's bottom bar, in place of its tools.
+          <span role="status" className="flex shrink-0 items-center gap-2">
+            <span className="font-medium text-brand-900 max-sm:sr-only">{t('unsavedItinerary')}</span>
+            <Button size="sm" variant="secondary" className="rounded-full" onClick={() => { setDraft(null); setBack(undefined) }}>{t('discard')}</Button>
+            <Button size="sm" className="rounded-full" disabled={save.isPending} onClick={() => save.mutate()}>{t('saveChanges')}</Button>
+          </span>
+        ) : undefined} />
       {canEdit && !tour.closed_at && (
         <div className="flex flex-wrap items-center gap-2">
           <Button type="button" variant="secondary" disabled={dirty || resize.isPending} title={dirty ? t('saveFirst') : undefined}

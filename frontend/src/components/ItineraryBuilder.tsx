@@ -64,8 +64,9 @@ export const blankDay = (city = ''): DayFields =>
   ({ city, hotel_id: null, lunch_id: null, dinner_id: null, border_crossing: '', notes: '', extras: [], km: null, stops: [],
      lunch_mode: 'included', dinner_mode: 'included', flights: [], schedule: [] })
 
-export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, crew, onDownload }: {
+export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, crew, onDownload, pending }: {
   days: DayFields[]; onChange: (days: DayFields[]) => void
+  pending?: ReactNode         // unsaved changes: "Discard / Save", shown in the builder's bottom bar
   onDownload?: () => void     // "Download programme", in the builder's "⋯"
   crew?: Crew                 // a tour's group and staff: each meal's tables and plates
   busReturn?: BusReturn | null; onBusReturn?: (b: BusReturn | null) => void   // the bus back to its garage
@@ -250,7 +251,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           tab={listTab} onTab={setListTab}
           onClose={() => { setListOpen(false); setPicked(null) }}
           onAdd={canCreate ? (tab) => (tab === 'services' ? setNewService({}) : setNewVendor({ type: tab === 'hotels' ? 'hotel' : 'restaurant' })) : undefined} />}
-        <div className="stagger min-w-0 space-y-3">
+        <div className={cn('stagger min-w-0 space-y-3', view === 'days' && 'w-full max-w-[60rem] justify-self-center')}>
           {picked && (
             <p className="flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50 px-3 py-2 text-sm text-brand-800">
               <Hand size={16} className="shrink-0" />
@@ -263,11 +264,12 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           )}
           {/* Where the tour stands and the builder's tools, floating at the bottom (names on hover);
               it moves up when the "save changes" bar is there. */}
-          <div className="fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-x-3 rounded-full border border-slate-200 bg-white/95 py-1 pl-4 pr-1.5 text-sm shadow-lg backdrop-blur transition-[bottom] [body:has([data-savebar])_&]:bottom-20">
+          <div className={cn('fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit [[role=dialog]_&]:bottom-20 max-w-[calc(100%-2rem)] items-center gap-x-3 rounded-full border py-1 pl-4 pr-1 text-sm shadow-lg backdrop-blur',
+            pending ? 'border-brand-200 bg-brand-50/95' : 'border-slate-200 bg-white/95')}>
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
             <span className="max-md:hidden"><BuildSteps days={days} restaurants={restaurants} /></span>
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
-            <span className="flex shrink-0 items-center">
+            {pending ?? <span className="flex shrink-0 items-center">
               {([
                 [t('programmeDownload'), <Download size={16} />, () => onDownload?.(), !onDownload, false],
                 [listOpen ? t('hideList') : t('addFromList'), <PanelLeft size={16} />, () => { setView('days'); setListOpen(!listOpen); setPicked(null) }, disabled, listOpen && view === 'days'],
@@ -279,7 +281,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
                 <IconButton key={label} size="sm" label={label} onClick={run} aria-pressed={on || undefined}
                   className={cn('rounded-full', on && 'bg-brand-50 text-brand-700')}>{icon}</IconButton>
               ))}
-            </span>
+            </span>}
           </div>
           {view === 'check' && (
             // Every day on one screen: what is done, what is missing, days side by side.
@@ -460,7 +462,6 @@ function DayStrip({ days, dates, at, onAt: setAt }: { days: DayFields[]; dates?:
   useEffect(() => { strip.current?.querySelector(`[data-day="${at}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [at])
   if (days.length < 2) return <div className="flex-1" />
   const jump = (i: number) => document.getElementById(`day-card-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  const dot = (on: boolean, need = true) => cn('h-3 w-3', on ? 'text-emerald-600' : need ? 'text-amber-500' : 'text-slate-300')
   return (
     <nav ref={strip} aria-label={t('itinerary')}
       className="no-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto">
@@ -471,15 +472,10 @@ function DayStrip({ days, dates, at, onAt: setAt }: { days: DayFields[]; dates?:
             title={[`${t('day')} ${i + 1}`, d.city, dates?.[i] && fmt(dates[i], lang)].filter(Boolean).join(' · ')}
             className={cn('flex shrink-0 items-center gap-2 rounded-full px-2.5 py-1 text-left text-xs text-slate-700',
               at === i ? 'bg-white shadow-sm ring-1 ring-brand-300' : 'hover:bg-white hover:shadow-sm')}>
-            <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold text-white', at === i ? 'bg-brand-600' : 'bg-slate-800')}>{i + 1}</span>
+            <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold text-white',
+              at === i ? 'bg-brand-600' : (!last && !d.hotel_id) || (!d.lunch_id && d.lunch_mode !== 'own') || (!d.dinner_id && d.dinner_mode !== 'own') ? 'bg-amber-500' : 'bg-slate-800')}>{i + 1}</span>
             {dates?.[i] && <span className="tabular-nums text-slate-500">{weekday(dates[i], lang)} {Number(dates[i].slice(8))}</span>}
             <span className="max-w-[8rem] truncate font-medium text-slate-700">{d.city || '—'}</span>
-            {(d.flights?.length ?? 0) > 0 && <Plane className="h-3 w-3 text-sky-600" />}
-            <span className="flex items-center gap-0.5">
-              {!last && <BedDouble className={dot(!!d.hotel_id)} />}
-              <Utensils className={dot(!!d.lunch_id || !!d.dinner_id, false)} />
-              {d.extras.length > 0 && <Ticket className={dot(true)} />}
-            </span>
           </button>
         )
       })}
@@ -1015,25 +1011,23 @@ function BuildSteps({ days, restaurants }: { days: DayFields[]; restaurants: Set
   const { t } = useI18n()
   if (!days.length) return null
   const nights = days.slice(0, -1)
-  const steps: [string, number, number, boolean][] = [
-    [t('stepRoute'), days.filter((d) => d.city.trim()).length, days.length, false],
-    [t('stepHotels'), nights.filter((d) => d.hotel_id).length, nights.length, false],
-    [t('stepMeals'), days.reduce((n, d) => n + (mealDone(d, 'lunch', restaurants) ? 1 : 0) + (mealDone(d, 'dinner', restaurants) ? 1 : 0), 0), days.length * 2, false],
-    [t('stepActivities'), days.filter((d) => d.extras.length).length, days.length, true],
+  const steps: [string, number, number, boolean, ReactNode][] = [
+    [t('stepRoute'), days.filter((d) => d.city.trim()).length, days.length, false, <MapPinned size={15} />],
+    [t('stepHotels'), nights.filter((d) => d.hotel_id).length, nights.length, false, <BedDouble size={15} />],
+    [t('stepMeals'), days.reduce((n, d) => n + (mealDone(d, 'lunch', restaurants) ? 1 : 0) + (mealDone(d, 'dinner', restaurants) ? 1 : 0), 0), days.length * 2, false, <Utensils size={15} />],
+    [t('stepActivities'), days.filter((d) => d.extras.length).length, days.length, true, <Ticket size={15} />],
   ]
   return (
     <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" aria-label={t('buildProgress')}>
-      {steps.map(([label, n, total, optional]) => {
+      {steps.map(([label, n, total, optional, icon]) => {
         const done = n >= total
         if (optional && !n) return null
         return (
-          <li key={label} className="flex items-center gap-1">
-            {done ? <Check size={14} className="text-emerald-600" aria-hidden />
-              : <span className={cn('h-2 w-2 rounded-full', optional ? 'bg-slate-300' : 'bg-amber-400')} aria-hidden />}
-            <span className="text-slate-600">{label}</span>
-            <span className={cn('tabular-nums', done ? 'text-emerald-700' : optional ? 'text-slate-500' : 'font-medium text-amber-800')}>
-              {optional && !n ? t('stepOptional') : done ? '' : `${n}/${total}`}
-            </span>
+          <li key={label} className="flex items-center gap-1" title={`${label}: ${n}/${total}`}>
+            <span className={done ? 'text-emerald-600' : optional ? 'text-slate-400' : 'text-amber-600'} aria-hidden>{icon}</span>
+            <span className="sr-only">{label}</span>
+            {done ? <Check size={13} className="text-emerald-600" aria-label={t('done')} />
+              : <span className={cn('tabular-nums text-xs', optional ? 'text-slate-500' : 'font-medium text-amber-800')}>{n}/{total}</span>}
           </li>
         )
       })}
