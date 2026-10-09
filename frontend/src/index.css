@@ -17,11 +17,11 @@
   --color-app-bg: #fafbfc;
   --color-search-bg: #eef0f3;
   --color-search-hover: #e4e7ec;
-  --color-nav-active: #c2e7ff;
-  --color-nav-active-text: #001d35;
+  --color-nav-active: #e9ebef;
+  --color-nav-active-text: #12161c;
   --color-nav-text: #1f242c;
   --color-nav-icon: #474d59;
-  --color-nav-hover: #eef0f3;
+  --color-nav-hover: #f2f4f6;
   --color-brand-50: #f0f7ff;
   --color-brand-100: #cce5ff;
   --color-brand-200: #99caff;
@@ -39,7 +39,7 @@
      surfaces #f6f7f9. */
   --color-slate-50: #f6f7f9;
   --color-slate-100: #eef0f3;
-  --color-slate-200: #e4e7ec;
+  --color-slate-200: #e9ebef;
   --color-slate-300: #d0d5dd;
   --color-slate-400: #8a919c;
   --color-slate-500: #5b6270;
