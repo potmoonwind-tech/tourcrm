@@ -15,7 +15,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, BedDouble, Bookmark, Bus, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronDown, ChevronRight, Download, ListChecks } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { api, type BreakfastMode, type DayExtra, type DayTemplate, type ScheduleItem, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
+import { api, type BreakfastMode, type DayExtra, type DayTemplate, type ScheduleItem, type StaffAssignment, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
 import { fmt, weekday } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
@@ -745,7 +745,11 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
             placeholder={last ? undefined : t('chooseHotel')}
             cities={[day.city]}
             onAddNew={canCreate ? () => onNewVendor('hotel', (v) => onSet({ hotel_id: v.id, city: day.city || v.city })) : undefined} />
-          {!last && (show || (day.staff_stay ?? 'none') !== 'none') && <StaffStayPick day={day} vendors={vendors} disabled={disabled} onSet={onSet} />}
+          {!last && (show || (day.staff_stay ?? 'none') !== 'none' || Object.keys(day.staff_stays ?? {}).length > 0) && (
+            <StaffStayPick day={day} vendors={vendors} disabled={disabled} onSet={onSet}
+              people={(crew?.staff ?? []).filter((a) => ['guide', 'driver', 'assistant'].includes(a.role)
+                && a.start_day <= index + 1 && (a.end_day === null || a.end_day >= index + 1))} />
+          )}
         </SlotBox>
         {/* Breakfast is always shown: usually last night's hotel, named - one glance confirms it. */}
         {<SlotBox day={index} slot="breakfast" label={t('breakfast')} icon={<Coffee size={14} />} dragging={dragging} picked={picked} state={breakfastState}
@@ -1308,11 +1312,50 @@ function Stops({ stops, disabled, onChange, own }: { stops: string[]; disabled?:
 const STAFF_STAYS: DayStaffStay[] = ['none', 'same', 'own', 'free']
 
 /** Where the driver and guide sleep after this day: costed and booked like the group's rooms. */
-function StaffStayPick({ day, vendors, disabled, onSet }: {
+function StaffStayPick({ day, vendors, disabled, onSet, people = [] }: {
   day: DayFields; vendors: Vendor[]; disabled?: boolean; onSet: (p: Partial<DayFields>) => void
+  people?: StaffAssignment[]     // the staff working that day (a tour): each gets their own night
 }) {
   const { t } = useI18n()
   const stay = day.staff_stay ?? 'none'
+  if (people.length > 0) {
+    // One row per person: the guide with the group, the driver in another hotel, each where they really sleep.
+    const own = day.staff_stays ?? {}
+    const of = (a: StaffAssignment) => own[a.id] ?? { stay, hotel_id: stay === 'own' ? day.staff_hotel_id ?? null : null }
+    const put = (a: StaffAssignment, x: { stay: DayStaffStay; hotel_id?: string | null }) =>
+      onSet({ staff_stays: { ...own, [a.id]: { stay: x.stay, hotel_id: x.stay === 'own' ? x.hotel_id ?? null : null } } })
+    const together = people.filter((a) => ['same', 'own'].includes(of(a).stay)).length > 1
+    return (
+      <div className="mt-2 space-y-1.5 border-t border-slate-100 pt-2">
+        <p className="text-xs text-slate-600">{t('staffStayEach')}</p>
+        {people.map((a) => {
+          const x = of(a)
+          return (
+            <div key={a.id} className="space-y-1">
+              <label className="flex items-center gap-2 text-xs text-slate-600">
+                <span className="w-28 shrink-0 truncate" title={a.vendor.name}>
+                  <b className="font-medium text-slate-700">{t(`staffRole_${a.role}` as TKey)}</b>{!a.vendor.placeholder && ` · ${a.vendor.name}`}
+                </span>
+                <select disabled={disabled} value={x.stay} onChange={(e) => put(a, { stay: e.target.value as DayStaffStay, hotel_id: x.hotel_id })}
+                  className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs">
+                  {STAFF_STAYS.map((v) => <option key={v} value={v}>{t(`dayStaffStay_${v}`)}</option>)}
+                </select>
+              </label>
+              {x.stay === 'own' && (
+                <VendorSelect className="h-8" disabled={disabled} vendors={vendors} types={['hotel']} value={x.hotel_id ?? null}
+                  cities={[day.city]} placeholder={t('chooseHotel')} onChange={(v) => put(a, { stay: 'own', hotel_id: v })} />
+              )}
+            </div>
+          )
+        })}
+        {together && (
+          <label className="flex items-center gap-1.5 text-[11px] text-slate-600" title={t('staffRoomPriceHelp')}>
+            <input type="checkbox" disabled={disabled} checked={!!day.staff_twin} onChange={(e) => onSet({ staff_twin: e.target.checked })} />{t('staffTwinSameHotel')}
+          </label>
+        )}
+      </div>
+    )
+  }
   return (
     <div className="mt-2 space-y-1 border-t border-slate-100 pt-2">
       <label className="flex items-center gap-2 text-xs text-slate-600">

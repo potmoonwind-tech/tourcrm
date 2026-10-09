@@ -451,8 +451,23 @@ class DayFields(BaseModel):
     meal_dishes: dict[str, list[MealDish]] = Field(default_factory=dict)
     seating: dict[str, dict] = Field(default_factory=dict)
     meal_tbd: dict[str, str] = Field(default_factory=dict)   # {"lunch": "Yerevan"}: place to be decided, in that town
+    staff_stays: dict[str, dict] = Field(default_factory=dict)   # {"<staff id or role>": {"stay": "own", "hotel_id": …}}
 
     _stops_ok = field_validator("stops")(_stops)
+
+    @field_validator("staff_stays")
+    @classmethod
+    def _stays(cls, v: dict[str, dict]) -> dict[str, dict]:
+        if len(v) > 20:
+            raise ValueError("too many staff")
+        out = {}
+        for k, x in v.items():
+            stay = (x or {}).get("stay")
+            if not isinstance(k, str) or len(k) > 40 or stay not in ("none", "same", "own", "free"):
+                raise ValueError("staff_stays: each is {stay: none|same|own|free, hotel_id}")
+            hid = x.get("hotel_id") if stay == "own" else None
+            out[k] = {"stay": stay, "hotel_id": hid if isinstance(hid, str) and hid else None}
+        return out
 
     @field_validator("meal_tbd")
     @classmethod
@@ -611,6 +626,7 @@ class TourDayOut(_Out):
     meal_dishes: dict = {}
     seating: dict = {}
     meal_tbd: dict = {}
+    staff_stays: dict = {}
 
 
 class TourSummary(BaseModel):

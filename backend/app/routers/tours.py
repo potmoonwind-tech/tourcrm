@@ -166,6 +166,7 @@ def sync_days(t: Tour, template: list[SeriesDay] | None = None) -> None:
             fields["drive_km"] = list(src.drive_km or [])
             fields["staff_stay"], fields["staff_hotel_id"] = src.staff_stay or "none", src.staff_hotel_id
             fields["staff_twin"] = bool(src.staff_twin)
+            fields["staff_stays"] = dict(src.staff_stays or {})
         t.days.append(TourDay(day_number=i + 1, date=t.start_date + timedelta(days=i), **fields))
     # Staff ranges are day numbers: drop the ones that now start after the
     # last day, and let ranges running past the end run "until the end".

@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from decimal import Decimal
 
+from sqlalchemy.orm import object_session
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -197,6 +198,31 @@ STAFF_CATEGORY = {"guide": "guide", "tour_leader": "guide", "assistant": "guide"
                   "driver": "transport", "transport": "transport", "other": "other"}
 
 
+def stay_of(d, a) -> tuple[str, str | None]:
+    """Where one staff member sleeps that night: their own choice (by person, else by role), else the day's."""
+    own = d.staff_stays or {}
+    x = own.get(a.id) or own.get(a.role)
+    if x:
+        return x.get("stay") or "none", x.get("hotel_id")
+    return d.staff_stay or "none", d.staff_hotel_id
+
+
+def staff_nights(t: Tour, d, last: int) -> dict[str, list]:
+    """The staff sleeping in each hotel that night ({hotel id: [their assignments]}): with the group, or in their
+    own hotel; none after the last day, or when they're not counted / sleep for free."""
+    out: dict[str, list] = {}
+    if d.day_number >= last:
+        return out
+    for a in t.staff:
+        if a.role not in MEAL_STAFF or not a.covers(d.day_number):
+            continue
+        stay, hotel = stay_of(d, a)
+        where = d.hotel_id if stay == "same" else (hotel or d.hotel_id) if stay == "own" else None
+        if where:
+            out.setdefault(where, []).append(a)
+    return out
+
+
 def staff_room_kind(hotel: Vendor, twin: bool) -> str:
     """The rate for a driver/guide room: the hotel's staff price when it has one, else its SGL (or DBL to share)."""
     if catalog.service_by_code(hotel, "staff_room"):
@@ -306,17 +332,22 @@ def _plan(t: Tour, services: dict[str, Service], ctx: _Ctx) -> list[_Plan]:
                                    Decimal(n), f"room_{rtype}"))
         # Guides and drivers working that day eat with the group (as calculations count them).
         eating_staff = sum(1 for a in t.staff if a.role in MEAL_STAFF and a.covers(d.day_number))
-        # ...and sleep where the day says (not after the last day: no night).
-        if d.day_number < len(t.days) and (d.staff_stay or "none") in ("same", "own") and eating_staff:
-            where = d.hotel if d.staff_stay == "same" else (d.staff_hotel or d.hotel)
+        # ...and sleep where the day says - each of them (the guide with the group, the driver elsewhere...), not
+        # after the last day: no night. Those sharing a hotel share twin rooms when the day says so.
+        nights = staff_nights(t, d, len(t.days))
+        if eating_staff and d.day_number < len(t.days) and not nights and any(
+                stay_of(d, a)[0] in ("same", "own") for a in t.staff if a.role in MEAL_STAFF and a.covers(d.day_number)):
+            ctx.warnings.append(f"Day {d.day_number}: choose the driver and guide's hotel")
+        for k, (hotel_id, who) in enumerate(sorted(nights.items())):
+            where = d.hotel if hotel_id == d.hotel_id and d.hotel is not None else object_session(t).get(Vendor, hotel_id)
             if where is None:
-                ctx.warnings.append(f"Day {d.day_number}: choose the driver and guide's hotel")
-            else:
-                n_rooms = -(-eating_staff // 2) if d.staff_twin else eating_staff
-                kind = staff_room_kind(where, bool(d.staff_twin))
-                plans.append(_Plan(f"staffroom:{d.id}", where, "hotel",
-                                   f"staff {'TWN' if d.staff_twin else 'SGL'} × {n_rooms} ({eating_staff} staff)",
-                                   d.date, None, Decimal(n_rooms), kind))
+                continue
+            n = len(who)
+            n_rooms = -(-n // 2) if d.staff_twin else n
+            kind = staff_room_kind(where, bool(d.staff_twin))
+            plans.append(_Plan(f"staffroom:{d.id}" + (f":{hotel_id}" if k else ""), where, "hotel",
+                               f"staff {'TWN' if d.staff_twin else 'SGL'} × {n_rooms} ({n} staff)",
+                               d.date, None, Decimal(n_rooms), kind))
         for meal, vendor, menu in (("breakfast", d.breakfast, d.breakfast_menu), ("lunch", d.lunch, d.lunch_menu),
                                    ("dinner", d.dinner, d.dinner_menu)):
             # Tourists paying on the spot, or a free meal time: nothing for us to pay.

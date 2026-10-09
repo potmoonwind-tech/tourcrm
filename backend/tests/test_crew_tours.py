@@ -158,3 +158,16 @@ def test_a_meal_composed_in_the_tour(make_client):
     assert m["name"] == "Cafe · Dinner 1"
     menus = [x for x in c.get(f"{base}/vendors/{cafe['id']}/services").json() if x["id"] == m["id"]]
     assert [(d["name"], d["per_plate"]) for d in menus[0]["dishes"]] == [("Khinkali", 5), ("Soup", None)]
+
+
+
+
+def test_the_guide_with_the_group_the_driver_in_another_hotel(make_client):
+    c, base, _ = agency(make_client)
+    # By role on the route's day (a tour copies it); on a tour each person can be set by their own id too.
+    t, hotel, guest, cafe = setup(c, base, lambda gh: {"staff_stay": "same", "staff_stays": {
+        "guide": {"stay": "same"}, "driver": {"stay": "own", "hotel_id": gh["id"]}}})
+    staff_rooms = sorted((x["vendor"]["name"], x["quantity"]) for x in lines(c, base, t) if x["description"].startswith("staff "))
+    assert staff_rooms == [("Group Hotel", 1), ("Guest House", 1)]          # one room in each hotel, not two in one
+    books = {b["vendor"]["name"]: b for b in c.get(f"{base}/tours/{t['id']}/bookings").json()["bookings"]}
+    assert "Guest House" in books

@@ -37,6 +37,9 @@ DAY_VENDOR_FIELDS = ("hotel_id", "breakfast_id", "lunch_id", "dinner_id", "staff
 
 def check_day_refs(db: Session, ctx: WorkspaceCtx, values: dict) -> None:
     check_refs(db, ctx, {f: (Vendor, values.get(f)) for f in DAY_VENDOR_FIELDS if f in values})
+    for k, x in (values.get("staff_stays") or {}).items():
+        if isinstance(x, dict) and x.get("hotel_id"):
+            check_refs(db, ctx, {f"staff_stays.{k}": (Vendor, x["hotel_id"])})
     # A set menu must be a service of the restaurant chosen for that meal.
     for meal in ("breakfast", "lunch", "dinner"):
         menu_id = values.get(f"{meal}_menu_id")

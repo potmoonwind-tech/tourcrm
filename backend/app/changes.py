@@ -25,6 +25,7 @@ def snapshot(t: Tour) -> dict[int, dict]:
         "flights": [dict(f) for f in d.flights or []], "schedule": [dict(x) for x in d.schedule or []],
         "extras": sorted(x["service_id"] for x in d.extras or []), "notes": d.notes, "border": d.border_crossing,
         "staff_stay": d.staff_stay or "none", "staff_hotel_id": d.staff_hotel_id, "staff_twin": bool(d.staff_twin),
+        "staff_stays": d.staff_stays or {},
     } for d in t.days}
 
 

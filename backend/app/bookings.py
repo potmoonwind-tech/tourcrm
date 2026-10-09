@@ -119,13 +119,11 @@ def usage(db: Session, t: Tour, vendors: dict[str, Vendor] | None = None) -> dic
             u.dinners += 1
             u.tourists_pay += d.dinner_mode == "tourists"
             u.dates.add(d.date)
-        stay = d.staff_stay or "none"
-        if stay in ("same", "own") and d.day_number < last:
-            sleeping = sum(1 for a in t.staff if a.role in finance.MEAL_STAFF and a.covers(d.day_number))
-            where = d.hotel_id if stay == "same" else (d.staff_hotel_id or d.hotel_id)
-            if sleeping and where and (u := of(where)):
+        # Each hotel the staff sleep in that night (the guide with the group, the driver elsewhere...).
+        for where, who in finance.staff_nights(t, d, last).items():
+            if (u := of(where)):
                 kind = "TWN" if d.staff_twin else "SGL"
-                n = -(-sleeping // 2) if d.staff_twin else sleeping
+                n = -(-len(who) // 2) if d.staff_twin else len(who)
                 u.staff_rooms[kind] = max(u.staff_rooms.get(kind, 0), n)
                 u.staff_night_dates.add(d.date)
                 u.dates.add(d.date)

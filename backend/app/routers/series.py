@@ -107,7 +107,7 @@ def push_days(series_id: str, body: PushIn, ctx: WorkspaceCtx = Depends(can_ope)
     s = get_owned(db, ctx, Series, series_id)
     fields = ("city", "hotel_id", "breakfast_id", "breakfast_menu_id", "lunch_id", "dinner_id", "lunch_menu_id", "dinner_menu_id",
               "border_crossing", "notes", "km", "drive_minutes", "drive_km", "stops", "breakfast_mode", "lunch_mode", "dinner_mode",
-              "flights", "schedule", "staff_stay", "staff_hotel_id", "staff_twin")
+              "flights", "schedule", "staff_stay", "staff_hotel_id", "staff_twin", "staff_stays")
     out = []
     for tid in body.tour_ids:
         t = db.scalar(select(Tour).where(Tour.id == tid, Tour.workspace_id == ctx.workspace.id, Tour.series_id == s.id))

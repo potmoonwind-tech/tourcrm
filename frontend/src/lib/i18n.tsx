@@ -2981,6 +2981,8 @@ const en = {
   staffToBeNamed: "to be named",
   staffNameNow: "Choose who…",
   fromLastNight: "Where they slept last night",
+  staffStayEach: "Where each one sleeps:",
+  staffTwinSameHotel: "Those in the same hotel share a room (TWN)",
 }
 
 type Dict = typeof en
@@ -5958,6 +5960,8 @@ const ka: Dict = {
   staffToBeNamed: "დასაზუსტებელია",
   staffNameNow: "აირჩიეთ ვინ…",
   fromLastNight: "სადაც გაათიეს წინა ღამე",
+  staffStayEach: "სად ათევს თითოეული:",
+  staffTwinSameHotel: "ერთ სასტუმროში მყოფნი ერთ ოთახს იყოფენ (TWN)",
 }
 
 export type Lang = 'en' | 'ka'
