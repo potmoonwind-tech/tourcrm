@@ -271,12 +271,11 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
             {pending ?? <span className="flex shrink-0 items-center">
               {([
+                [t('recalcTimes'), <Clock size={16} />, () => tools.current.recalc?.(), disabled, false],
                 [t('programmeDownload'), <Download size={16} />, () => onDownload?.(), !onDownload, false],
-                [listOpen ? t('hideList') : t('addFromList'), <PanelLeft size={16} />, () => { setView('days'); setListOpen(!listOpen); setPicked(null) }, disabled, listOpen && view === 'days'],
                 [full ? t('simpleView') : t('showEverything'), <ListChecks size={16} />, () => { setView('days'); setFull(!full) }, false, full],
                 [t('mapOpen'), <MapIcon size={16} />, () => tools.current.openMap?.(), !canMap, false],
                 [t('suggestKm'), <MapPinned size={16} />, () => tools.current.suggestKm?.(), disabled || !days.some((d) => d.city.trim()), false],
-                [t('recalcTimes'), <Clock size={16} />, () => tools.current.recalc?.(), disabled || !days.some((d) => (d.schedule ?? []).length), false],
               ] as [string, ReactNode, () => void, boolean | undefined, boolean][]).filter((x) => !x[3]).map(([label, icon, run, , on]) => (
                 <IconButton key={label} size="sm" label={label} onClick={run} aria-pressed={on || undefined}
                   className={cn('rounded-full', on && 'bg-brand-50 text-brand-700')}>{icon}</IconButton>
@@ -1113,7 +1112,7 @@ function RecalcTimes({ days, byId, onChange, tools }: { days: DayFields[]; byId:
   const [busy, setBusy] = useState(false)
   const arranged = days.filter((d) => d.schedule?.length).length
   const pinned = days.reduce((n, d) => n + (d.schedule ?? []).filter((x) => x.fixed && x.kind !== 'flight').length, 0)
-  tools.current.recalc = () => setOpen(true)
+  tools.current.recalc = () => (arranged ? setOpen(true) : toast('recalcTimesAuto'))
   if (!arranged) return null
   const run = async () => {
     setBusy(true)

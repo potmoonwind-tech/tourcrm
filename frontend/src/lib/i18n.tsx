@@ -3017,6 +3017,7 @@ const en = {
   progAddFlight: "Flight",
   staffNightsShort: "Staff sleep",
   chooseMenu: "choose a menu",
+  recalcTimesAuto: "The times already follow each day by themselves (nothing was set by hand).",
 }
 
 type Dict = typeof en
@@ -6030,6 +6031,7 @@ const ka: Dict = {
   progAddFlight: "ფრენა",
   staffNightsShort: "პერსონალი ღამეს",
   chooseMenu: "აირჩიეთ მენიუ",
+  recalcTimesAuto: "დროები უკვე ავტომატურად ითვლება ყოველ დღეზე (ხელით არაფერი შეცვლილა).",
 }
 
 export type Lang = 'en' | 'ka'
