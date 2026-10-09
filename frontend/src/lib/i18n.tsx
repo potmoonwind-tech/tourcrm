@@ -2988,6 +2988,18 @@ const en = {
   mpRemoveDishes: "Remove these dishes",
   paxGuests: "Pax (guests)",
   paxGuestsHint: "Guests only - free tour leaders go below, on top",
+  fieldInMin: "in {n} min",
+  fieldInH: "in {h} h {m}",
+  fieldStartsIn: "Starts in {n} days",
+  fieldTourOver: "The tour is over",
+  fieldDayN: "Day {n}",
+  fieldNow: "Now",
+  fieldNext: "Next",
+  fieldMenu: "Menu",
+  fieldDayDone: "Nothing more planned today",
+  fieldPeople: "{n} people",
+  fieldTonight: "Tonight",
+  fieldGlance: "Whole tour at a glance",
 }
 
 type Dict = typeof en
@@ -5972,6 +5984,18 @@ const ka: Dict = {
   mpRemoveDishes: "კერძების მოხსნა",
   paxGuests: "ტურისტები (სტუმრები)",
   paxGuestsHint: "მხოლოდ სტუმრები - უფასო ტურლიდერები ქვემოთ, დამატებით",
+  fieldInMin: "{n} წუთში",
+  fieldInH: "{h} სთ {m}-ში",
+  fieldStartsIn: "იწყება {n} დღეში",
+  fieldTourOver: "ტური დასრულდა",
+  fieldDayN: "დღე {n}",
+  fieldNow: "ახლა",
+  fieldNext: "შემდეგი",
+  fieldMenu: "მენიუ",
+  fieldDayDone: "დღეს მეტი არაფერია დაგეგმილი",
+  fieldPeople: "{n} ადამიანი",
+  fieldTonight: "ამაღამ",
+  fieldGlance: "მთელი ტური ერთ ხედზე",
 }
 
 export type Lang = 'en' | 'ka'

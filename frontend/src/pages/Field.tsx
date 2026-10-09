@@ -44,12 +44,14 @@ export function FieldPage() {
   const page = useQuery({ queryKey: ['field', token, lang], queryFn: () => api<FieldView>(`/field/${token}?lang=${lang === 'ka' ? 'ka' : 'en'}`), retry: false, placeholderData: (x) => x })
   const [tab, setTab] = useState<'days' | 'group' | 'money'>('days')
   const now = today()
-  const todayDay = page.data?.days.find((d) => d.date === now)?.number
+  const focus = page.data ? focusOf(page.data.days, now) : null
   const [open, setOpen] = useState<number | null>(null)
-  const shown = open ?? todayDay ?? page.data?.days[0]?.number ?? null
-  useEffect(() => {
-    if (todayDay) document.getElementById(`fday-${todayDay}`)?.scrollIntoView({ block: 'start' })
-  }, [todayDay])
+  const shown = open ?? focus?.day.number ?? null
+  const go = (n: number) => {
+    setOpen(n)
+    setTab('days')
+    setTimeout(() => document.getElementById(`fday-${n}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
+  }
 
   if (page.isLoading) return <div className="p-6 text-center text-slate-500">…</div>
   if (!page.data) {
@@ -79,6 +81,23 @@ export function FieldPage() {
           <button type="button" onClick={() => setLang(lang === 'ka' ? 'en' : 'ka')}
             className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold text-slate-600">{lang === 'ka' ? 'EN' : 'ქარ'}</button>
         </div>
+        {v.days.length > 1 && (
+          <nav className="no-scrollbar -mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4" aria-label={t('fieldDays')}>
+            {v.days.map((d) => {
+              const isToday = d.date === now
+              const on = shown === d.number && tab === 'days'
+              return (
+                <button key={d.number} type="button" onClick={(e) => { go(d.number); e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'center' }) }}
+                  aria-current={on ? 'true' : undefined}
+                  className={cn('flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs',
+                    on ? 'border-brand-300 bg-brand-50 text-brand-900' : 'border-slate-200 bg-white text-slate-700')}>
+                  <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white', isToday ? 'bg-brand-600' : 'bg-slate-800')}>{d.number}</span>
+                  <span className="max-w-[7rem] truncate font-medium">{isToday ? t('today') : d.city || '—'}</span>
+                </button>
+              )
+            })}
+          </nav>
+        )}
         {v.group && (
           <div className="mt-3 grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 text-sm font-medium">
             {(['days', 'group', 'money'] as const).map((k) => (
@@ -101,6 +120,8 @@ export function FieldPage() {
       )}
       {tab === 'money' ? <MoneyTab token={token!} days={v.days} /> : tab === 'days' ? (
         <main className="space-y-3 p-3">
+          {focus && <TodayCard v={v} focus={focus} onOpen={go} />}
+          <Glance v={v} now={now} onOpen={go} />
           {v.team.length > 0 && (
             <section className="rounded-2xl border border-slate-200 bg-white">
               <p className="px-4 pt-3 text-xs font-medium uppercase tracking-wide text-slate-500">{t('fieldTeam')}</p>
@@ -121,7 +142,7 @@ export function FieldPage() {
             const isOpen = shown === d.number
             const isToday = d.date === now
             return (
-              <article key={d.number} id={`fday-${d.number}`} className={cn('scroll-mt-32 overflow-hidden rounded-2xl border bg-white', isToday ? 'border-brand-400 ring-2 ring-brand-100' : 'border-slate-200')}>
+              <article key={d.number} id={`fday-${d.number}`} className={cn('scroll-mt-44 overflow-hidden rounded-2xl border bg-white', isToday ? 'border-brand-400 ring-2 ring-brand-100' : 'border-slate-200')}>
                 <button type="button" onClick={() => setOpen(isOpen ? -1 : d.number)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
                   <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold', isToday ? 'bg-brand-600 text-white' : 'bg-slate-800 text-white')}>{d.number}</span>
                   <span className="min-w-0 flex-1">
@@ -379,4 +400,98 @@ function stepText(x: { kind: string; title: string; ref: string | null }, d: Fie
   }
   if (r.startsWith('extra:')) return x.title || d.extras.join(', ')
   return x.title || t(`prog_${x.kind}` as TKey)
+}
+
+
+// --- Today: the day in focus, what's now and next, and the whole tour at a glance -------------------------
+
+type Focus = { day: FieldDay; state: 'today' | 'before' | 'after'; inDays: number }
+const toMin = (t: string) => { const [h, m] = t.split(':').map(Number); return h * 60 + (m || 0) }
+
+/** Today during the tour; before it the first day (starts in N days); after it the last day. */
+function focusOf(days: FieldDay[], now: string): Focus | null {
+  if (!days.length) return null
+  const hit = days.find((d) => d.date === now)
+  if (hit) return { day: hit, state: 'today', inDays: 0 }
+  if (now < days[0].date) return { day: days[0], state: 'before', inDays: Math.round((Date.parse(days[0].date) - Date.parse(now)) / 864e5) }
+  return { day: days[days.length - 1], state: 'after', inDays: 0 }
+}
+
+/** The day in focus, big and first: what's on now or next (and when), with call / map / menu right there,
+ * and the day's facts - people, the road, tonight's hotel, birthdays. */
+function TodayCard({ v, focus, onOpen }: { v: FieldView; focus: Focus; onOpen: (n: number) => void }) {
+  const { t, lang } = useI18n()
+  const [clock, setClock] = useState(() => new Date())
+  useEffect(() => { const id = setInterval(() => setClock(new Date()), 30_000); return () => clearInterval(id) }, [])
+  const d = focus.day
+  const pday = v.timeline?.find((x) => x.number === d.number)
+  const steps = (pday?.steps ?? []).filter((x) => x.time)
+  const nowMin = clock.getHours() * 60 + clock.getMinutes()
+  // Now: a step under way (its time, until its end); else the next one to start. Before the day: its first.
+  const current = focus.state === 'today' ? steps.find((x) => x.end && toMin(x.time) <= nowMin && nowMin < toMin(x.end)) : undefined
+  const next = focus.state === 'today' ? steps.find((x) => toMin(x.time) > nowMin) : focus.state === 'before' ? steps[0] : undefined
+  const step = current ?? next
+  const wait = next && !current && focus.state === 'today' ? toMin(next.time) - nowMin : null
+  const inText = wait == null ? '' : wait < 60 ? t('fieldInMin', { n: wait }) : t('fieldInH', { h: Math.floor(wait / 60), m: String(wait % 60).padStart(2, '0') })
+  const title = focus.state === 'today' ? t('today') : focus.state === 'before' ? t('fieldStartsIn', { n: focus.inDays }) : t('fieldTourOver')
+  const route = [...(d.stops ?? []), d.city].filter(Boolean).join(' → ')
+  return (
+    <section className="overflow-hidden rounded-2xl border-2 border-brand-300 bg-white">
+      <button type="button" onClick={() => onOpen(d.number)} className="flex w-full items-baseline gap-2 px-4 pt-3 text-left">
+        <span className="min-w-0 flex-1">
+          <span className="block text-xs font-semibold uppercase tracking-wide text-brand-700">{title} · {t('fieldDayN', { n: d.number })}</span>
+          <span className="block truncate text-lg font-semibold text-slate-900">{route || '—'}</span>
+        </span>
+        <span className="shrink-0 text-sm text-slate-500">{weekday(d.date, lang)} · {fmt(d.date, lang)}</span>
+      </button>
+      {step && (
+        <div className="mx-3 mt-2 rounded-xl bg-brand-50 px-3 py-2.5">
+          <p className="text-xs font-semibold text-brand-700">{current ? t('fieldNow') : t('fieldNext')}{inText && ` · ${inText}`}</p>
+          <p className="text-base font-semibold text-brand-900">{step.time}{step.end && `–${step.end}`} · {step.text}</p>
+          {step.memo && <p className="mt-0.5 text-sm text-amber-800">{step.memo}</p>}
+          <div className="mt-2 flex flex-wrap gap-2">
+            {step.phone && <a href={`tel:${step.phone.replace(/[^\d+]/g, '')}`} className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm"><PhoneIcon size={15} />{t('fieldCall')}</a>}
+            {step.map && <a href={step.map} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm"><MapPin size={15} />{t('fieldMap')}</a>}
+            {step.meal && <button type="button" onClick={() => onOpen(d.number)} className="inline-flex items-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-sm font-medium text-slate-800 shadow-sm"><Utensils size={15} />{t('fieldMenu')}</button>}
+          </div>
+        </div>
+      )}
+      {focus.state === 'today' && !step && steps.length > 0 && <p className="mx-4 mt-2 text-sm text-slate-500">{t('fieldDayDone')}</p>}
+      <div className="flex flex-wrap gap-1.5 px-3 pb-3 pt-2.5 text-xs text-slate-700">
+        {v.pax != null && <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1"><Users size={13} />{t('fieldPeople', { n: v.pax })}</span>}
+        {(pday?.km || d.km) ? <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1"><Car size={13} />{pday?.km || d.km} km{pday?.drive && ` · ${pday.drive}`}</span> : null}
+        {d.hotel && <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-slate-100 px-2.5 py-1"><BedDouble size={13} /><span className="truncate">{t('fieldTonight')}: {d.hotel.name}</span></span>}
+        {(d.birthdays?.length ?? 0) > 0 && <span className="inline-flex items-center gap-1 rounded-full bg-pink-100 px-2.5 py-1 text-pink-900"><Cake size={13} />{d.birthdays!.join(', ')}</span>}
+      </div>
+    </section>
+  )
+}
+
+/** Every day in one line - where, the hotel, lunch and dinner - folded until asked for. */
+function Glance({ v, now, onOpen }: { v: FieldView; now: string; onOpen: (n: number) => void }) {
+  const { t, lang } = useI18n()
+  const meal = (p: Place | null | undefined, mode?: string) => (mode === 'own' ? t('mealOwn') : p?.name ?? '—')
+  return (
+    <details className="group rounded-2xl border border-slate-200 bg-white">
+      <summary className="flex cursor-pointer list-none items-center gap-2 px-4 py-3 text-sm font-medium text-slate-700">
+        <span className="flex-1">{t('fieldGlance')}</span>
+        <ChevronDown size={18} className="text-slate-400 transition-transform group-open:rotate-180" />
+      </summary>
+      <ul className="divide-y divide-slate-100 border-t border-slate-100">
+        {v.days.map((d) => (
+          <li key={d.number}>
+            <button type="button" onClick={() => onOpen(d.number)} className={cn('flex w-full gap-3 px-4 py-2 text-left text-sm', d.date === now && 'bg-brand-50')}>
+              <span className="w-12 shrink-0 text-xs text-slate-500"><b className="block text-sm text-slate-900">{d.number}</b>{fmt(d.date, lang)}</span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium text-slate-900">{[...(d.stops ?? []), d.city].filter(Boolean).join(' → ') || '—'}</span>
+                <span className="block truncate text-xs text-slate-500">
+                  <BedDouble size={11} className="mr-1 inline" />{d.hotel?.name ?? '—'} · {t('lunch')}: {meal(d.lunch, d.lunch_mode)} · {t('dinner')}: {meal(d.dinner, d.dinner_mode)}
+                </span>
+              </span>
+            </button>
+          </li>
+        ))}
+      </ul>
+    </details>
+  )
 }
