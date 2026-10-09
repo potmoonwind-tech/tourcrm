@@ -894,12 +894,12 @@ function MealSummary({ meal, day, menu, crew, dayNumber, onOpen }: {
 }) {
   const { t } = useI18n()
   const own = day.meal_dishes?.[meal]
-  const what = own ? t('gridOwnMenu') : menu?.name && !menu.code ? menu.name : t('menuUsual')
+  const what = own ? t('gridOwnMenu') : menu?.name ?? t('menuNone')
   const n = (own ?? menu?.dishes ?? []).length
   const staff = crew ? crew.staff.filter((a) => ['guide', 'driver', 'assistant'].includes(a.role) && a.start_day <= dayNumber && (a.end_day === null || a.end_day >= dayNumber)).length + (crew.leaders || 0) : 0
   return (
     <button type="button" onClick={onOpen} className="mt-1.5 flex w-full items-center gap-1 rounded-md px-1 py-1 text-left text-xs text-slate-600 hover:bg-slate-50">
-      <span className="min-w-0 flex-1 truncate">{what}{n > 0 && ` · ${t('dishesN', { n })}`}{crew && ` · ${staff ? `${crew.pax - (crew.leaders || 0)} + ${staff}` : crew.pax}`}</span>
+      <span className="min-w-0 flex-1 truncate">{what}{n > 0 && ` · ${t('dishesN', { n })}`}{crew && ` · ${staff ? `${crew.pax} + ${staff}` : crew.pax}`}</span>
       <span className="shrink-0 font-medium text-brand-700">{t('menuAndTables')}</span>
       <ChevronRight size={13} className="shrink-0 text-brand-700" aria-hidden />
     </button>
@@ -1226,8 +1226,9 @@ const dishPreview = (m?: ServiceBrief) => {
 }
 
 /** The menu a meal serves: the chosen set menu, else the place's usual one. */
-const menuOf = (menus: ServiceBrief[], menuId: string | null | undefined, vendorId: string | null | undefined, meal: string) =>
-  menus.find((m) => m.id === menuId) ?? usualMenu(menus, vendorId, meal)
+// The chosen menu only: without one the meal is just lunch or dinner there (the usual price counts, no dishes).
+const menuOf = (menus: ServiceBrief[], menuId: string | null | undefined, _vendorId: string | null | undefined, _meal: string) =>
+  menus.find((m) => m.id === menuId)
 
 /** The day's own dishes without this meal's (another menu was chosen). */
 const withoutMeal = (day: DayFields, meal: 'lunch' | 'dinner') => {
@@ -1244,19 +1245,19 @@ function MenuPick({ meal, vendorId, value, menus, disabled, twice, onChange, onA
 }) {
   const { t } = useI18n()
   if (!vendorId) return null
-  const usual = usualMenu(menus, vendorId, meal)
+  const usual = usualMenu(menus, vendorId, meal)      // the restaurant's usual price (kept for the check below)
   // The place's menus: its set menus and its own priced meals ("per person", "per group", named ones) -
   // not its system prices (breakfast / lunch / dinner / rooms), which are the "usual menu".
   const options = menus.filter((m) => m.vendor.id === vendorId && !SYSTEM_PRICES.has(m.code ?? '')
     && (m.category === 'meal' || (m.category === 'other' && (m.code === 'person' || m.code === 'group' || !m.code))))
-  // What is served: the chosen menu, else the usual one - its dishes always in view.
-  const chosen = options.find((m) => m.id === value) ?? (value ? undefined : usual)
+  // What is served: the chosen menu's dishes. No menu chosen: just the meal (no dishes listed).
+  const chosen = options.find((m) => m.id === value)
   if (!options.length && !onAddNew && !usual) return null
   return (
     <div className="mt-1.5 space-y-1">
       <Select className="h-8 text-xs" disabled={disabled} value={value ?? ''} aria-label={t('menu')}
         onChange={(e) => (e.target.value === '__new__' ? onAddNew?.() : onChange(e.target.value || null))}>
-        <option value="">{t('menuUsual')}{dishPreview(usual)}</option>
+        <option value="">{t('menuNone')}</option>
         {options.map((m) => <option key={m.id} value={m.id}>{m.name}{dishPreview(m)}</option>)}
         {onAddNew && <option value="__new__">{t('addNewMenuOption')}</option>}
       </Select>

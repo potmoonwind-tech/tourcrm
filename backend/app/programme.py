@@ -573,14 +573,14 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
         if not vid:
             return ""
         own = menus.get(vid, [])
-        m = next((s for s in own if s.id == mid), None) or next((s for s in own if s.code == meal), None)
+        m = next((s for s in own if s.id == mid), None)          # only a menu that was chosen (no "usual" dishes)
         names = [x["name"] for x in dish_util.normalize(dish_util.served(d, meal, m))]
         return ", ".join(T(n) for n in names)
 
     def menu_of(d: DayFields, meal: str) -> Service | None:
         vid, mid = getattr(d, f"{meal}_id"), getattr(d, f"{meal}_menu_id")
         own = menus.get(vid or "", [])
-        return next((s for s in own if s.id == mid), None) or next((s for s in own if s.code == meal), None)
+        return next((s for s in own if s.id == mid), None)       # no menu chosen: none
 
     # Who eats, table by table (app/seating.py): a tour's group (tour leaders are part of it) and that
     # day's guides and drivers, each with the group, at the staff table, or not with us - each table gets

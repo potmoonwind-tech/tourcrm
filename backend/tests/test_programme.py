@@ -252,6 +252,21 @@ def test_no_drive_after_dinner_at_the_nights_hotel(make_client, monkeypatch):
     assert ["Tbilisi", "Gudauri View Point", "Marco Polo Hotel Gudauri, Gudauri"] in asked
 
 
+def chosen(c, base, resto):
+    """The restaurant's dinner, chosen as the meal's menu (a meal shows dishes only for a chosen menu)."""
+    return next(m["id"] for m in c.get(f"{base}/vendors/{resto['id']}/services").json() if m["code"] == "dinner")
+
+
+def test_no_menu_chosen_is_just_the_meal(make_client):
+    c, base, _ = agency(make_client)
+    hotel = mk(c, f"{base}/vendors", {"name": "Rooms Hotel", "type": "hotel", "city": "Kazbegi"})
+    c.put(f"{base}/vendors/{hotel['id']}/services", json=[
+        {"code": "dinner", "name": "Dinner", "category": "meal", "unit": "person", "dishes": ["Soup", "Trout"], "rates": [{"price": "40", "currency": "GEL"}]}])
+    days = [{"city": "Kazbegi", "dinner_id": hotel["id"], "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
+    p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "include": {"schedule": False}}).json()
+    assert ["Dinner", "Rooms Hotel"] in p["days"][0]["meals"]          # dinner at the hotel - no dishes of a "usual menu"
+
+
 def test_the_menu_under_the_restaurant(make_client):
     c, base, _ = agency(make_client)
     resto = mk(c, f"{base}/vendors", {"name": "Barbarestan", "type": "restaurant", "city": "Tbilisi"})
@@ -261,7 +276,7 @@ def test_the_menu_under_the_restaurant(make_client):
         {"name": "Barbarestan · Lunch 1", "category": "meal", "unit": "person", "dishes": ["Lobio", "Mchadi"],
          "rates": [{"price": "25", "currency": "GEL"}]}]).json()
     lunch_menu = next(m for m in menus if m["name"].endswith("Lunch 1"))
-    days = [{"city": "Tbilisi", "lunch_id": resto["id"], "lunch_menu_id": lunch_menu["id"], "dinner_id": resto["id"], "schedule": [
+    days = [{"city": "Tbilisi", "lunch_id": resto["id"], "lunch_menu_id": lunch_menu["id"], "dinner_id": resto["id"], "dinner_menu_id": chosen(c, base, resto), "schedule": [
         {"id": "l", "kind": "meal", "time": "13:00", "ref": "lunch"}, {"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
     d = p["days"][0]
@@ -323,7 +338,7 @@ def test_the_menu_with_its_portions(make_client):
     c.put(f"{base}/vendors/{resto['id']}/services", json=[
         {"code": "dinner", "name": "Dinner", "category": "meal", "unit": "person", "rates": [{"price": "30", "currency": "GEL"}],
          "dishes": [{"name": "Khinkali", "per_plate": 4}, {"name": "Soup"}]}])
-    days = [{"city": "Tbilisi", "dinner_id": resto["id"], "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
+    days = [{"city": "Tbilisi", "dinner_id": resto["id"], "dinner_menu_id": chosen(c, base, resto), "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "people": 13}).json()
     # 13 people: a plate of khinkali for 4 -> 4 plates; soup each their own -> 13.
     assert p["days"][0]["steps"][0]["dishes"] == [{"name": "Khinkali", "plates": 4, "per_plate": 4, "plates_at": [4]}, {"name": "Soup", "plates": 13, "per_plate": 1, "plates_at": [13]}]
@@ -344,7 +359,7 @@ def test_plates_for_the_group_table_and_the_staff_table(make_client):
     for name, role in (("Nino", "guide"), ("Gia", "driver")):
         v = mk(c, f"{base}/vendors", {"name": name, "type": role})
         mk(c, f"{url}/staff", {"vendor_id": v["id"], "role": role})
-    days = [{"city": "Tbilisi", "dinner_id": resto["id"], "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
+    days = [{"city": "Tbilisi", "dinner_id": resto["id"], "dinner_menu_id": chosen(c, base, resto), "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
     step = p["days"][0]["steps"][0]
     # 19 guests + 1 tour leader (19+1): the group table 19, the staff table leader + guide + driver = 3.
@@ -377,7 +392,7 @@ def test_each_person_eats_where_the_tour_says(make_client):
         v = mk(c, f"{base}/vendors", {"name": name, "type": role})
         seats[role] = mk(c, f"{url}/staff", {"vendor_id": v["id"], "role": role, "meal_seat": seat})
     assert seats["driver"]["meal_seat"] == "none"
-    days = [{"city": "Tbilisi", "dinner_id": resto["id"], "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
+    days = [{"city": "Tbilisi", "dinner_id": resto["id"], "dinner_menu_id": chosen(c, base, resto), "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
     step = p["days"][0]["steps"][0]
     assert step["tables"] == [{"who": "group", "people": 20, "roles": ["tour leader"]}, {"who": "staff", "people": 1, "roles": ["guide"]}]

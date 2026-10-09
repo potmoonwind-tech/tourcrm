@@ -2983,6 +2983,7 @@ const en = {
   fromLastNight: "Where they slept last night",
   staffStayEach: "Where each one sleeps:",
   staffTwinSameHotel: "Those in the same hotel share a room (TWN)",
+  menuNone: "No menu chosen",
 }
 
 type Dict = typeof en
@@ -5962,6 +5963,7 @@ const ka: Dict = {
   fromLastNight: "სადაც გაათიეს წინა ღამე",
   staffStayEach: "სად ათევს თითოეული:",
   staffTwinSameHotel: "ერთ სასტუმროში მყოფნი ერთ ოთახს იყოფენ (TWN)",
+  menuNone: "მენიუ არჩეული არ არის",
 }
 
 export type Lang = 'en' | 'ka'
