@@ -508,10 +508,10 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
                     onSamePlace={(place) => set(x.id, { place })} />}
                   {gap >= 60 && (
                     <li className="flex gap-3">
-                      <span className="w-20 shrink-0 pt-1.5 text-right text-xs tabular-nums text-slate-400">{hm(arrive!)}</span>
+                      <span className="w-20 shrink-0" />
                       <span className="flex w-8 shrink-0 justify-center" aria-hidden><span className="border-l-2 border-dotted border-slate-300" /></span>
                       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 py-1.5">
-                        <span className="text-sm text-slate-500">{t('progFree', { time: dur(gap) })}</span>
+                        <span className="text-xs text-slate-400"><span className="tabular-nums">{hm(arrive!)}</span> · {t('progFree', { time: dur(gap) })}</span>
                         {!disabled && (['visit', 'free', 'other'] as const).map((k) => addChip(k, () => insertAt(i, k)))}
                       </span>
                     </li>
@@ -1001,12 +1001,12 @@ function DurationPick({ start, end, name, usual, usualFrom, onChange }: {
     <Tooltip label={!start ? t('progDurationNeedsStart') : usualFrom ? t('progDurationSight', { place: usualFrom }) : t('progDurationTip')}>
       <select value={current === null ? '' : String(current)} disabled={!start} aria-label={t('progDurationOf', { name })}
         onChange={(e) => onChange(e.target.value === '' ? '' : shift(start, Number(e.target.value)))}
-        className={cn('select-chevron h-6 cursor-pointer rounded-md border-0 bg-transparent pl-1 pr-5 text-right text-xs tabular-nums [background-position:right_4px_center] [background-size:12px]',
+        className={cn('h-5 cursor-pointer appearance-none rounded-md border-0 bg-transparent bg-none px-1 text-right text-xs tabular-nums',
           'hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-50',
           // The open list is the browser's own: always white, whatever the field looks like.
           '[&>option]:bg-white [&>option]:text-slate-800',
-          current === null ? 'text-slate-500' : 'text-slate-700')}>
-        <option value="">{usual ? `≈ ${dur(usual)}` : t('progDurationPh')}</option>
+          current === null ? 'text-slate-400' : 'text-slate-600')}>
+        <option value="">{usual ? dur(usual) : t('progDurationPh')}</option>
         {custom && <option value={String(current)}>{dur(current!)}</option>}
         {DURATIONS.map((m) => <option key={m} value={String(m)}>{dur(m)}</option>)}
       </select>

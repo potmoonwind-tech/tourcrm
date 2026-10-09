@@ -64,8 +64,9 @@ export const blankDay = (city = ''): DayFields =>
   ({ city, hotel_id: null, lunch_id: null, dinner_id: null, border_crossing: '', notes: '', extras: [], km: null, stops: [],
      lunch_mode: 'included', dinner_mode: 'included', flights: [], schedule: [] })
 
-export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, crew, onDownload, pending }: {
+export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, crew, onDownload, pending, flush }: {
   days: DayFields[]; onChange: (days: DayFields[]) => void
+  flush?: boolean             // right under the page's tabs: the toolbar joins them (no gap)
   pending?: ReactNode         // unsaved changes: "Discard / Save", shown in the builder's bottom bar
   onDownload?: () => void     // "Download programme", in the builder's "⋯"
   crew?: Crew                 // a tour's group and staff: each meal's tables and plates
@@ -250,7 +251,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd}
       onDragCancel={() => { setDragging(null); setCarrying(null) }}>
         {/* The builder's toolbar, kept in view: how to look at the days, and the days themselves. */}
-        <div ref={toolbar} className="sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8">
+        <div ref={toolbar} className={cn('sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8', flush && '-mt-6')}>
           <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView} className="shrink-0"
             options={[
               ['check', <span key="c" className="flex items-center gap-1.5" title={t('viewCheck')}><ListChecks size={15} aria-hidden /><span className={cn(view !== 'check' && 'sr-only')}>{t('viewCheck')}</span></span>],
@@ -493,7 +494,7 @@ function DayStrip({ days, dates, at, onAt: setAt }: { days: DayFields[]; dates?:
             {/* Quiet: "1  Baku  Sat 25"; the day being worked on is tinted; a small amber dot = something missing. */}
             <span className={cn('tabular-nums', at === i ? 'font-semibold' : 'text-slate-400')}>{i + 1}</span>
             <span className={cn('max-w-[8rem] truncate', at === i ? 'font-semibold' : 'font-medium text-slate-700')}>{d.city || '—'}</span>
-            {dates?.[i] && <span className={cn('tabular-nums', at === i ? 'text-brand-700' : 'text-slate-400')}>{weekday(dates[i], lang)} {Number(dates[i].slice(8))}</span>}
+            {dates?.[i] && at === i && <span className="tabular-nums text-brand-700">{weekday(dates[i], lang)} {Number(dates[i].slice(8))}</span>}
             {((!last && !d.hotel_id) || (!d.lunch_id && d.lunch_mode !== 'own') || (!d.dinner_id && d.dinner_mode !== 'own')) && (
               <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-amber-400" aria-label={t('somethingMissing')} />
             )}
@@ -867,7 +868,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
           {/* The day's way and flights, quietly - on the same line. */}
           <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             {/* The places on the way (the road goes through them): one quiet line; the chips only while editing. */}
-            {(show || (day.stops ?? []).length > 0) && (editStops || !(day.stops ?? []).length ? (
+            {show && (editStops || !(day.stops ?? []).length ? (
               <span className="contents" onBlur={(e) => { if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node)) setEditStops(false) }}>
                 <Stops stops={day.stops ?? []} disabled={disabled} onChange={(stops) => { setEditStops(true); onSet({ stops }) }}
                   own={vendors.filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
@@ -883,7 +884,8 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
               </button>
             ))}
             {(show || (day.flights ?? []).length > 0) && <Flights flights={day.flights ?? []} disabled={disabled} onChange={(flights) => onSet({ flights })} />}
-            {index > 0 && (show || !!day.km) && (
+            {/* The road: "458 km · 10 h 35" in grey (a long day's hours in amber); the km typed in under "Show everything". */}
+            {index > 0 && show ? (
               <label className="flex items-center gap-1 text-xs text-slate-500" title={prevCity ? t('kmFrom', { city: prevCity }) : t('kmDriven')}>
                 <Car size={14} className="shrink-0" />
                 <input type="number" min={0} max={5000} disabled={disabled} value={day.km ?? ''} placeholder="—"
@@ -892,15 +894,13 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
                   aria-label={t('kmDriven')} />
                 km
               </label>
-            )}
-            {(day.drive_minutes ?? []).some((m) => m > 0) && (() => {
+            ) : index > 0 && !!day.km && (() => {
               const drive = (day.drive_minutes ?? []).reduce((x, m) => x + m, 0) * factor
               return (
-                <Tooltip label={t('driveDayTip', { h: hours(drive) })}>
-                  <span tabIndex={0} className={cn('rounded-md px-1.5 py-0.5 text-xs tabular-nums', drive > 9 * 60 ? 'bg-amber-100 font-medium text-amber-900' : 'text-slate-600')}>
-                    ≈ {hours(drive)} {t('driveShort')}
-                  </span>
-                </Tooltip>
+                <span className="flex items-center gap-1 text-xs tabular-nums text-slate-500" title={drive ? t('driveDayTip', { h: hours(drive) }) : undefined}>
+                  <Car size={13} aria-hidden className="shrink-0 text-slate-400" />{day.km} km
+                  {drive > 0 && <span className={drive > 9 * 60 ? 'font-medium text-amber-700' : ''}>· {hours(drive)}</span>}
+                </span>
               )
             })()}
           </span>
