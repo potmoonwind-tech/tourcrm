@@ -251,7 +251,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd}
       onDragCancel={() => { setDragging(null); setCarrying(null) }}>
         {/* The builder's toolbar, kept in view: how to look at the days, and the days themselves. */}
-        <div ref={toolbar} className={cn('sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8', flush && '-mt-6')}>
+        <div ref={toolbar} data-builder-toolbar className={cn('sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8', flush && '-mt-6')}>
           <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView} className="shrink-0"
             options={[
               ['check', <span key="c" className="flex items-center gap-1.5" title={t('viewCheck')}><ListChecks size={15} aria-hidden /><span className={cn(view !== 'check' && 'sr-only')}>{t('viewCheck')}</span></span>],
@@ -466,17 +466,26 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
 /** The whole trip at a glance: one chip per day (city + what is still missing); a click jumps there. */
 function DayStrip({ days, dates, at, onAt: setAt }: { days: DayFields[]; dates?: string[]; at: number; onAt: (i: number) => void }) {
   const { t, lang } = useI18n()
-  // The day on screen (the one nearest the top), marked in the strip and kept in view in it.
+  // The day being worked on: the last one whose header has come up to the reading line (a little under the
+  // toolbar) - so the next day takes over as soon as its header gets there, not when the last bit of the day
+  // before has gone. Marked in the strip and kept in view in it.
   const strip = useRef<HTMLElement>(null)
   useEffect(() => {
-    const seen = new Map<number, number>()
-    const io = new IntersectionObserver((entries) => {
-      for (const e of entries) seen.set(Number(e.target.id.slice(9)), e.isIntersecting ? e.boundingClientRect.top : Infinity)
-      const visible = [...seen].filter(([, top]) => top !== Infinity).sort((a, b) => a[0] - b[0])
-      if (visible.length) setAt(visible[0][0])
-    }, { rootMargin: '-140px 0px -55% 0px' })
-    days.forEach((_, i) => { const el = document.getElementById(`day-card-${i}`); if (el) io.observe(el) })
-    return () => io.disconnect()
+    const check = () => {
+      const bar = strip.current?.closest('[data-builder-toolbar]')
+      const line = (bar?.getBoundingClientRect().bottom ?? 0) + 140
+      let at = 0
+      for (let i = 0; i < days.length; i++) {
+        const el = document.getElementById(`day-card-${i}`)
+        if (el && el.getBoundingClientRect().top <= line) at = i
+      }
+      setAt(at)
+    }
+    check()
+    // the page scrolls (phones) or its panel does (wide screens): both
+    window.addEventListener('scroll', check, { passive: true })
+    document.addEventListener('scroll', check, { capture: true, passive: true })
+    return () => { window.removeEventListener('scroll', check); document.removeEventListener('scroll', check, { capture: true }) }
   }, [days.length])   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { strip.current?.querySelector(`[data-day="${at}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [at])
   if (days.length < 2) return <div className="flex-1" />
