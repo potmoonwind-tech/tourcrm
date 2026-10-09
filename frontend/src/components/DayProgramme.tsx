@@ -659,20 +659,53 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
               </span></span>
             )}
           </div>
+          {/* Narrow screens: a pinned time shows its pin; the rest is in "⋯". */}
           {!disabled && x.fixed && x.kind !== 'flight' && (
-            <Tooltip label={t('progPinnedTip')}>
-              <button type="button" aria-pressed onClick={() => onSet({ fixed: false })} aria-label={t('progUnpin', { name })}
-                className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-brand-700 hover:bg-brand-50">
-                <Pin size={14} aria-hidden className="fill-current" />
-              </button>
-            </Tooltip>
+            <span className="lg:hidden">
+              <Tooltip label={t('progPinnedTip')}>
+                <button type="button" aria-pressed onClick={() => onSet({ fixed: false })} aria-label={t('progUnpin', { name })}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-brand-700 hover:bg-brand-50">
+                  <Pin size={14} aria-hidden className="fill-current" />
+                </button>
+              </Tooltip>
+            </span>
           )}
           {!disabled && (
-            <Menu kind="icon" label={t('progStepMenu', { name })} items={[
-              { label: t('progAddNote'), icon: <StickyNote size={16} />, onClick: () => setNoting(true), hidden: !!x.notes },
-              { label: t(x.fixed ? 'progUnpin' : 'progPin', { name }), icon: <Pin size={16} />, onClick: () => onSet({ fixed: !x.fixed }), hidden: x.kind === 'flight' || !x.time },
-              { label: t('progRemove', { name }), icon: <X size={16} />, onClick: onRemove, danger: true },
-            ]} />
+            <span className="lg:hidden">
+              <Menu kind="icon" label={t('progStepMenu', { name })} items={[
+                { label: t('progAddNote'), icon: <StickyNote size={16} />, onClick: () => setNoting(true), hidden: !!x.notes },
+                { label: t(x.fixed ? 'progUnpin' : 'progPin', { name }), icon: <Pin size={16} />, onClick: () => onSet({ fixed: !x.fixed }), hidden: x.kind === 'flight' || !x.time },
+                { label: t('progRemove', { name }), icon: <X size={16} />, onClick: onRemove, danger: true },
+              ]} />
+            </span>
+          )}
+          {/* Wide screens: there is room - note, pin and remove right on the step. */}
+          {!disabled && (
+            <span className="hidden shrink-0 items-center gap-0.5 lg:flex">
+              {!x.notes && (
+                <Tooltip label={t('progAddNote')}>
+                  <button type="button" onClick={() => setNoting(true)} aria-label={t('progNoteOf', { name })}
+                    className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                    <StickyNote size={15} aria-hidden />
+                  </button>
+                </Tooltip>
+              )}
+              {x.kind !== 'flight' && x.time && (
+                <Tooltip label={x.fixed ? t('progPinnedTip') : t('progFollowsTip')}>
+                  <button type="button" aria-pressed={!!x.fixed} onClick={() => onSet({ fixed: !x.fixed })} aria-label={t(x.fixed ? 'progUnpin' : 'progPin', { name })}
+                    className={cn('flex h-7 w-7 items-center justify-center rounded-full',
+                      x.fixed ? 'text-brand-700 hover:bg-brand-50' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700')}>
+                    <Pin size={15} aria-hidden className={x.fixed ? 'fill-current' : ''} />
+                  </button>
+                </Tooltip>
+              )}
+              <Tooltip label={t('progRemoveTip')}>
+                <button type="button" onClick={onRemove} aria-label={t('progRemove', { name })}
+                  className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-red-50 hover:text-red-700">
+                  <X size={16} aria-hidden />
+                </button>
+              </Tooltip>
+            </span>
           )}
         </div>
         {issue && (
