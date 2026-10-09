@@ -239,9 +239,9 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
         <div ref={toolbar} className="sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8">
           <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView} className="shrink-0"
             options={[
-              ['check', <span key="c" className="flex items-center gap-1.5" title={t('viewCheck')}><ListChecks size={15} aria-hidden /><span className={cn(view !== 'check' && 'max-sm:sr-only')}>{t('viewCheck')}</span></span>],
-              ['overview', <span key="o" className="flex items-center gap-1.5" title={t('viewOverview')}><Table2 size={15} aria-hidden /><span className={cn(view !== 'overview' && 'max-sm:sr-only')}>{t('viewOverview')}</span></span>],
-              ['days', <span key="d" className="flex items-center gap-1.5" title={t('viewDays')}><CalendarDays size={15} aria-hidden /><span className={cn(view !== 'days' && 'max-sm:sr-only')}>{t('viewDays')}</span></span>],
+              ['check', <span key="c" className="flex items-center gap-1.5" title={t('viewCheck')}><ListChecks size={15} aria-hidden /><span className={cn(view !== 'check' && 'sr-only')}>{t('viewCheck')}</span></span>],
+              ['overview', <span key="o" className="flex items-center gap-1.5" title={t('viewOverview')}><Table2 size={15} aria-hidden /><span className={cn(view !== 'overview' && 'sr-only')}>{t('viewOverview')}</span></span>],
+              ['days', <span key="d" className="flex items-center gap-1.5" title={t('viewDays')}><CalendarDays size={15} aria-hidden /><span className={cn(view !== 'days' && 'sr-only')}>{t('viewDays')}</span></span>],
             ]} />
           {view === 'days' ? <DayStrip days={days} dates={dates} at={activeDay} onAt={setActiveDay} /> : <div className="flex-1" />}
           <Menu kind="icon" label={t('moreActions')} items={[
