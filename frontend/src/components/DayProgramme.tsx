@@ -20,7 +20,7 @@ import { wsPath } from '../lib/data'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
 import { useWorkspace } from '../lib/session'
-import { Label, Menu } from './overlay'
+import { Menu } from './overlay'
 import { InfoTip, Tooltip } from './Tooltip'
 import { PlaceInput, type OpeningHours, type PlaceSuggestion } from './PlaceInput'
 import { TripMap, type MapStop } from './TripMap'
@@ -162,12 +162,13 @@ export interface SlotRow {
 }
 export type SlotRows = Partial<Record<'hotel' | 'breakfast' | 'lunch' | 'dinner', SlotRow>>
 
-export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay, date, slots, footer, bare, onAddMore, addAside }: {
+export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay, date, slots, footer, bare, onAddMore, addAside, expandAll }: {
   slots?: SlotRows          // the builder: these rows are where the hotel, breakfast, lunch and dinner are chosen
   footer?: ReactNode        // under the list (the day's activities, notes)
   bare?: boolean            // inside the day's card: no frame of its own
   onAddMore?: (what: 'flight' | 'note') => void   // "+ Flight", "+ Note" in the add line
   addAside?: ReactNode      // at the end of the add line ("What they do ›")
+  expandAll?: boolean       // "Show everything": every row open
   day: DayFields; index: number; last: boolean; byId: Map<string, Vendor>; services: ServiceBrief[]; disabled?: boolean; startOpen?: boolean
   date?: string      // the day's date (a tour): visits are checked against the places' opening hours
   from?: string      // where the group slept the night before
@@ -479,7 +480,6 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
             <Car size={13} aria-hidden />{t('progOnRoad', { km: roadKm, time: dur(roadMin) })}
           </span>
         )}
-        {!saved.length && items.length > 0 && <Label tone="light" wide={false}>{t('progSuggestedShort')}</Label>}
         {issues.size > 0 && <span className="inline-flex items-center gap-1 text-xs font-medium text-amber-800"><AlertTriangle size={14} aria-hidden />{t('progIssues', { n: issues.size })}</span>}
         <span className="ml-auto flex items-center gap-1">
           {span && <span className="mr-1 text-sm tabular-nums text-slate-500">{span}</span>}
@@ -524,13 +524,6 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
         </div>
       )}
 
-      {/* Suggested: a quiet line, not a banner. */}
-      {!saved.length && items.length > 0 && (
-        <p className="mt-2 flex flex-wrap items-center gap-x-2 text-xs text-slate-500">
-          {t('progSuggestedHelp')}
-          {!disabled && <button type="button" onClick={() => save(items)} className="font-medium text-brand-700 hover:underline">{t('progKeep')}</button>}
-        </p>
-      )}
       {drives.length === 0 && path.length > 1 && (
         <p className="mt-2 flex items-center gap-1.5 text-xs text-slate-500" role="status">
           <Car size={14} aria-hidden className="shrink-0" />{road.isFetching ? t('progRoadAsking') : road.isError ? t('mapUnavailable') : t('progRoadNone')}
@@ -563,7 +556,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
                   )}
                   <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
                     slot={slots?.[(x.ref ?? '') as keyof SlotRows]}
-                    open={openRow === x.id} onToggle={() => setOpenRow(openRow === x.id ? null : x.id)}
+                    open={expandAll || openRow === x.id} onToggle={() => setOpenRow(openRow === x.id ? null : x.id)}
                     length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)} end={i === items.length - 1 && !after.length}
                     cat={x.kind === 'visit' ? catOf((x.ref?.startsWith('extra:')
                       ? byId.get(services.find((s) => s.id === day.extras.find((e) => e.id === x.ref!.slice(6))?.service_id)?.vendor.id ?? '')

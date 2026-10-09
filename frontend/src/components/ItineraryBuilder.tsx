@@ -96,7 +96,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   // The drag-and-drop list on the left: open, or a slim rail of icons (remembered on this computer).
   const [listOpen, setListOpenRaw] = useState(() => { try { return localStorage.getItem('builder.list') !== '0' } catch { return true } })
   const setListOpen = (v: boolean) => { setListOpenRaw(v); try { localStorage.setItem('builder.list', v ? '1' : '0') } catch { /* private window */ } }
-  const [listTab, setListTab] = useState<Tab>('hotels')
+  const [listTab, setListTab] = useState<Tab>('days')
   const toolbar = useStickyHeight('--bar-h')
   // Simple day cards (the four questions; the rest under "More for this day") unless "Show everything" is on.
   const [full, setFullState] = useState(() => { try { return localStorage.getItem('builderFull') === '1' } catch { return false } })
@@ -222,8 +222,9 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
       else if (target) place(target.day, target.slot, item)
       return
     }
-    const from = keys.current.indexOf(String(active.id))
-    const to = keys.current.indexOf(String(over.id))
+    // a day card, or a day in the list on the left ("pd:" + its key)
+    const from = keys.current.indexOf(String(active.id).replace(/^pd:/, ''))
+    const to = keys.current.indexOf(String(over.id).replace(/^pd:/, ''))
     if (from >= 0 && to >= 0 && from !== to) {
       keys.current = arrayMove(keys.current, from, to)
       onChange(arrayMove(days, from, to))
@@ -243,12 +244,16 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               ['overview', <span key="o" className="flex items-center gap-1.5" title={t('viewOverview')}><Table2 size={15} aria-hidden /><span className={cn(view !== 'overview' && 'sr-only')}>{t('viewOverview')}</span></span>],
               ['days', <span key="d" className="flex items-center gap-1.5" title={t('viewDays')}><CalendarDays size={15} aria-hidden /><span className={cn(view !== 'days' && 'sr-only')}>{t('viewDays')}</span></span>],
             ]} />
-          {view === 'days' ? <DayStrip days={days} dates={dates} at={activeDay} onAt={setActiveDay} /> : <div className="flex-1" />}
+          {/* The days: in the list on the left when it's open (wide screens), else this strip. */}
+          {view === 'days' ? <>
+            <div className={cn('flex min-w-0 flex-1', listOpen && !disabled && 'lg:hidden')}><DayStrip days={days} dates={dates} at={activeDay} onAt={setActiveDay} /></div>
+            {listOpen && !disabled && <div className="hidden flex-1 lg:block" />}
+          </> : <div className="flex-1" />}
         </div>
       <div className={cn('grid gap-4', view === 'days' && !disabled && (listOpen ? 'lg:grid-cols-[16rem_1fr]' : 'lg:grid-cols-[2.75rem_1fr]'))}>
         {view === 'days' && !disabled && !listOpen && <PaletteRail onOpen={(tab) => { setListTab(tab); setListOpen(true) }} />}
         {view === 'days' && listOpen && !disabled && <Palette vendors={vs} services={services.data ?? []} picked={picked} onPick={setPicked}
-          tab={listTab} onTab={setListTab}
+          tab={listTab} onTab={setListTab} days={days} dates={dates} dayKeys={keys.current} at={activeDay}
           onClose={() => { setListOpen(false); setPicked(null) }}
           onAdd={canCreate ? (tab) => (tab === 'services' ? setNewService({}) : setNewVendor({ type: tab === 'hotels' ? 'hotel' : 'restaurant' })) : undefined} />}
         <div className={cn('stagger min-w-0 space-y-3', view === 'days' && 'w-full max-w-[60rem] justify-self-center')}>
@@ -484,19 +489,19 @@ function DayStrip({ days, dates, at, onAt: setAt }: { days: DayFields[]; dates?:
 
 // --- palette ---------------------------------------------------------------------------------
 
-type Tab = 'hotels' | 'food' | 'services'
+type Tab = 'days' | 'hotels' | 'food' | 'services'
 
 /** Prices the day slots already cover (hotel nights, lunch, dinner): not offered again as extras. */
 const SLOT_CODES = new Set(['room_SGL', 'room_DBL', 'room_TWN', 'room_TRP', 'room_QUAD', 'lunch', 'dinner'])
 
-const TAB_ICON: Record<Tab, typeof BedDouble> = { hotels: BedDouble, food: Utensils, services: Ticket }
+const TAB_ICON: Record<Tab, typeof BedDouble> = { days: CalendarDays, hotels: BedDouble, food: Utensils, services: Ticket }
 
 /** The list, folded: three icons on the left; a tap opens the list on that tab. Only on wide screens. */
 function PaletteRail({ onOpen }: { onOpen: (tab: Tab) => void }) {
   const { t } = useI18n()
   return (
     <div className="hidden lg:sticky lg:top-[calc(var(--tabs-h,42px)+var(--bar-h,45px)+0.5rem)] lg:flex lg:flex-col lg:items-center lg:gap-1 lg:self-start lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:py-1.5">
-      {(['hotels', 'food', 'services'] as Tab[]).map((x) => {
+      {(['days', 'hotels', 'food', 'services'] as Tab[]).map((x) => {
         const Icon = TAB_ICON[x]
         return (
           <button type="button" key={x} onClick={() => onOpen(x)} title={t(`palette_${x}`)} aria-label={t(`palette_${x}`)}
@@ -507,9 +512,10 @@ function PaletteRail({ onOpen }: { onOpen: (tab: Tab) => void }) {
   )
 }
 
-function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab: setTab }: {
+function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab: setTab, days, dates, dayKeys, at }: {
   vendors: Vendor[]; services: ServiceBrief[]; picked: Item | null; onPick: (i: Item | null) => void
   onAdd?: (tab: Tab) => void; onClose: () => void; tab: Tab; onTab: (t: Tab) => void
+  days: DayFields[]; dates?: string[]; dayKeys: string[]; at: number   // the "Days" tab: the tour's days, to jump to and reorder
 }) {
   const { t } = useI18n()
   const [q, setQ] = useState('')
@@ -531,7 +537,7 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab
       <div className="space-y-2 border-b border-slate-200 p-2">
         {/* Tabs as icons with a word, and "fold" - one line. The how-to sits in the title. */}
         <div className="flex items-center gap-1 text-xs" role="tablist" aria-label={t('builderPalette')} title={t('builderHelp')}>
-          {(['hotels', 'food', 'services'] as Tab[]).map((x) => {
+          {(['days', 'hotels', 'food', 'services'] as Tab[]).map((x) => {
             const Icon = TAB_ICON[x]
             return (
               <button type="button" key={x} onClick={() => setTab(x)} role="tab" aria-selected={tab === x}
@@ -544,12 +550,20 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab
           })}
           <IconButton size="sm" label={t('hideList')} onClick={onClose}><PanelLeft size={16} /></IconButton>
         </div>
-        <div className="relative">
+        {tab !== 'days' && <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('search')} className="h-8 pl-8 text-xs" />
-        </div>
+        </div>}
         {tab === 'services' && <p className="rounded-md bg-slate-50 px-2 py-1.5 text-xs text-slate-600">{t('paletteStaffHint')}</p>}
       </div>
+      {tab === 'days' ? (
+        // The tour's days: a click goes to the day, the grip moves it (drop on another day here or on its card).
+        <SortableContext items={dayKeys.map((k) => `pd:${k}`)} strategy={verticalListSortingStrategy}>
+          <ul className="max-h-72 space-y-0.5 overflow-y-auto p-1.5 lg:max-h-none lg:min-h-0 lg:flex-1">
+            {days.map((d, i) => <PaletteDay key={dayKeys[i]} id={`pd:${dayKeys[i]}`} day={d} index={i} date={dates?.[i]} last={i === days.length - 1} active={at === i} />)}
+          </ul>
+        </SortableContext>
+      ) : (
       <ul className="max-h-72 space-y-0.5 overflow-y-auto p-1.5 lg:max-h-none lg:min-h-0 lg:flex-1">
         {items.length === 0 && hotelMeals.length === 0 && <li className="px-2 py-4 text-center text-xs text-slate-500">{tab === 'services' ? t('noServicesYet') : tab === 'hotels' ? t('noHotelsYet') : t('noRestaurantsYet')}</li>}
         {[...items, ...hotelMeals].map((item, i) => {
@@ -563,7 +577,8 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab
           )
         })}
       </ul>
-      {onAdd && (
+      )}
+      {onAdd && tab !== 'days' && (
         <div className="border-t border-slate-200 p-2">
           <button type="button" onClick={() => onAdd(tab)}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50">
@@ -572,6 +587,29 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab
         </div>
       )}
     </aside>
+  )
+}
+
+/** A day in the list: number (amber while something's missing), date, town; click = go there, grip = move it. */
+function PaletteDay({ id, day: d, index: i, date, last, active }: { id: string; day: DayFields; index: number; date?: string; last: boolean; active: boolean }) {
+  const { t, lang } = useI18n()
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
+  const missing = (!last && !d.hotel_id) || (!d.lunch_id && d.lunch_mode !== 'own') || (!d.dinner_id && d.dinner_mode !== 'own')
+  return (
+    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={cn('group/row flex items-center gap-1 rounded-lg', active ? 'bg-brand-50 ring-1 ring-brand-200' : 'hover:bg-slate-100', isDragging && 'relative z-10 bg-white opacity-80 shadow-lg')}>
+      <button type="button" onClick={() => document.getElementById(`day-card-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+        className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left text-sm">
+        <span className={cn('flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-semibold text-white',
+          active ? 'bg-brand-600' : missing ? 'bg-amber-500' : 'bg-slate-800')}>{i + 1}</span>
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-medium text-slate-800">{d.city || '—'}</span>
+          {date && <span className="block text-[11px] leading-tight text-slate-500">{weekday(date, lang)} · {fmt(date, lang)}</span>}
+        </span>
+      </button>
+      <span {...listeners} {...attributes} aria-label={t('dragToReorder')} title={t('dragToReorder')}
+        className="cursor-grab touch-none rounded-md p-1 text-slate-300 hover:text-slate-500 active:cursor-grabbing"><GripVertical size={14} /></span>
+    </li>
   )
 }
 
@@ -822,6 +860,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
       {/* The day is one list, in time order: the hotel, breakfast, lunch and dinner are chosen in their rows. */}
       <div className="p-2 sm:p-3">
         <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel} date={date}
+          expandAll={!simple}
           bare onSetDay={onSet} onChange={(schedule) => onSet({ schedule })}
           onAddMore={disabled ? undefined : (what) => (what === 'flight' ? setDetails(true) : setMore(true))}
           addAside={whatOpen || ((dragging ?? picked) && accepts('extras', (dragging ?? picked)!)) ? undefined : (

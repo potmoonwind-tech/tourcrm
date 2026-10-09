@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { SetupNudge } from '../components/GetStarted'
-import { Drawer, Menu, ask, askText } from '../components/overlay'
+import { Drawer, Menu, ask, askText, toast } from '../components/overlay'
 import { Bookmark, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useState, type FormEvent } from 'react'
 import { blankDay, ItineraryBuilder } from '../components/ItineraryBuilder'
@@ -115,18 +115,25 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
   })
   const [f, setF] = useState(initial)
   const [exporting, setExporting] = useState(false)
-  const [start] = useState(() => JSON.stringify(initial()))
+  const [start, setStart] = useState(() => JSON.stringify(initial()))
+  const [savedId, setSavedId] = useState<string | null>(series?.id ?? null)   // a new route, once created
   // Closing with unsaved changes asks first (Esc, ×, the backdrop and Cancel).
   const close = () => {
     if (!canEdit || JSON.stringify(f) === start) return onClose()
     void ask({ title: t('discardChanges'), message: t('discardChangesMsg'), confirmLabel: t('discard'), danger: true }).then((ok) => ok && onClose())
   }
   const done = () => { qc.invalidateQueries({ queryKey: ['series', ws.id] }); onClose() }
+  // Saving keeps the route open: keep working, close when done.
   const save = useMutation({
-    mutationFn: () => series
-      ? api(wsPath(ws.id, `/series/${series.id}`), { method: 'PUT', body: f })
-      : api(wsPath(ws.id, '/series'), { method: 'POST', body: f }),
-    onSuccess: done,
+    mutationFn: () => savedId
+      ? api<Series>(wsPath(ws.id, `/series/${savedId}`), { method: 'PUT', body: f })
+      : api<Series>(wsPath(ws.id, '/series'), { method: 'POST', body: f }),
+    onSuccess: (s) => {
+      if (s?.id) setSavedId(s.id)
+      setStart(JSON.stringify(f))
+      qc.invalidateQueries({ queryKey: ['series', ws.id] })
+      toast('saved')
+    },
   })
   const remove = useMutation({ mutationFn: () => api(wsPath(ws.id, `/series/${series!.id}`), { method: 'DELETE' }), onSuccess: done })
 
@@ -142,8 +149,8 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
       </span>
       <div className="flex-1" />
       <ErrorText error={save.error || remove.error} />
-      <Button type="button" variant="secondary" onClick={close}>{t('cancel')}</Button>
-      <Button type="submit" form="route-form" disabled={save.isPending}>{series ? t('save') : t('create')}</Button>
+      <Button type="button" variant="secondary" onClick={close}>{JSON.stringify(f) === start ? t('close') : t('cancel')}</Button>
+      <Button type="submit" form="route-form" disabled={save.isPending}>{savedId ? t('save') : t('create')}</Button>
     </>
   )
   return (
