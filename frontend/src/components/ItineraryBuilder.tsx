@@ -1255,12 +1255,20 @@ function MenuPick({ meal, vendorId, value, menus, disabled, twice, onChange, onA
   if (!options.length && !onAddNew && !usual) return null
   return (
     <div className="mt-1.5 space-y-1">
-      <Select className="h-8 text-xs" disabled={disabled} value={value ?? ''} aria-label={t('menu')}
-        onChange={(e) => (e.target.value === '__new__' ? onAddNew?.() : onChange(e.target.value || null))}>
-        <option value="">{t('menuNone')}</option>
-        {options.map((m) => <option key={m.id} value={m.id}>{m.name}{dishPreview(m)}</option>)}
-        {onAddNew && <option value="__new__">{t('addNewMenuOption')}</option>}
-      </Select>
+      <span className="flex items-center gap-1">
+        <Select className="h-8 min-w-0 flex-1 text-xs" disabled={disabled} value={value ?? ''} aria-label={t('menu')}
+          onChange={(e) => (e.target.value === '__new__' ? onAddNew?.() : onChange(e.target.value || null))}>
+          <option value="">{t('menuNone')}</option>
+          {options.map((m) => <option key={m.id} value={m.id}>{m.name}{dishPreview(m)}</option>)}
+          {onAddNew && <option value="__new__">{t('addNewMenuOption')}</option>}
+        </Select>
+        {value && !disabled && (
+          <Tooltip label={t('menuRemove')}>
+            <button type="button" onClick={() => onChange(null)} aria-label={t('menuRemove')}
+              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-600"><X size={15} /></button>
+          </Tooltip>
+        )}
+      </span>
       {!compact && chosen && !chosen.dishes.length && <p className="text-[11px] text-slate-500">{t('menuNoDishes')}</p>}
       {!compact && chosen && chosen.dishes.length > 0 && (
         <div className="flex flex-wrap gap-1">

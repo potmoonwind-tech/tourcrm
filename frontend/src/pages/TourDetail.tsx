@@ -154,7 +154,7 @@ function TourSummary({ tour, canEdit, onEdit }: { tour: Tour; canEdit: boolean; 
   const facts: { label: string; value: ReactNode }[] = [
     { label: t('client'), value: tour.client_name ? <span className="font-medium text-slate-800">{tour.client_name}</span> : missing(t('factChoose'), 'client') },
     { label: t('dates'), value: <span className="font-medium text-slate-800">{fmt(tour.start_date, lang)} – {fmt(tour.end_date, lang)} <span className="font-normal text-slate-500">· {days} {countWord(days, t('dayWord'), t('daysWord'))}</span></span> },
-    { label: t('pax'), value: tour.pax ? <span className="font-medium text-slate-800">{paxText(tour)}{tour.pax_estimated && <span className="font-normal text-slate-500"> · {t('paxApproxShort')}</span>}</span> : missing(t('factNotKnown'), 'pax') },
+    { label: t('paxGuests'), value: tour.pax ? <span className="font-medium text-slate-800">{paxText(tour)}{tour.pax_estimated && <span className="font-normal text-slate-500"> · {t('paxApproxShort')}</span>}</span> : missing(t('factNotKnown'), 'pax') },
     { label: t('rooms'), value: rooms ? <span className="font-medium text-slate-800">{rooms}</span> : missing(t('factSetRooms'), 'rooms') },
     { label: t('tourLeaders'), value: <span className="font-medium text-slate-800">{tour.leaders ? t('factFree', { n: tour.leaders }) : '—'}</span> },
     ...(seesPrice ? [{ label: t('pricePerPerson'), value: has
@@ -283,7 +283,7 @@ function TourDetailsDrawer({ tour, focus, onClose, onSaved }: { tour: Tour; focu
         <section className="space-y-4 border-t border-slate-100 pt-5">
           <h3 className="text-sm font-semibold text-slate-800">{t('tourGroupSection')}</h3>
           <div className="flex flex-wrap items-end gap-4">
-            <Field label={t('pax')}>
+            <Field label={t('paxGuests')} hint={t('paxGuestsHint')}>
               <Input id="tour-pax" type="number" min={0} value={form.pax} onChange={set('pax')} placeholder={t('paxUnknownPh')} className="w-28" />
             </Field>
             <label className="flex h-10 items-center gap-2 text-sm text-slate-600" title={t('paxApproxHelp')}>

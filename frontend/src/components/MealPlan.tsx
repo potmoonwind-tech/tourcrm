@@ -180,8 +180,9 @@ export function MealPlan({ meal, day, dayNumber, menu, crew, disabled, twice, on
               <Check size={12} />{t('mpSaveMenu')}
             </button>
           )}
-          {!disabled && menu && (
-            <button type="button" onClick={useMenu} className="flex items-center gap-1 text-slate-600 hover:underline"><Undo2 size={12} />{t('mpUseMenu')}</button>
+          {!disabled && (
+            <button type="button" onClick={useMenu} className="flex items-center gap-1 text-slate-600 hover:underline">
+              <Undo2 size={12} />{menu ? t('mpUseMenu') : t('mpRemoveDishes')}</button>
           )}
         </div>
       )}

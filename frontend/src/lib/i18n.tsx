@@ -89,7 +89,7 @@ const en = {
   endDate: 'End date',
   endDateAuto: 'Taken from the route length when empty',
   dates: 'Dates',
-  pax: 'Pax (guests)',
+  pax: 'Pax',
   rooms: 'Rooms',
   guide: 'Guide',
   transport: 'Transport',
@@ -2984,6 +2984,10 @@ const en = {
   staffStayEach: "Where each one sleeps:",
   staffTwinSameHotel: "Those in the same hotel share a room (TWN)",
   menuNone: "No menu chosen",
+  menuRemove: "Remove the menu (just the meal)",
+  mpRemoveDishes: "Remove these dishes",
+  paxGuests: "Pax (guests)",
+  paxGuestsHint: "Guests only - free tour leaders go below, on top",
 }
 
 type Dict = typeof en
@@ -5964,6 +5968,10 @@ const ka: Dict = {
   staffStayEach: "სად ათევს თითოეული:",
   staffTwinSameHotel: "ერთ სასტუმროში მყოფნი ერთ ოთახს იყოფენ (TWN)",
   menuNone: "მენიუ არჩეული არ არის",
+  menuRemove: "მენიუს მოხსნა (მხოლოდ კვება)",
+  mpRemoveDishes: "კერძების მოხსნა",
+  paxGuests: "ტურისტები (სტუმრები)",
+  paxGuestsHint: "მხოლოდ სტუმრები - უფასო ტურლიდერები ქვემოთ, დამატებით",
 }
 
 export type Lang = 'en' | 'ka'
