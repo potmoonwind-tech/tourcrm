@@ -19,7 +19,7 @@ import {
 import { useClients, useOpenFromUrl, useVendors, wsPath } from '../lib/data'
 import { useI18n, type TKey } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
-import { cn } from '../lib/utils'
+import { cn, townKey } from '../lib/utils'
 import { CURRENCIES } from './Onboarding'
 import { PageHeader } from './Dashboard'
 
@@ -40,9 +40,27 @@ function TypePill({ type }: { type: VendorType }) {
   return <span className={cn('inline-flex rounded-full px-2.5 py-0.5 text-xs font-semibold', TYPE_STYLE[type])}>{t(`vendorType_${type}`)}</span>
 }
 
-const matches = (q: string, ...fields: string[]) => {
-  const s = q.trim().toLowerCase()
-  return !s || fields.some((f) => f.toLowerCase().includes(s))
+/** Simple search: every word typed is found somewhere (any order, any case); a town in either alphabet
+ * ("tbilisi" finds "თბილისი"). "kutaisi hotel" → the hotels in Kutaisi. */
+const matches = (q: string, ...fields: (string | null | undefined)[]) => {
+  const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean)
+  if (!words.length) return true
+  const hay = fields.filter(Boolean).map((f) => f!.toLowerCase())
+  const towns = fields.filter(Boolean).map((f) => townKey(f!))
+  return words.every((w) => hay.some((f) => f.includes(w)) || towns.some((k) => k && k === townKey(w)))
+}
+
+type SortKey = 'name' | 'type' | 'city'
+/** A column title that sorts the list: A–Z, then Z–A. */
+function SortHead({ k, label, sort, onSort }: { k: SortKey; label: string; sort: { k: SortKey; desc: boolean }; onSort: (k: SortKey) => void }) {
+  const on = sort.k === k
+  return (
+    <th className="px-4 py-3" aria-sort={on ? (sort.desc ? 'descending' : 'ascending') : 'none'}>
+      <button type="button" onClick={() => onSort(k)} className={cn('inline-flex items-center gap-1 hover:text-slate-800', on && 'text-slate-800')}>
+        {label}<span aria-hidden className={cn('text-[10px]', !on && 'opacity-0')}>{on && sort.desc ? '▼' : '▲'}</span>
+      </button>
+    </th>
+  )
 }
 
 // --- vendors ---------------------------------------------------------------------
@@ -61,8 +79,14 @@ export function VendorsPage() {
 
   const all = vendors.data ?? []
   const [cat, setCat] = useState('')
+  // Sorted by town by default (then name); a column title sorts by it.
+  const [sort, setSort] = useState<{ k: SortKey; desc: boolean }>({ k: 'city', desc: false })
+  const onSort = (k: SortKey) => setSort((s) => ({ k, desc: s.k === k ? !s.desc : false }))
+  const by = (v: Vendor) => (sort.k === 'name' ? v.name : sort.k === 'type' ? t(`vendorType_${v.type}` as TKey) : v.city || '\uffff')
   const rows = all.filter((v) => !v.placeholder && (!type || v.type === type) && (type !== 'activity' || !cat || v.category === cat)
-    && matches(q, v.name, v.city, v.contact_person, v.phone))
+    && matches(q, v.name, v.city, v.contact_person, v.phone, v.phone2, v.email, v.address, t(`vendorType_${v.type}` as TKey),
+      v.category ? catLabel(t, v.category) : ''))
+    .sort((a, b) => (by(a).localeCompare(by(b), undefined, { sensitivity: 'base' }) || a.name.localeCompare(b.name)) * (sort.desc ? -1 : 1))
   const cats = [...new Set(all.filter((v) => v.type === 'activity' && v.category).map((v) => v.category!))]
   const counts = Object.fromEntries(VENDOR_TYPES.map((ty) => [ty, all.filter((v) => v.type === ty).length]))
 
@@ -113,8 +137,8 @@ export function VendorsPage() {
             <table className="w-full min-w-[720px] text-sm">
               <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium text-slate-500">
                 <tr>
-                  <th className="px-4 py-3">{t('name')}</th><th className="px-4 py-3">{t('type')}</th>
-                  <th className="px-4 py-3">{t('city')}</th><th className="px-4 py-3">{t('contactPerson')}</th>
+                  <SortHead k="name" label={t('name')} sort={sort} onSort={onSort} /><SortHead k="type" label={t('type')} sort={sort} onSort={onSort} />
+                  <SortHead k="city" label={t('city')} sort={sort} onSort={onSort} /><th className="px-4 py-3">{t('contactPerson')}</th>
                   <th className="px-4 py-3">{t('phone')}</th><th className="px-4 py-3">{t('paymentTerms')}</th>
                 </tr>
               </thead>
