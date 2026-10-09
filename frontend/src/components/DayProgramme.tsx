@@ -11,7 +11,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, ArrowDownUp, BedDouble, Car, Coffee, Map as MapIcon, Pin, GripVertical, Landmark, MapPin, Plane, Smile, StickyNote, Truck, Utensils, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
 import { airportName } from '../lib/airports'
 import { fmt } from '../lib/dates'
@@ -180,35 +180,8 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
   const { t, lang } = useI18n()
   const saved = day.schedule ?? []
   const [mapOpen, setMapOpen] = useState(false)
-  // Rows are open; a click on a row's title folds it to one line (and back).
-  const [folded, setFolded] = useState<Set<string>>(() => new Set())
-  // The day's one-line plan shows only once its rows have scrolled up under the day's header.
-  const mark = useRef<HTMLDivElement>(null)
-  const pin = useRef<HTMLDivElement>(null)
-  // The rows scrolled up under the day's header fold into one-line rows stacked there, in order -
-  // the whole day stays in sight while you work further down. (ids of the folded-away rows)
-  const [passed, setPassed] = useState('')
-  useEffect(() => {
-    const check = () => {
-      if (!mark.current || !pin.current) return
-      const top = pin.current.getBoundingClientRect().top
-      const ids: string[] = []
-      if (mark.current.getBoundingClientRect().top < top - 4) {
-        for (const el of mark.current.parentElement?.querySelectorAll<HTMLElement>('[data-step]') ?? []) {
-          // a row is folded away once it has gone under the stack (each folded row is ~30px)
-          if (el.getBoundingClientRect().top + 24 < top + ids.length * 30) ids.push(el.dataset.step!)
-          else break
-        }
-      }
-      const next = ids.join(' ')
-      setPassed((p) => (p === next ? p : next))
-    }
-    check()
-    document.addEventListener('scroll', check, { capture: true, passive: true })
-    window.addEventListener('resize', check)
-    return () => { document.removeEventListener('scroll', check, { capture: true }); window.removeEventListener('resize', check) }
-  }, [])
-  const fold = (id: string) => setFolded((f) => { const n = new Set(f); if (n.has(id)) n.delete(id); else n.add(id); return n })
+  // The day reads as short lines; only the row being edited is open (one at a time).
+  const [openRow, setOpenRow] = useState<string | null>(null)
   // Stable ids for the suggestion while the day stays the same (dragging needs them).
   const factor = useWorkspace()?.drive_factor ?? 1.25
   const suggested = useMemo(() => suggest(day, index, last, services, factor), [day, index, last, services, factor])
@@ -564,36 +537,6 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
         </p>
       )}
 
-      {slots && items.length > 0 && <div ref={mark} aria-hidden />}
-      {slots && items.length > 0 && (
-        // Zero height: it floats over the rows while pinned (no jump), sliding in under the header.
-        <div ref={pin} className="sticky top-[calc(var(--tabs-h,42px)+var(--bar-h,45px)+var(--dayhead-h,49px))] z-[5] h-0">
-        <nav aria-label={t('dayProgramme')} aria-hidden={!passed}
-          className={cn('-mx-2 border-b border-slate-200 bg-white px-2 shadow-sm transition-opacity duration-200 sm:-mx-3 sm:px-3',
-            passed ? 'opacity-100' : 'pointer-events-none opacity-0')}>
-          {items.filter((x) => passed.split(' ').includes(x.id)).map((x) => {
-            const lb = label(x)
-            const todo = slots[(x.ref ?? '') as keyof SlotRows]?.state === 'todo' || lb.missing
-            // "Lunch: Supra House" -> "Supra House"; nothing chosen yet -> "Lunch"
-            const name = x.ref && lb.text.includes(': ') ? lb.text.slice(lb.text.indexOf(': ') + 2) : lb.text
-            const text = name && name !== '—' ? name : x.ref && lb.text.includes(': ') ? lb.text.slice(0, lb.text.indexOf(': ')) : t(`prog_${x.kind}` as TKey)
-            const word = x.ref && lb.text.includes(': ') ? lb.text.slice(0, lb.text.indexOf(': ')) : t(`prog_${x.kind}` as TKey)
-            // A folded row: time, its bubble, what it is, what's chosen - a click goes back to it.
-            return (
-              <button type="button" key={x.id} title={lb.text}
-                onClick={() => document.getElementById(`step-${x.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                className="animate-reveal flex h-[30px] w-full items-center gap-3 border-b border-slate-100 text-left text-sm last:border-0 hover:bg-slate-50">
-                <span className="w-20 shrink-0 text-right font-medium tabular-nums text-slate-700">{x.time}</span>
-                <span className={cn('flex h-6 w-8 shrink-0 items-center justify-center rounded-full [&>svg]:h-3.5 [&>svg]:w-3.5', todo ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500')} aria-hidden>{ICON[x.kind]}</span>
-                <span className="w-20 shrink-0 truncate font-medium text-slate-800">{word}</span>
-                <span className={cn('min-w-0 flex-1 truncate', todo ? 'font-medium text-amber-800' : 'text-slate-600')}>{text === word ? (todo ? t('slotTodo') : '') : text}</span>
-              </button>
-            )
-          })}
-        </nav>
-        </div>
-      )}
-
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}
         accessibility={{ screenReaderInstructions: { draggable: t('progDragInstructions') } }}>
         <SortableContext items={items.map((x) => x.id)} strategy={verticalListSortingStrategy}>
@@ -620,7 +563,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
                   )}
                   <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
                     slot={slots?.[(x.ref ?? '') as keyof SlotRows]}
-                    open={!folded.has(x.id)} onToggle={() => fold(x.id)}
+                    open={openRow === x.id} onToggle={() => setOpenRow(openRow === x.id ? null : x.id)}
                     length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)} end={i === items.length - 1 && !after.length}
                     cat={x.kind === 'visit' ? catOf((x.ref?.startsWith('extra:')
                       ? byId.get(services.find((s) => s.id === day.extras.find((e) => e.id === x.ref!.slice(6))?.service_id)?.vendor.id ?? '')
@@ -717,7 +660,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
   const [noting, setNoting] = useState(false)
   const field = 'h-8 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 hover:border-slate-200 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100'
   return (
-    <li ref={setNodeRef} id={`step-${x.id}`} data-step={x.id} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex scroll-mt-48 gap-3', isDragging && 'relative z-10')}>
+    <li ref={setNodeRef} id={`step-${x.id}`} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex scroll-mt-48 gap-3', isDragging && 'relative z-10')}>
       {/* The time column: when it starts, and how long. */}
       <div className="flex w-20 shrink-0 flex-col items-end pt-2">
         {disabled ? <span className="text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
