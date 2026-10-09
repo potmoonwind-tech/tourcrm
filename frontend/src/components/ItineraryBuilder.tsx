@@ -635,6 +635,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
   const [more, setMore] = useState(false)
   const [details, setDetails] = useState(false)
   const [whatOpen, setWhatOpen] = useState(false)
+  const headRef = useStickyHeight('--dayhead-h')   // the day's one-line plan pins right under it
   // A folded row's line: what's chosen, or what's still to choose. It takes drops too (same place as open).
   const mealLine = (m: 'lunch' | 'dinner') => {
     const mode = m === 'lunch' ? day.lunch_mode : day.dinner_mode
@@ -732,7 +733,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
         : active ? 'border-brand-300 shadow-md ring-1 ring-brand-200' : 'border-slate-200',
         alerts.some((a) => a.severity === 'error') && 'border-red-300')}>
       {/* The day's head: which day, when, from where to where - pinned while working down the day. */}
-      <header className={cn('group/head sticky top-[calc(var(--tabs-h,42px)+var(--bar-h,45px))] z-10 flex items-center gap-2.5 rounded-t-xl border-b px-3 py-1.5 backdrop-blur',
+      <header ref={headRef} className={cn('group/head sticky top-[calc(var(--tabs-h,42px)+var(--bar-h,45px))] z-10 flex items-center gap-2.5 rounded-t-xl border-b px-3 py-1.5 backdrop-blur',
         active ? 'border-brand-200 bg-brand-50/95' : 'border-slate-100 bg-slate-50/95')}>
         {!disabled && (
           <button type="button" {...attributes} {...listeners} aria-label={t('dragToReorder')} title={t('dragToReorder')}

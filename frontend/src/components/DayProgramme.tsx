@@ -11,7 +11,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, ArrowDownUp, BedDouble, Car, Coffee, Map as MapIcon, Pin, GripVertical, Landmark, MapPin, Plane, Smile, StickyNote, Truck, Utensils, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
-import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
 import { airportName } from '../lib/airports'
 import { fmt } from '../lib/dates'
@@ -180,8 +180,24 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
   const { t, lang } = useI18n()
   const saved = day.schedule ?? []
   const [mapOpen, setMapOpen] = useState(false)
-  // The day reads as short lines; only the row being edited is open (one at a time).
-  const [openRow, setOpenRow] = useState<string | null>(null)
+  // Rows are open; a click on a row's title folds it to one line (and back).
+  const [folded, setFolded] = useState<Set<string>>(() => new Set())
+  // The day's one-line plan shows only once its rows have scrolled up under the day's header.
+  const mark = useRef<HTMLDivElement>(null)
+  const pin = useRef<HTMLDivElement>(null)
+  const [stuck, setStuck] = useState(false)
+  useEffect(() => {
+    const check = () => {
+      if (!mark.current || !pin.current) return
+      // Pinned = the line has stayed put while the place it sits in (the mark) has scrolled up past it.
+      setStuck(mark.current.getBoundingClientRect().top < pin.current.getBoundingClientRect().top - 4)
+    }
+    check()
+    document.addEventListener('scroll', check, { capture: true, passive: true })
+    window.addEventListener('resize', check)
+    return () => { document.removeEventListener('scroll', check, { capture: true }); window.removeEventListener('resize', check) }
+  }, [])
+  const fold = (id: string) => setFolded((f) => { const n = new Set(f); if (n.has(id)) n.delete(id); else n.add(id); return n })
   // Stable ids for the suggestion while the day stays the same (dragging needs them).
   const factor = useWorkspace()?.drive_factor ?? 1.25
   const suggested = useMemo(() => suggest(day, index, last, services, factor), [day, index, last, services, factor])
@@ -537,6 +553,34 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
         </p>
       )}
 
+      {slots && items.length > 0 && <div ref={mark} aria-hidden />}
+      {slots && items.length > 0 && (
+        // Zero height: it floats over the rows while pinned (no jump), sliding in under the header.
+        <div ref={pin} className="sticky top-[calc(var(--tabs-h,42px)+var(--bar-h,45px)+var(--dayhead-h,49px))] z-[5] h-0">
+        <nav aria-label={t('dayProgramme')} aria-hidden={!stuck}
+          className={cn('no-scrollbar -mx-2 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur transition-all duration-200 ease-out sm:-mx-3 sm:px-3',
+            stuck ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-2 opacity-0')}>
+          {items.map((x) => {
+            const lb = label(x)
+            const todo = slots[(x.ref ?? '') as keyof SlotRows]?.state === 'todo' || lb.missing
+            // "Lunch: Supra House" -> "Supra House"; nothing chosen yet -> "Lunch"
+            const name = x.ref && lb.text.includes(': ') ? lb.text.slice(lb.text.indexOf(': ') + 2) : lb.text
+            const text = name && name !== '—' ? name : x.ref && lb.text.includes(': ') ? lb.text.slice(0, lb.text.indexOf(': ')) : t(`prog_${x.kind}` as TKey)
+            return (
+              <button type="button" key={x.id} title={lb.text}
+                onClick={() => document.getElementById(`step-${x.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
+                className={cn('flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs',
+                  todo ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200' : 'bg-slate-50 text-slate-700 hover:bg-slate-100')}>
+                {x.time && <span className="tabular-nums text-slate-500">{x.time}</span>}
+                <span className="text-slate-400 [&>svg]:h-3 [&>svg]:w-3" aria-hidden>{ICON[x.kind]}</span>
+                <span className="max-w-[9rem] truncate">{text}</span>
+              </button>
+            )
+          })}
+        </nav>
+        </div>
+      )}
+
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}
         accessibility={{ screenReaderInstructions: { draggable: t('progDragInstructions') } }}>
         <SortableContext items={items.map((x) => x.id)} strategy={verticalListSortingStrategy}>
@@ -563,7 +607,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
                   )}
                   <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
                     slot={slots?.[(x.ref ?? '') as keyof SlotRows]}
-                    open={openRow === x.id} onToggle={() => setOpenRow(openRow === x.id ? null : x.id)}
+                    open={!folded.has(x.id)} onToggle={() => fold(x.id)}
                     length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)} end={i === items.length - 1 && !after.length}
                     cat={x.kind === 'visit' ? catOf((x.ref?.startsWith('extra:')
                       ? byId.get(services.find((s) => s.id === day.extras.find((e) => e.id === x.ref!.slice(6))?.service_id)?.vendor.id ?? '')
@@ -660,7 +704,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
   const [noting, setNoting] = useState(false)
   const field = 'h-8 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 hover:border-slate-200 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100'
   return (
-    <li ref={setNodeRef} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex gap-3', isDragging && 'relative z-10')}>
+    <li ref={setNodeRef} id={`step-${x.id}`} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex scroll-mt-48 gap-3', isDragging && 'relative z-10')}>
       {/* The time column: when it starts, and how long. */}
       <div className="flex w-20 shrink-0 flex-col items-end pt-2">
         {disabled ? <span className="text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
@@ -695,7 +739,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
             {slot && slot.summary && !open ? (
               // Folded: "Lunch  Supra House · Set menu 2" - a click opens it (and folds the one open before).
               <button type="button" onClick={onToggle} aria-expanded={false}
-                className="flex w-full min-w-0 items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-slate-50">
+                className="animate-reveal flex w-full min-w-0 items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-slate-50">
                 <span className="w-20 shrink-0 text-sm font-medium text-slate-800">{slotTitle(x, t)}</span>
                 <span className={cn('min-w-0 flex-1 truncate text-sm', slot.state === 'todo' ? 'font-medium text-amber-800' : 'text-slate-600')}>{slot.summary}</span>
                 <ChevronDown size={15} aria-hidden className="shrink-0 text-slate-400" />
@@ -712,7 +756,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
                   {slot.grip}
                   {slot.aside && <span className="ml-auto">{slot.aside}</span>}
                 </div>
-                <div className="mt-1">{slot.node}</div>
+                <div className="animate-reveal mt-1">{slot.node}</div>
               </div>
             ) : typed && x.kind === 'visit' && !disabled ? (
               // A visit is a real place: suggested from the map, and picking one keeps where it is.
