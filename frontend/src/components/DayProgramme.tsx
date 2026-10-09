@@ -185,12 +185,23 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
   // The day's one-line plan shows only once its rows have scrolled up under the day's header.
   const mark = useRef<HTMLDivElement>(null)
   const pin = useRef<HTMLDivElement>(null)
-  const [stuck, setStuck] = useState(false)
+  // The rows scrolled up under the day's header fold into one-line rows stacked there, in order -
+  // the whole day stays in sight while you work further down. (ids of the folded-away rows)
+  const [passed, setPassed] = useState('')
   useEffect(() => {
     const check = () => {
       if (!mark.current || !pin.current) return
-      // Pinned = the line has stayed put while the place it sits in (the mark) has scrolled up past it.
-      setStuck(mark.current.getBoundingClientRect().top < pin.current.getBoundingClientRect().top - 4)
+      const top = pin.current.getBoundingClientRect().top
+      const ids: string[] = []
+      if (mark.current.getBoundingClientRect().top < top - 4) {
+        for (const el of mark.current.parentElement?.querySelectorAll<HTMLElement>('[data-step]') ?? []) {
+          // a row is folded away once it has gone under the stack (each folded row is ~30px)
+          if (el.getBoundingClientRect().top + 24 < top + ids.length * 30) ids.push(el.dataset.step!)
+          else break
+        }
+      }
+      const next = ids.join(' ')
+      setPassed((p) => (p === next ? p : next))
     }
     check()
     document.addEventListener('scroll', check, { capture: true, passive: true })
@@ -557,23 +568,25 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
       {slots && items.length > 0 && (
         // Zero height: it floats over the rows while pinned (no jump), sliding in under the header.
         <div ref={pin} className="sticky top-[calc(var(--tabs-h,42px)+var(--bar-h,45px)+var(--dayhead-h,49px))] z-[5] h-0">
-        <nav aria-label={t('dayProgramme')} aria-hidden={!stuck}
-          className={cn('no-scrollbar -mx-2 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white/95 px-2 py-1.5 shadow-sm backdrop-blur transition-all duration-200 ease-out sm:-mx-3 sm:px-3',
-            stuck ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-2 opacity-0')}>
-          {items.map((x) => {
+        <nav aria-label={t('dayProgramme')} aria-hidden={!passed}
+          className={cn('-mx-2 border-b border-slate-200 bg-white px-2 shadow-sm transition-opacity duration-200 sm:-mx-3 sm:px-3',
+            passed ? 'opacity-100' : 'pointer-events-none opacity-0')}>
+          {items.filter((x) => passed.split(' ').includes(x.id)).map((x) => {
             const lb = label(x)
             const todo = slots[(x.ref ?? '') as keyof SlotRows]?.state === 'todo' || lb.missing
             // "Lunch: Supra House" -> "Supra House"; nothing chosen yet -> "Lunch"
             const name = x.ref && lb.text.includes(': ') ? lb.text.slice(lb.text.indexOf(': ') + 2) : lb.text
             const text = name && name !== '—' ? name : x.ref && lb.text.includes(': ') ? lb.text.slice(0, lb.text.indexOf(': ')) : t(`prog_${x.kind}` as TKey)
+            const word = x.ref && lb.text.includes(': ') ? lb.text.slice(0, lb.text.indexOf(': ')) : t(`prog_${x.kind}` as TKey)
+            // A folded row: time, its bubble, what it is, what's chosen - a click goes back to it.
             return (
               <button type="button" key={x.id} title={lb.text}
                 onClick={() => document.getElementById(`step-${x.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}
-                className={cn('flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs',
-                  todo ? 'bg-amber-50 text-amber-900 ring-1 ring-amber-200' : 'bg-slate-50 text-slate-700 hover:bg-slate-100')}>
-                {x.time && <span className="tabular-nums text-slate-500">{x.time}</span>}
-                <span className="text-slate-400 [&>svg]:h-3 [&>svg]:w-3" aria-hidden>{ICON[x.kind]}</span>
-                <span className="max-w-[9rem] truncate">{text}</span>
+                className="animate-reveal flex h-[30px] w-full items-center gap-3 border-b border-slate-100 text-left text-sm last:border-0 hover:bg-slate-50">
+                <span className="w-20 shrink-0 text-right font-medium tabular-nums text-slate-700">{x.time}</span>
+                <span className={cn('flex h-6 w-8 shrink-0 items-center justify-center rounded-full [&>svg]:h-3.5 [&>svg]:w-3.5', todo ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500')} aria-hidden>{ICON[x.kind]}</span>
+                <span className="w-20 shrink-0 truncate font-medium text-slate-800">{word}</span>
+                <span className={cn('min-w-0 flex-1 truncate', todo ? 'font-medium text-amber-800' : 'text-slate-600')}>{text === word ? (todo ? t('slotTodo') : '') : text}</span>
               </button>
             )
           })}
@@ -704,7 +717,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
   const [noting, setNoting] = useState(false)
   const field = 'h-8 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1 text-sm font-medium text-slate-800 placeholder:font-normal placeholder:text-slate-400 hover:border-slate-200 focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100'
   return (
-    <li ref={setNodeRef} id={`step-${x.id}`} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex scroll-mt-48 gap-3', isDragging && 'relative z-10')}>
+    <li ref={setNodeRef} id={`step-${x.id}`} data-step={x.id} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex scroll-mt-48 gap-3', isDragging && 'relative z-10')}>
       {/* The time column: when it starts, and how long. */}
       <div className="flex w-20 shrink-0 flex-col items-end pt-2">
         {disabled ? <span className="text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
