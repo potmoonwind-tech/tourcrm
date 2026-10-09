@@ -634,7 +634,20 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
   const twiceToday = new Set(dishesOf(day.dinner_menu_id, day.dinner_id, 'dinner').filter((x) => lunchDishes.includes(x)))
   const [more, setMore] = useState(false)
   const [details, setDetails] = useState(false)
-  const [whatOpen, setWhatOpen] = useState(false)   // "What they do": folded (the timeline shows the visits)
+  const [whatOpen, setWhatOpen] = useState(false)
+  // A folded row's line: what's chosen, or what's still to choose. It takes drops too (same place as open).
+  const mealLine = (m: 'lunch' | 'dinner') => {
+    const mode = m === 'lunch' ? day.lunch_mode : day.dinner_mode
+    const where = day.meal_tbd?.[m]
+    if (mode === 'own') return where ? `${t('mealOwn')} · ${where}` : t('mealOwn')
+    const v = byId.get((m === 'lunch' ? day.lunch_id : day.dinner_id) ?? '')
+    if (!v) return where ? `${t('mealTbd')} · ${where}` : t('chooseRestaurant')
+    const menu = menus.find((x) => x.id === (m === 'lunch' ? day.lunch_menu_id : day.dinner_menu_id))
+    return needsMenu(m) ? `${v.name} · ${t('chooseMenu')}` : menu ? `${v.name} · ${menu.name}` : v.name
+  }
+  const summaryDrop = (slot: Slot, text: string) => (
+    <SlotDrop day={index} slot={slot} dragging={dragging} picked={picked} onTap={(item) => onPlace(slot, item)}>{text}</SlotDrop>
+  )   // "What they do": folded (the timeline shows the visits)
   const [editStops, setEditStops] = useState(false)      // the stops' chips open only while editing them
   const show = !simple || details          // the less used parts of the day
   const [mealOpen, setMealOpen] = useState<Record<string, boolean>>({})
@@ -820,7 +833,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
               </button>)}
           slots={{
             ...(last ? {} : { hotel: {
-              state: hotelState, grip: (() => { const c = holds(day.hotel_id); return c ? <SlotGrip day={index} slot="hotel" item={c} /> : null })(),
+              state: hotelState, summary: summaryDrop('hotel', hotel ? hotel.name : t('chooseHotel')), grip: (() => { const c = holds(day.hotel_id); return c ? <SlotGrip day={index} slot="hotel" item={c} /> : null })(),
               node: <SlotDrop day={index} slot="hotel" dragging={dragging} picked={picked} onTap={(item) => onPlace('hotel', item)}>
 
           <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['hotel']} value={day.hotel_id} onChange={(v) => onSet({ hotel_id: v })}
@@ -836,7 +849,9 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
                 {!disabled && hotel && <button type="button" onClick={onHotelNext} className="mt-1 text-xs text-brand-700 hover:underline">{t('sameHotelNextNight')}</button>}
               </SlotDrop> } }),
             breakfast: {
-              state: breakfastState,
+              state: breakfastState, summary: summaryDrop('breakfast', (day.breakfast_mode ?? 'hotel') === 'hotel'
+                ? `${t('breakfastAtHotel')}${prevHotel && byId.get(prevHotel) ? ` · ${byId.get(prevHotel)!.name}` : ''}`
+                : day.breakfast_mode === 'own' ? t('mealOwn') : byId.get(day.breakfast_id ?? '')?.name ?? t('chooseRestaurant')),
               aside: <BreakfastModePick value={day.breakfast_mode ?? 'hotel'} disabled={disabled}
                 onChange={(m) => onSet(m === 'hotel' || m === 'own' ? { breakfast_mode: m, breakfast_id: null, breakfast_menu_id: null } : { breakfast_mode: m })} />,
               node: <SlotDrop day={index} slot="breakfast" dragging={dragging} picked={picked} onTap={(item) => onPlace('breakfast', item)}>
@@ -864,7 +879,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
               </SlotDrop>,
             },
             lunch: {
-              state: mealState('lunch'),
+              state: mealState('lunch'), summary: summaryDrop('lunch', mealLine('lunch')),
               grip: (() => { const c = day.lunch_mode === 'own' ? undefined : holds(day.lunch_id); return c ? <SlotGrip day={index} slot="lunch" item={c} /> : null })(),
               aside: <MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
                 onChange={(m) => onSet(m === 'own' ? { lunch_mode: m, lunch_id: null, lunch_menu_id: null } : { lunch_mode: m })} />,
@@ -906,7 +921,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
               </SlotDrop>,
             },
             dinner: {
-              state: mealState('dinner'),
+              state: mealState('dinner'), summary: summaryDrop('dinner', mealLine('dinner')),
               grip: (() => { const c = day.dinner_mode === 'own' ? undefined : holds(day.dinner_id); return c ? <SlotGrip day={index} slot="dinner" item={c} /> : null })(),
               aside: <MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
                 onChange={(m) => onSet(m === 'own' ? { dinner_mode: m, dinner_id: null, dinner_menu_id: null } : { dinner_mode: m })} />,

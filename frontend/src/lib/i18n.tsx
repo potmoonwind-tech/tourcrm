@@ -3016,6 +3016,7 @@ const en = {
   openingHoursNotFound: "The map has no opening hours for this place (or the map isn't available here).",
   progAddFlight: "Flight",
   staffNightsShort: "Staff sleep",
+  chooseMenu: "choose a menu",
 }
 
 type Dict = typeof en
@@ -6028,6 +6029,7 @@ const ka: Dict = {
   openingHoursNotFound: "რუკას ამ ადგილის სამუშაო საათები არ აქვს (ან რუკა აქ მიუწვდომელია).",
   progAddFlight: "ფრენა",
   staffNightsShort: "პერსონალი ღამეს",
+  chooseMenu: "აირჩიეთ მენიუ",
 }
 
 export type Lang = 'en' | 'ka'

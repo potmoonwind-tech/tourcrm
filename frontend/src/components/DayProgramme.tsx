@@ -9,7 +9,7 @@
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, ArrowDownUp, BedDouble, Car, Coffee, Map as MapIcon, Pin, GripVertical, Landmark, MapPin, Plane, Smile, StickyNote, Truck, Utensils, X } from 'lucide-react'
+import { AlertTriangle, ArrowDownUp, BedDouble, Car, Coffee, Map as MapIcon, Pin, GripVertical, Landmark, MapPin, Plane, Smile, StickyNote, Truck, Utensils, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
@@ -156,7 +156,10 @@ export function dayLegs(day: DayFields, from: string | undefined, factor: number
 }
 
 /** What the builder puts in a row of the day: the choice itself (hotel, restaurant...), its state, extras. */
-export interface SlotRow { node: ReactNode; state?: 'done' | 'todo'; aside?: ReactNode; grip?: ReactNode }
+export interface SlotRow {
+  node: ReactNode; state?: 'done' | 'todo'; aside?: ReactNode; grip?: ReactNode
+  summary?: ReactNode   // the row folded: one line of what's chosen ("Supra House · Set menu 2")
+}
 export type SlotRows = Partial<Record<'hotel' | 'breakfast' | 'lunch' | 'dinner', SlotRow>>
 
 export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay, date, slots, footer, bare, onAddMore, addAside }: {
@@ -177,6 +180,8 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
   const { t, lang } = useI18n()
   const saved = day.schedule ?? []
   const [mapOpen, setMapOpen] = useState(false)
+  // The day reads as short lines; only the row being edited is open (one at a time).
+  const [openRow, setOpenRow] = useState<string | null>(null)
   // Stable ids for the suggestion while the day stays the same (dragging needs them).
   const factor = useWorkspace()?.drive_factor ?? 1.25
   const suggested = useMemo(() => suggest(day, index, last, services, factor), [day, index, last, services, factor])
@@ -558,6 +563,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
                   )}
                   <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
                     slot={slots?.[(x.ref ?? '') as keyof SlotRows]}
+                    open={openRow === x.id} onToggle={() => setOpenRow(openRow === x.id ? null : x.id)}
                     length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)} end={i === items.length - 1 && !after.length}
                     cat={x.kind === 'visit' ? catOf((x.ref?.startsWith('extra:')
                       ? byId.get(services.find((s) => s.id === day.extras.find((e) => e.id === x.ref!.slice(6))?.service_id)?.vendor.id ?? '')
@@ -629,8 +635,9 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   )
 }
 
-function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, end, cat, onSet, onRemove, onLink, slot }: {
+function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, end, cat, onSet, onRemove, onLink, slot, open, onToggle }: {
   slot?: SlotRow     // the builder's row for the hotel / breakfast / lunch / dinner: chosen right here
+  open?: boolean; onToggle?: () => void   // a builder row: folded to one line, or open to edit
   cat?: ActivityCat | null   // a visit at a catalogue place: its kind (museum, cable car...) as the bubble
   x: ScheduleItem; label: { text: string; missing: boolean }; picker?: ReactNode; disabled?: boolean; issue?: StepIssue; onFix: (time: string) => void
   length: number; sights: PlaceSuggestion[]; sight?: Vendor
@@ -673,7 +680,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
         {!end && <span className="w-0.5 flex-1 bg-slate-200" aria-hidden />}
       </div>
       <div className="min-w-0 flex-1 pb-2">
-        <div className={cn('flex min-h-12 gap-2 rounded-xl border py-1.5 pl-1.5 pr-1 transition-colors', slot ? 'items-start' : 'items-center',
+        <div className={cn('flex min-h-12 gap-2 rounded-xl border py-1.5 pl-1.5 pr-1 transition-colors', slot && (open || !slot.summary) ? 'items-start' : 'items-center',
           isDragging ? 'border-brand-300 bg-white shadow-lg' : slot?.state === 'todo' ? 'border-amber-300 bg-amber-50/50'
             : label.missing && !slot ? 'border-amber-300 bg-amber-50' : issue ? 'border-amber-300 bg-white' : 'border-slate-200 bg-white')}>
           {!disabled ? (
@@ -685,10 +692,22 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
             </Tooltip>
           ) : <span className="w-1" />}
           <div className="min-w-0 flex-1">
-            {slot ? (
+            {slot && slot.summary && !open ? (
+              // Folded: "Lunch  Supra House · Set menu 2" - a click opens it (and folds the one open before).
+              <button type="button" onClick={onToggle} aria-expanded={false}
+                className="flex w-full min-w-0 items-center gap-2 rounded-lg px-1 py-0.5 text-left hover:bg-slate-50">
+                <span className="w-20 shrink-0 text-sm font-medium text-slate-800">{slotTitle(x, t)}</span>
+                <span className={cn('min-w-0 flex-1 truncate text-sm', slot.state === 'todo' ? 'font-medium text-amber-800' : 'text-slate-600')}>{slot.summary}</span>
+                <ChevronDown size={15} aria-hidden className="shrink-0 text-slate-400" />
+              </button>
+            ) : slot ? (
               <div className="px-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                  <span className="text-sm font-medium text-slate-800">{slotTitle(x, t)}</span>
+                  {slot.summary ? (
+                    <button type="button" onClick={onToggle} aria-expanded className="flex items-center gap-1 text-sm font-medium text-slate-800 hover:text-brand-700">
+                      {slotTitle(x, t)}<ChevronUp size={14} aria-hidden className="text-slate-400" />
+                    </button>
+                  ) : <span className="text-sm font-medium text-slate-800">{slotTitle(x, t)}</span>}
                   {slot.state === 'todo' && <span className="text-[11px] font-semibold text-amber-700">{t('slotTodo')}</span>}
                   {slot.grip}
                   {slot.aside && <span className="ml-auto">{slot.aside}</span>}
