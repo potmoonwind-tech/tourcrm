@@ -347,18 +347,18 @@ def test_plates_for_the_group_table_and_the_staff_table(make_client):
     days = [{"city": "Tbilisi", "dinner_id": resto["id"], "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
     step = p["days"][0]["steps"][0]
-    # 19 with 1 tour leader: the group table 18, the staff table leader + guide + driver = 3.
-    assert step["tables"] == [{"who": "group", "people": 18, "roles": []},
+    # 19 guests + 1 tour leader (19+1): the group table 19, the staff table leader + guide + driver = 3.
+    assert step["tables"] == [{"who": "group", "people": 19, "roles": []},
                               {"who": "staff", "people": 3, "roles": ["tour leader", "guide", "driver"]}]
     khinkali, soup = step["dishes"]
-    assert (khinkali["plates_at"], khinkali["plates"]) == ([4, 1], 5)        # 18 at 1 per 5 -> 4; 3 -> 1
-    assert (soup["plates_at"], soup["plates"]) == ([18, 3], 21)
+    assert (khinkali["plates_at"], khinkali["plates"]) == ([4, 1], 5)        # 19 at 1 per 5 -> 4; 3 -> 1: both tables eat
+    assert (soup["plates_at"], soup["plates"]) == ([19, 3], 22)
     # Everyone with the group: one table, 19 + guide + driver.
     c.patch(url, json={"leader_seat": "group"})
     for a in c.get(f"{url}/staff").json():
         c.patch(f"{url}/staff/{a['id']}", json={"meal_seat": "group"})
     q = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
-    assert q["days"][0]["steps"][0]["tables"] == [{"who": "all", "people": 21, "roles": ["tour leader", "guide", "driver"]}]
+    assert q["days"][0]["steps"][0]["tables"] == [{"who": "all", "people": 22, "roles": ["tour leader", "guide", "driver"]}]
     assert q["days"][0]["steps"][0]["dishes"][0]["plates_at"] == [5]
 
 
@@ -380,7 +380,7 @@ def test_each_person_eats_where_the_tour_says(make_client):
     days = [{"city": "Tbilisi", "dinner_id": resto["id"], "schedule": [{"id": "d", "kind": "meal", "time": "19:30", "ref": "dinner"}]}]
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False, "tour_id": tour["id"]}).json()
     step = p["days"][0]["steps"][0]
-    assert step["tables"] == [{"who": "group", "people": 19, "roles": ["tour leader"]}, {"who": "staff", "people": 1, "roles": ["guide"]}]
+    assert step["tables"] == [{"who": "group", "people": 20, "roles": ["tour leader"]}, {"who": "staff", "people": 1, "roles": ["guide"]}]
     assert step["dishes"][0]["plates_at"] == [4, 1]
     # The driver joins the guide: staff table of 2, still one plate.
     c.patch(f"{url}/staff/{seats['driver']['id']}", json={"meal_seat": "staff"})

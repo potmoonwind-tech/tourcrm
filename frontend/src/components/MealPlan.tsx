@@ -98,8 +98,9 @@ export function MealPlan({ meal, day, dayNumber, menu, crew, disabled, twice, on
     saveSeating({ ...here, _extra: [...extras, { name, seat: 'staff' }] })
     setGuest(null)
   }
-  const leadersHere = seats.find((s) => s.key === 'leader')
-  const tourists = crew ? crew.pax - (leadersHere ? crew.leaders : 0) : 0
+
+  const tourists = crew ? crew.pax : 0      // Pax are the guests; the tour leaders come on top (19+1)
+
   const count = (where: MealSeat) => seats.filter((s) => s.seat === where).reduce((n, s) => n + (s.key === 'leader' ? crew!.leaders : 1), 0)
   const tables = crew ? [tourists + count('group'), count('staff')] : []
   const twoTables = tables[1] > 0

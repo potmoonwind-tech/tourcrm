@@ -60,7 +60,7 @@ def test_staff_table(make_client):
     t, hotel, guest, cafe = setup(c, base, lambda gh: {})
     meal = [x for x in lines(c, base, t) if x["category"] == "meal"]
     assert [(x["quantity"], x["unit_price"]) for x in meal] == [(2, 20), (20, 50)]         # guide + driver at their table, staff price
-    c.patch(f"{base}/tours/{t['id']}", json={"leaders": 1, "staff_table": True})
+    c.patch(f"{base}/tours/{t['id']}", json={"pax": 19, "leaders": 1, "staff_table": True})     # 19+1
     meal = sorted((x["quantity"], x["unit_price"]) for x in lines(c, base, t) if x["category"] == "meal")
     assert meal == [(3, 20), (19, 50)]                                                      # 19 tourists · leader + 2 staff
     b = next(b for b in c.get(f"{base}/tours/{t['id']}/bookings").json()["bookings"] if b["vendor"]["name"] == "Cafe")
@@ -73,7 +73,7 @@ def test_each_person_has_a_seat_in_the_costs(make_client):
     t, hotel, guest, cafe = setup(c, base, lambda gh: {})
     staff = {a["role"]: a for a in c.get(f"{base}/tours/{t['id']}/staff").json()}
     # The tour leader eats with the group, the guide at the staff table, the driver on his own.
-    c.patch(f"{base}/tours/{t['id']}", json={"leaders": 1, "leader_seat": "group"})
+    c.patch(f"{base}/tours/{t['id']}", json={"pax": 19, "leaders": 1, "leader_seat": "group"})
     c.patch(f"{base}/tours/{t['id']}/staff/{staff['guide']['id']}", json={"meal_seat": "staff"})
     c.patch(f"{base}/tours/{t['id']}/staff/{staff['driver']['id']}", json={"meal_seat": "none"})
     meal = sorted((x["quantity"], x["unit_price"]) for x in lines(c, base, t) if x["category"] == "meal")
@@ -98,7 +98,7 @@ def test_one_meal_seats_people_differently(make_client):
     c, base, _ = agency(make_client)
     t, hotel, guest, cafe = setup(c, base, lambda gh: {})
     staff = {a["role"]: a for a in c.get(f"{base}/tours/{t['id']}/staff").json()}
-    c.patch(f"{base}/tours/{t['id']}", json={"leaders": 1, "leader_seat": "group"})
+    c.patch(f"{base}/tours/{t['id']}", json={"pax": 19, "leaders": 1, "leader_seat": "group"})
     for a in staff.values():
         c.patch(f"{base}/tours/{t['id']}/staff/{a['id']}", json={"meal_seat": "group"})
     [row] = [r for r in c.get(f"{base}/tours/{t['id']}/meals").json()["rows"] if r["meal"] == "dinner"]

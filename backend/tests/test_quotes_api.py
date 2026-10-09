@@ -110,7 +110,7 @@ def test_create_tour_and_invoice_from_quote_then_budget(make_client):
 
     r = mk(c, f"{base}/quotes/{q['id']}/create-tour", {"tourists": 19, "start_date": "2026-11-01", "singles": 1})
     t = c.get(f"{base}/tours/{r['tour_id']}").json()
-    assert t["pax"] == 20 and len(t["days"]) == 9 and t["days"][0]["city"] == "Tbilisi"
+    assert (t["pax"], t["leaders"]) == (19, 1) and len(t["days"]) == 9 and t["days"][0]["city"] == "Tbilisi"   # 19+1
     assert t["rooms"] == "9 DBL + 2 SGL"
     inv = c.get(f"{base}/invoices/{r['invoice_id']}").json()
     assert inv["status"] == "draft" and inv["client"]["name"] == "Orient"

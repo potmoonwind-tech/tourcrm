@@ -268,7 +268,7 @@ def field_page(token: str, request: Request, lang: str = "en", db: Session = Dep
     meals = [m for m in meals_of(t, ws.plate_share or 1, money=True).rows if m.day in mine] if guide else []
     return FieldView(agency=ws.name, office_phone=ws.phone, team=team, tour_code=t.code, start_date=t.start_date, end_date=t.end_date,
                      role=s.role, person=s.vendor.name, days=out_days,
-                     pax=(len(t.participants) or t.pax) if guide else None, group=group,
+                     pax=(len(t.participants) or ((t.pax or 0) + (t.leaders or 0))) if guide else None, group=group,
                      changes=[c.model_dump(mode="json") for c in _unseen(db, x, s)],
                      timeline=_timeline(db, ws, t, mine, lang), meals=meals)
 

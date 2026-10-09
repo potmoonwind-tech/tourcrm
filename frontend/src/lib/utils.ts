@@ -14,7 +14,9 @@ export const moneyList = (byCurrency: Record<string, number>) =>
 
 /** "1 day" / "3 days" (Georgian uses one form; the keys hold it). */
 /** "20", "~20" when it's a guess, "?" when not known yet. */
-export const paxText = (t: { pax: number; pax_estimated?: boolean }) => (t.pax ? `${t.pax_estimated ? '~' : ''}${t.pax}` : '?')
+/** "19", "~20", or "19 + 1" with free tour leaders on top. */
+export const paxText = (t: { pax: number; pax_estimated?: boolean; leaders?: number | null }) =>
+  (t.pax ? `${t.pax_estimated ? '~' : ''}${t.pax}${t.leaders ? ` + ${t.leaders}` : ''}` : '?')
 
 export const countWord = (n: number, one: string, many: string) => (n === 1 ? one : many)
 

@@ -255,8 +255,8 @@ def tour_alerts(db: Session, ctx: WorkspaceCtx, tours: list[Tour]) -> list[Alert
                     add("rooms_unassigned", "warning", "participants", n=r.unassigned)
                 if r.passport_warnings:
                     add("passports", "warning", "participants", n=r.passport_warnings)
-                if t.pax and abs(len(t.participants) - t.pax) > 0:
-                    add("pax_mismatch", "info", "participants", pax=t.pax, listed=len(t.participants))
+                if t.pax and abs(len(t.participants) - (t.pax + (t.leaders or 0))) > 0:
+                    add("pax_mismatch", "info", "participants", pax=t.pax + (t.leaders or 0), listed=len(t.participants))
             elif t.status == "confirmed" and 0 <= days_to_start <= 14:
                 add("no_participants", "warning", "participants", days=days_to_start)
         if open_incidents.get(t.id):

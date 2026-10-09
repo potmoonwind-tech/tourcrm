@@ -216,9 +216,15 @@ def room_counts(t: Tour) -> dict[str, int]:
     return dict(counts)
 
 
+def everyone(t: Tour) -> int:
+    """Everyone travelling as the group: the guests and their free tour leaders on top (19+1 → 20). The
+    participants list, when there is one, already has the leaders in it."""
+    return len(t.participants) or ((t.pax or 0) + (t.leaders or 0))
+
+
 def group_size(t: Tour) -> int | None:
-    """Tourists on the tour, for prices that depend on group size."""
-    return len(t.participants) or t.pax or None
+    """The group's people (guests + tour leaders), for counts and prices that depend on group size."""
+    return everyone(t) or None
 
 
 @dataclass
@@ -272,7 +278,7 @@ class _Ctx:
 
 
 def _plan(t: Tour, services: dict[str, Service], ctx: _Ctx) -> list[_Plan]:
-    pax = Decimal(len(t.participants) or t.pax)
+    pax = Decimal(everyone(t))
     rooms = room_counts(t)
     plans: list[_Plan] = []
     for d in t.days:

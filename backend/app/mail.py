@@ -260,7 +260,7 @@ def booking_values(t, b, u, lang: str, *, my_name: str, agency: str, signature: 
         n = sr["nights"]
         lines.append(f"{w['staff_rooms']}: " + " + ".join(f"{k} {x}" for x, k in sr["rooms"].items())
                      + f" · {n} {w['night'] if n == 1 else w['nights']}")
-    people = det.get("people") or (len(t.participants) or t.pax)
+    people = det.get("people") or (len(t.participants) or ((t.pax or 0) + (t.leaders or 0)))
     for d in sorted(t.days, key=lambda x: x.day_number):
         for meal in ("breakfast", "lunch", "dinner"):
             if getattr(d, f"{meal}_id") == b.vendor_id and (getattr(d, f"{meal}_mode") or "included") not in ("own", "hotel"):

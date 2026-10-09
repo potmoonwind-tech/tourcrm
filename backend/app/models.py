@@ -320,7 +320,8 @@ class Tour(Base):
     bus_return: Mapped[dict | None] = mapped_column(JSON, nullable=True)   # as the route's (copied from it)
     # This group shares plates differently from the agency's usual (None = the agency's).
     plate_share: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    # Of `pax`, the free tour leaders who came with the group (19+1 → 1). They eat at the staff table.
+    # The free tour leaders who travel with the group, on top of `pax` (the guests): 19+1 → pax 19, leaders 1.
+    # They sleep in the group's hotel and, by default, eat at the staff table with the guide and driver.
     leaders: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     # Leader, driver and guide eat at their own table (a restaurant's "staff_meal" price when it has one).
     staff_table: Mapped[bool] = mapped_column(default=False, server_default="0")

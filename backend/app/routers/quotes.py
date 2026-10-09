@@ -236,7 +236,7 @@ def create_quote(body: QuoteCreate, ctx: WorkspaceCtx = Depends(can_ope_sal), db
                 if free:
                     free.count, free.per = tour.leaders, None
             # The group must be inside the calculation's sizes, or it can't be given to the tour.
-            tourists = src.tourists_in(tour.pax) or 0
+            tourists = src.tourists_in((tour.pax or 0) + (tour.leaders or 0)) or 0
             if tourists:
                 src.pax_min, src.pax_max = min(src.pax_min, tourists), max(src.pax_max, tourists)
             note, warnings = f"tour:{tour.code}", built.warnings
@@ -645,9 +645,11 @@ def create_tour(quote_id: str, body: CreateTourIn, ctx: WorkspaceCtx = Depends(c
     code = (body.code or "").strip().upper() or _generate_code(db, ctx, series, body.start_date)
     if _code_taken(db, ctx, code):
         raise HTTPException(status.HTTP_409_CONFLICT, f"Tour code {code} already exists")
+    free = sum(p.count for p in people_for(doc, body.tourists) if p.role == "free")
     t = Tour(workspace_id=ctx.workspace.id, code=code, series_id=series.id if series else None, client_id=client_id,
              start_date=body.start_date, end_date=body.start_date + timedelta(days=n_days - 1), status=body.status,
-             pax=body.tourists + doc.others_for(body.tourists), quote_id=q.id, quote_tourists=body.tourists,
+             pax=body.tourists + doc.others_for(body.tourists) - free, leaders=free,     # 12+1: pax 12, leaders 1
+             quote_id=q.id, quote_tourists=body.tourists,
              rooms=_rooms_text(doc, body.tourists, body.singles))
     db.add(t)
     sync_days(t, series.days if series else None)
@@ -768,7 +770,7 @@ def apply_to_tours(quote_id: str, body: ApplyIn, ctx: WorkspaceCtx = Depends(can
         elif doc.series_id and t.series_id != doc.series_id:
             res.error = "Another route — this calculation is for a different one"
         else:
-            tourists = body.tourists or doc.tourists_in(t.pax)
+            tourists = body.tourists or doc.tourists_in((t.pax or 0) + (t.leaders or 0))
             if tourists is None:
                 res.error = "Group size unknown — choose one size for all"
             elif not doc.pax_min <= tourists <= doc.pax_max:

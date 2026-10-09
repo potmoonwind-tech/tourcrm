@@ -78,7 +78,7 @@ class Usage:
         if self.dinners:
             d["dinners"] = self.dinners
         if self.breakfasts or self.lunches or self.dinners:
-            d["people"] = len(t.participants) or t.pax      # the same count the meal costs use
+            d["people"] = finance.everyone(t)      # the same count the meal costs use (guests + tour leaders)
         if self.tourists_pay:
             d["tourists_pay"] = self.tourists_pay           # reserve, but the tourists pay the restaurant
         if self.services:

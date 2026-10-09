@@ -74,7 +74,8 @@ def people(t, day: int, meal: str | None, pax: int) -> list[dict]:
 
 
 def tables(t, day: int, pax: int, meal: str | None = None) -> Seating:
-    """The tables of one day's meal, for a group of `pax` (tour leaders included)."""
+    """The tables of one day's meal, for a group of `pax` people - guests and their tour leaders together
+    (finance.everyone): the leaders sit at the staff table by default."""
     pax = int(pax or 0)
     leaders = min(t.leaders or 0, pax)
     s = Seating(group=pax - leaders)

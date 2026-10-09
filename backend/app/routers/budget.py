@@ -104,7 +104,7 @@ def _quote(db: Session, t: Tour) -> tuple[Quote, QuoteIn] | None:
 
 def actual_tourists(t: Tour) -> int:
     leaders = t.budget_leaders or 0
-    return len(t.participants) - leaders if t.participants else max((t.pax or 0) - leaders, 0)
+    return len(t.participants) - leaders if t.participants else (t.pax or 0)      # pax: the guests (leaders on top)
 
 
 def summary(db: Session, ctx: WorkspaceCtx, t: Tour, warnings: list[str] | None = None) -> BudgetOut:

@@ -234,7 +234,7 @@ def test_a_tour_from_a_flexible_calculation_charges_everyone_in_its_season(make_
     winter = mk(c, f"{base}/quotes/{q['id']}/create-tour", {"tourists": 20, "start_date": "2026-11-01", "singles": 0})
     summer = mk(c, f"{base}/quotes/{q['id']}/create-tour", {"tourists": 20, "start_date": "2026-07-15", "singles": 0, "code": "SUMMER"})
     tw = c.get(f"{base}/tours/{winter['tour_id']}").json()
-    assert tw["pax"] == 25 and tw["rooms"] == "10 DBL + 1 SGL"            # 20 + 4 children (no bed) + leader in a single
+    assert (tw["pax"], tw["leaders"]) == (24, 1) and tw["rooms"] == "10 DBL + 1 SGL"   # 20 + 4 children (no bed); the leader on top, in a single
     inv = c.get(f"{base}/invoices/{winter['invoice_id']}").json()
     assert [(x["quantity"], x["unit_price"]) for x in inv["lines"]] == [(20, low.types[0].price), (4, low.types[1].price)]
     assert c.get(f"{base}/tours/{summer['tour_id']}").json()["price_pp"] == high.price_dbl > low.price_dbl
