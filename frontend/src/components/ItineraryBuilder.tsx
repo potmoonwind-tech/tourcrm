@@ -693,34 +693,33 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
         : active ? 'border-brand-300 shadow-md ring-1 ring-brand-200' : 'border-slate-200',
         alerts.some((a) => a.severity === 'error') && 'border-red-300')}>
       {/* The day's head: which day, when, from where to where - pinned while working down the day. */}
-      <header className={cn('group/head sticky top-[83px] z-10 flex items-start gap-3 rounded-t-xl border-b px-3 py-2.5 backdrop-blur',
+      <header className={cn('group/head sticky top-[83px] z-10 flex items-center gap-2.5 rounded-t-xl border-b px-3 py-1.5 backdrop-blur',
         active ? 'border-brand-200 bg-brand-50/95' : 'border-slate-100 bg-slate-50/95')}>
         {!disabled && (
           <button type="button" {...attributes} {...listeners} aria-label={t('dragToReorder')} title={t('dragToReorder')}
-            className="mt-3 -ml-1 cursor-grab touch-none rounded-md p-0.5 text-slate-400 opacity-0 hover:bg-slate-100 focus:opacity-100 active:cursor-grabbing group-hover/head:opacity-100"><GripVertical size={16} /></button>
+            className="-ml-1 cursor-grab touch-none rounded-md p-0.5 text-slate-400 opacity-0 hover:bg-slate-100 focus:opacity-100 active:cursor-grabbing group-hover/head:opacity-100"><GripVertical size={16} /></button>
         )}
         <DateTile date={date} n={index + 1} active={active} />
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+        <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
+          <span className="flex shrink-0 items-baseline gap-1 text-xs">
             <span className={cn('rounded-full px-2 py-0.5 font-bold tracking-wide', active ? 'bg-brand-600 text-white' : 'bg-slate-800 text-white')}>
               {t('dayN', { n: index + 1 })}
             </span>
             <span className="text-slate-500">{t('dayOfN', { n: total })}</span>
-            {active && <span className="font-medium text-brand-700">· {t('dayEditing')}</span>}
-          </div>
+          </span>
           {/* From where (last night's town) to tonight's: the day's title. */}
-          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+          <span className="flex min-w-0 items-center gap-1">
             {index > 0 && prevCity?.trim() && townKey(prevCity) !== townKey(day.city) && (
-              <span className="flex max-w-[12rem] items-center gap-1.5 text-lg font-semibold text-slate-500" title={t('fromLastNight')}>
-                <span className="truncate">{prevCity.trim()}</span><ArrowRight size={16} aria-hidden className="shrink-0" />
+              <span className="flex max-w-[11rem] items-center gap-1 text-base font-semibold text-slate-500" title={t('fromLastNight')}>
+                <span className="truncate">{prevCity.trim()}</span><ArrowRight size={15} aria-hidden className="shrink-0" />
               </span>
             )}
             <PlaceInput disabled={disabled} value={day.city} onChange={(city) => onSet({ city })} placeholder={t('cityNight')}
-              title={t('cityNightHelp')} aria-label={t('city')}
-              className="h-9 w-56 min-w-0 rounded-md border border-transparent bg-transparent px-1.5 text-lg font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-600 focus:bg-white focus:outline-none" />
-          </div>
-          {/* The day's way and flights, quietly. */}
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              title={t('cityNightHelp')} aria-label={t('city')} size={Math.max(6, day.city.length + 1)}
+              className="h-8 w-auto max-w-56 min-w-0 rounded-md border border-transparent bg-transparent px-1 text-base font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-600 focus:bg-white focus:outline-none" />
+          </span>
+          {/* The day's way and flights, quietly - on the same line. */}
+          <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
             {/* The places on the way (the road goes through them): one quiet line; the chips only while editing. */}
             {(show || (day.stops ?? []).length > 0) && (editStops || !(day.stops ?? []).length ? (
               <span className="contents" onBlur={(e) => { if (!e.currentTarget.parentElement?.contains(e.relatedTarget as Node)) setEditStops(false) }}>
@@ -758,9 +757,9 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
                 </Tooltip>
               )
             })()}
-          </div>
+          </span>
         </div>
-        <div className="flex shrink-0 items-center gap-1 pt-1">
+        <div className="flex shrink-0 items-center gap-1">
           {/* The day's verdict, in the words of "Check". */}
           <span className={cn('flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
             missing ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800')}>
@@ -1583,13 +1582,13 @@ function OwnMealWhere({ value, disabled, onChange }: { value: string; disabled?:
 function DateTile({ date, n, active }: { date?: string; n: number; active: boolean }) {
   const { lang } = useI18n()
   return (
-    <span className={cn('flex w-14 shrink-0 flex-col items-center rounded-xl border py-1 text-center leading-tight',
+    <span className={cn('flex w-11 shrink-0 flex-col items-center rounded-lg border py-0.5 text-center leading-none',
       active ? 'border-brand-300 bg-white' : 'border-slate-200 bg-white')}>
       {date ? <>
-        <span className={cn('text-[11px] font-semibold uppercase', active ? 'text-brand-700' : 'text-slate-500')}>{weekday(date, lang)}</span>
-        <span className="text-xl font-bold tabular-nums text-slate-900">{Number(date.slice(8))}</span>
-        <span className="text-[11px] text-slate-500">{fmt(date, lang, { month: 'short' })}</span>
-      </> : <span className="py-2 text-xl font-bold text-slate-900">{n}</span>}
+        <span className={cn('text-[10px] font-semibold uppercase', active ? 'text-brand-700' : 'text-slate-500')}>{weekday(date, lang)}</span>
+        <span className="my-0.5 text-lg font-bold tabular-nums text-slate-900">{Number(date.slice(8))}</span>
+        <span className="text-[10px] text-slate-500">{fmt(date, lang, { month: 'short' })}</span>
+      </> : <span className="py-1.5 text-lg font-bold text-slate-900">{n}</span>}
     </span>
   )
 }
