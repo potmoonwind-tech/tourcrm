@@ -2980,6 +2980,7 @@ const en = {
   staffAddUnnamedTip: "No person picked: adds the role now (e.g. a guide) - name them when you know",
   staffToBeNamed: "to be named",
   staffNameNow: "Choose who…",
+  fromLastNight: "Where they slept last night",
 }
 
 type Dict = typeof en
@@ -5956,6 +5957,7 @@ const ka: Dict = {
   staffAddUnnamedTip: "პირი არ არის არჩეული: ემატება როლი (მაგ. გიდი) - სახელი მიუთითეთ, როცა გაიგებთ",
   staffToBeNamed: "დასაზუსტებელია",
   staffNameNow: "აირჩიეთ ვინ…",
+  fromLastNight: "სადაც გაათიეს წინა ღამე",
 }
 
 export type Lang = 'en' | 'ka'

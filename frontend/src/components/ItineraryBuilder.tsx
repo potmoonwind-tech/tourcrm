@@ -19,7 +19,7 @@ import { api, type BreakfastMode, type DayExtra, type DayTemplate, type Schedule
 import { useServiceList, useVendors, wsPath } from '../lib/data'
 import { fmt, weekday } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
-import { cn, slotId } from '../lib/utils'
+import { cn, slotId, townKey } from '../lib/utils'
 import { DayServices } from './DayServices'
 import { DayProgramme, relayDay, sightOf, suggest, withoutTbd } from './DayProgramme'
 import { Dialog, toast, Menu, askText } from './overlay'
@@ -683,6 +683,12 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
         <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold text-white"
           title={`${t('day')} ${index + 1}`}>{index + 1}</span>
         <span className="sr-only">{t('day')} {index + 1}</span>
+        {/* Where they come from: last night's town (Sheki → Tbilisi), unless they stay in the same one. */}
+        {index > 0 && prevCity?.trim() && townKey(prevCity) !== townKey(day.city) && (
+          <span className="flex max-w-[12rem] items-center gap-1.5 text-sm font-medium text-slate-500" title={t('fromLastNight')}>
+            <span className="truncate">{prevCity.trim()}</span><ArrowRight size={14} aria-hidden className="shrink-0" />
+          </span>
+        )}
         <PlaceInput disabled={disabled} value={day.city} onChange={(city) => onSet({ city })} placeholder={t('cityNight')}
           title={t('cityNightHelp')} className={cn(field, 'h-9 w-52 font-semibold')} aria-label={t('city')} />
         {!disabled && <SavedDays city={day.city} onApply={applyTemplate} />}

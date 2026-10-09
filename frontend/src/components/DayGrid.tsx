@@ -9,7 +9,7 @@ import type { ReactNode } from 'react'
 import type { DayFields, ServiceBrief, TourAlert, Vendor } from '../lib/api'
 import { fmt, weekday } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
-import { cn } from '../lib/utils'
+import { cn, townKey } from '../lib/utils'
 import type { Crew } from './MealPlan'
 
 type State = 'ok' | 'todo' | 'soft' | 'none'      // done · missing · worth a look · not needed
@@ -68,6 +68,13 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
     return out
   }
 
+  // The day's way: from last night's town (when it changes), through the stops, to tonight's.
+  const route = (i: number) => {
+    const d = days[i]
+    const from = i > 0 ? days[i - 1].city.trim() : ''
+    const out = [from, ...(d.stops ?? []), d.city].map((x) => x.trim()).filter(Boolean)
+    return out.filter((x, k) => k === 0 || townKey(x) !== townKey(out[k - 1]))
+  }
   const cards = days.map((d, i) => {
     const ls = lines(d, i)
     const dayAlerts = alerts.filter((a) => a.day === i + 1)
@@ -105,7 +112,7 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
             <span className={cn('flex items-center gap-2 px-3 py-2', todo ? 'bg-amber-50' : 'bg-emerald-50')}>
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-white">{i + 1}</span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-slate-900">{[...(d.stops ?? []), d.city].filter(Boolean).join(' → ') || '—'}</span>
+                <span className="block truncate text-sm font-semibold text-slate-900">{route(i).join(' → ') || '—'}</span>
                 {dates?.[i] && <span className="block text-[11px] text-slate-500">{weekday(dates[i], lang)} · {fmt(dates[i], lang)}{d.km ? ` · ${d.km} km` : ''}</span>}
               </span>
               {soft > 0 && <span className="shrink-0 rounded-full bg-sky-100 px-1.5 py-0.5 text-[11px] font-semibold text-sky-800" title={t('gridLegendLook')}>{soft}</span>}
