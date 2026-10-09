@@ -20,3 +20,16 @@ def test_a_pinned_place_keeps_its_hours(make_client):
     assert c.post(f"{base}/places/pin", json={"name": "Prometheus Cave", "lat": 42.37, "lon": 42.6, "hours": hours}).status_code == 204
     got = c.post(f"{base}/places/hours", json={"names": ["Prometheus Cave", "Nowhere"]}).json()
     assert got == {"Prometheus Cave": {"periods": [{"day": 2, "open": "10:00", "close": "18:00"}], "text": ["Tue 10-18"]}}
+
+
+
+def test_hours_from_the_map_for_a_supplier(make_client, monkeypatch):
+    c, base, _ = agency(make_client)
+    v = c.post(f"{base}/vendors", json={"name": "Prometheus Cave", "type": "activity", "city": "Kutaisi"}).json()
+    monkeypatch.setattr(geo, "google", lambda: True)
+    monkeypatch.setattr(geo, "suggest", lambda q, *a, **k: [{"name": "Prometheus Cave", "place_id": "g1"}])
+    hours = {"periods": [{"day": 3, "open": "10:00", "close": "17:00"}], "text": ["Wednesday: 10-17"]}
+    monkeypatch.setattr(geo, "place_details", lambda pid, *a, **k: {"lat": 42.3, "lon": 42.6, "detail": "Tskaltubo", "hours": hours} if pid == "g1" else None)
+    r = c.post(f"{base}/vendors/{v['id']}/hours")
+    assert r.status_code == 200 and r.json()["hours"] == hours
+    assert c.post(f"{base}/places/hours", json={"names": ["Prometheus Cave"]}).json() == {"Prometheus Cave": hours}

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import type { DayExtra, ServiceBrief, Vendor } from '../lib/api'
 import { useServiceList, useVendors } from '../lib/data'
 import { catLabel, catOf } from '../lib/activities'
+import { OpeningHoursBox } from './OpeningHours'
 import { useI18n } from '../lib/i18n'
 import { cn, slotId } from '../lib/utils'
 import { Tooltip } from './Tooltip'
@@ -183,6 +184,9 @@ export function DayServices({ value, onChange, disabled, onAddNew, grip, visits 
               })}
               {list.length === 0 && <li className="py-1 text-xs text-slate-500">{t('placeFreeHint')}</li>}
             </ul>
+            <div className="mt-1 border-t border-slate-100 pt-1">
+              <OpeningHoursBox compact names={[list[0]?.vendor.name ?? bare.get(shown)?.name ?? '']} vendorId={disabled ? undefined : shown} />
+            </div>
             {!disabled && onAddNew && (
               <button type="button" onClick={() => onAddNew(shown)} className="mt-0.5 text-xs text-slate-500 hover:text-brand-700 hover:underline">
                 {t('placeAddPrice')}

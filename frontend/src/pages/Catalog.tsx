@@ -13,6 +13,7 @@ import { EmptyState, Phone } from '../components/tour'
 import { Button, ButtonLink, ErrorText, Field, field, Input, Select } from '../components/ui'
 import { addressOf, PlaceInput, pinPlace, type PlaceSuggestion } from '../components/PlaceInput'
 import { QuickVendorDialog } from '../components/QuickAdd'
+import { OpeningHoursBox } from '../components/OpeningHours'
 import {
   api, VENDOR_TYPES,
   type Client, type Vendor, type VendorType, can } from '../lib/api'
@@ -314,6 +315,9 @@ function VendorModal({ vendor, defaultType, canEdit, onClose: close, onCreated, 
                 <option value="__new__">{t('activityCategoryAdd')}</option>
               </Select>
             </Field>
+          )}
+          {['activity', 'other', 'restaurant'].includes(f.type) && (
+            <OpeningHoursBox names={[f.name, f.address]} vendorId={vendor?.id} />
           )}
           {['activity', 'other'].includes(f.type) && (
             <Field label={t('visitLength')} hint={t('visitLengthHint')}>

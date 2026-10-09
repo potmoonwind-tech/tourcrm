@@ -3009,6 +3009,11 @@ const en = {
   viaShort: "via",
   progClosedThatDay: "Closed on {day} (as the map says) - check before you go",
   progOpenHours: "Open {hours} that day - check the time",
+  openingHours: "Opening hours",
+  openingHoursNone: "Not known yet - pick its address from the map suggestions, or get them from the map.",
+  openingHoursGet: "Get from the map",
+  openingHoursRefresh: "Update from the map",
+  openingHoursNotFound: "The map has no opening hours for this place (or the map isn't available here).",
 }
 
 type Dict = typeof en
@@ -6014,6 +6019,11 @@ const ka: Dict = {
   viaShort: "გავლით:",
   progClosedThatDay: "{day} დაკეტილია (რუკის მიხედვით) - გადაამოწმეთ",
   progOpenHours: "ამ დღეს ღიაა {hours} - გადაამოწმეთ დრო",
+  openingHours: "სამუშაო საათები",
+  openingHoursNone: "ჯერ უცნობია - აირჩიეთ მისამართი რუკის შემოთავაზებიდან, ან მიიღეთ რუკიდან.",
+  openingHoursGet: "რუკიდან მიღება",
+  openingHoursRefresh: "რუკიდან განახლება",
+  openingHoursNotFound: "რუკას ამ ადგილის სამუშაო საათები არ აქვს (ან რუკა აქ მიუწვდომელია).",
 }
 
 export type Lang = 'en' | 'ka'

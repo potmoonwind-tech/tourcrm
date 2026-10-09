@@ -113,6 +113,30 @@ def pin_place(body: PinIn, ctx: WorkspaceCtx = Depends(office), db: Session = De
     db.commit()
 
 
+@router.post("/vendors/{vendor_id}/hours")
+def vendor_hours_from_map(vendor_id: str, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)) -> dict:
+    """A supplier's opening hours from the map: its picked spot when there is one, else the map's best match for its
+    name and town. Kept with its name (so day timelines find them). {"hours": ...} or 404 when the map has none."""
+    from ..models import Vendor
+    from ..scoping import get_owned
+    v = get_owned(db, ctx, Vendor, vendor_id)
+    if not geo.google():
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "The map service isn't set up here")
+    ratelimit.hit("place-details", ctx.workspace.id, limit=200, per_seconds=600)
+    place_id = next((g.place_id for n in (v.name, v.address) if n
+                     and (g := db.get(GeoPlace, geo.pin_key(ctx.workspace.id, n[:100]))) is not None and g.place_id), None)
+    if not place_id:
+        hits = [x for x in geo.suggest(" ".join(x for x in (v.name, v.city) if x), ctx.workspace.countries or None,
+                                       lang=ctx.workspace.language or "en") if x.get("place_id")]
+        place_id = hits[0]["place_id"] if hits else None
+    d = geo.place_details(place_id, lang=ctx.workspace.language or "en") if place_id else None
+    if not d or not d.get("hours"):
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "The map has no opening hours for this place")
+    geo.pin(db, ctx.workspace.id, v.name[:100], d["lat"], d["lon"], d.get("detail") or v.name, place_id, d["hours"])
+    db.commit()
+    return {"hours": d["hours"]}
+
+
 class HoursIn(BaseModel):
     names: list[str] = Field(max_length=60)
 
