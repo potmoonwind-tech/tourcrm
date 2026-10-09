@@ -155,7 +155,15 @@ export function dayLegs(day: DayFields, from: string | undefined, factor: number
   }))
 }
 
-export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay, date }: {
+/** What the builder puts in a row of the day: the choice itself (hotel, restaurant...), its state, extras. */
+export interface SlotRow { node: ReactNode; state?: 'done' | 'todo'; aside?: ReactNode; grip?: ReactNode }
+export type SlotRows = Partial<Record<'hotel' | 'breakfast' | 'lunch' | 'dinner', SlotRow>>
+
+export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay, date, slots, footer, bare, onAddMore }: {
+  slots?: SlotRows          // the builder: these rows are where the hotel, breakfast, lunch and dinner are chosen
+  footer?: ReactNode        // under the list (the day's activities, notes)
+  bare?: boolean            // inside the day's card: no frame of its own
+  onAddMore?: (what: 'flight' | 'note') => void   // "+ Flight", "+ Note" in the add line
   day: DayFields; index: number; last: boolean; byId: Map<string, Vendor>; services: ServiceBrief[]; disabled?: boolean; startOpen?: boolean
   date?: string      // the day's date (a tour): visits are checked against the places' opening hours
   from?: string      // where the group slept the night before
@@ -171,7 +179,25 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
   // Stable ids for the suggestion while the day stays the same (dragging needs them).
   const factor = useWorkspace()?.drive_factor ?? 1.25
   const suggested = useMemo(() => suggest(day, index, last, services, factor), [day, index, last, services, factor])
-  const raw = saved.length ? saved : suggested
+  // In the builder every day has its rows to fill: check-in, breakfast (after a night), lunch, dinner - one that
+  // isn't there yet is added where it belongs (the times follow), so nothing is chosen anywhere else.
+  const ensure = (xs: ScheduleItem[]): ScheduleItem[] => {
+    if (!slots) return xs
+    let out = [...xs]
+    const has = (r: string) => out.some((x) => x.ref === r)
+    const mk = (ref: string, kind: ScheduleKind): ScheduleItem => ({ id: `auto-${ref}`, kind, time: '', end: '', title: '', ref, place: '', notes: '' })
+    const before = (refs: string[], step: ScheduleItem) => {
+      const at = out.findIndex((x) => refs.includes(x.ref ?? ''))
+      out = at < 0 ? [...out, step] : [...out.slice(0, at), step, ...out.slice(at)]
+    }
+    const bm = day.breakfast_mode ?? 'hotel'
+    if (slots.breakfast && (index > 0 || bm !== 'hotel') && bm !== 'own' && !has('breakfast')) out = [mk('breakfast', 'breakfast'), ...out]
+    if (slots.lunch && !has('lunch')) before(['hotel', 'dinner'], mk('lunch', day.lunch_mode === 'own' ? 'free' : 'meal'))
+    if (slots.hotel && !last && !has('hotel')) before(['dinner'], mk('hotel', 'checkin'))
+    if (slots.dinner && !has('dinner')) out.push(mk('dinner', day.dinner_mode === 'own' ? 'free' : 'meal'))
+    return out
+  }
+  const raw = ensure(saved.length ? saved : suggested)
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
     useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
 
@@ -438,7 +464,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
   )
 
   return (
-    <section className="col-span-full min-w-0 rounded-xl border border-slate-200 bg-white p-3 sm:p-4" aria-label={t('dayProgramme')}>
+    <section className={cn('col-span-full min-w-0', !bare && 'rounded-xl border border-slate-200 bg-white p-3 sm:p-4')} aria-label={t('dayProgramme')}>
       {/* One line: what this is, the road, the day's span - then the map. */}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <h4 className="text-sm font-semibold text-slate-800">{t('dayProgramme')}</h4>
@@ -530,6 +556,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
                     </li>
                   )}
                   <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
+                    slot={slots?.[(x.ref ?? '') as keyof SlotRows]}
                     length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)} end={i === items.length - 1 && !after.length}
                     cat={x.kind === 'visit' ? catOf((x.ref?.startsWith('extra:')
                       ? byId.get(services.find((s) => s.id === day.extras.find((e) => e.id === x.ref!.slice(6))?.service_id)?.vendor.id ?? '')
@@ -544,6 +571,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
         </SortableContext>
       </DndContext>
       {items.length === 0 && <p className="mt-2 text-sm text-slate-500">{t('progEmpty')}</p>}
+      {footer}
 
       {/* Adding: one tap on what to add (it goes at the end and follows the day). */}
       {!disabled && (
@@ -552,6 +580,8 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
           {onSetDay && (['breakfast', 'lunch', 'dinner'] as const).filter((m) => !items.some((x) => x.ref === m))
             .map((m) => addChip(m === 'breakfast' ? 'breakfast' : 'meal', () => addMeal(m), t(m)))}
           {ADDABLE.map((k) => addChip(k, () => insertAt(items.length, k)))}
+          {onAddMore && addChip('flight', () => onAddMore('flight'), t('progAddFlight'))}
+          {onAddMore && addChip('other', () => onAddMore('note'), t('progAddNote'))}
           {outOfOrder && (
             <Button type="button" size="sm" variant="secondary" onClick={byTime} className="ml-auto border-amber-400 text-amber-900">
               <ArrowDownUp size={16} aria-hidden />{t('progSortByTime')}
@@ -597,7 +627,8 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   )
 }
 
-function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, end, cat, onSet, onRemove, onLink }: {
+function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, end, cat, onSet, onRemove, onLink, slot }: {
+  slot?: SlotRow     // the builder's row for the hotel / breakfast / lunch / dinner: chosen right here
   cat?: ActivityCat | null   // a visit at a catalogue place: its kind (museum, cable car...) as the bubble
   x: ScheduleItem; label: { text: string; missing: boolean }; picker?: ReactNode; disabled?: boolean; issue?: StepIssue; onFix: (time: string) => void
   length: number; sights: PlaceSuggestion[]; sight?: Vendor
@@ -640,8 +671,9 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
         {!end && <span className="w-0.5 flex-1 bg-slate-200" aria-hidden />}
       </div>
       <div className="min-w-0 flex-1 pb-2">
-        <div className={cn('flex min-h-12 items-center gap-2 rounded-xl border py-1.5 pl-1.5 pr-1 transition-colors',
-          isDragging ? 'border-brand-300 bg-white shadow-lg' : label.missing ? 'border-amber-300 bg-amber-50' : issue ? 'border-amber-300 bg-white' : 'border-slate-200 bg-white')}>
+        <div className={cn('flex min-h-12 gap-2 rounded-xl border py-1.5 pl-1.5 pr-1 transition-colors', slot ? 'items-start' : 'items-center',
+          isDragging ? 'border-brand-300 bg-white shadow-lg' : slot?.state === 'todo' ? 'border-amber-300 bg-amber-50/50'
+            : label.missing && !slot ? 'border-amber-300 bg-amber-50' : issue ? 'border-amber-300 bg-white' : 'border-slate-200 bg-white')}>
           {!disabled ? (
             <Tooltip label={t('progDragTip')}>
               <button type="button" {...attributes} {...listeners} aria-label={t('progDragLabel', { name })}
@@ -651,7 +683,17 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
             </Tooltip>
           ) : <span className="w-1" />}
           <div className="min-w-0 flex-1">
-            {typed && x.kind === 'visit' && !disabled ? (
+            {slot ? (
+              <div className="px-1">
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+                  <span className="text-sm font-medium text-slate-800">{slotTitle(x, t)}</span>
+                  {slot.state === 'todo' && <span className="text-[11px] font-semibold text-amber-700">{t('slotTodo')}</span>}
+                  {slot.grip}
+                  {slot.aside && <span className="ml-auto">{slot.aside}</span>}
+                </div>
+                <div className="mt-1">{slot.node}</div>
+              </div>
+            ) : typed && x.kind === 'visit' && !disabled ? (
               // A visit is a real place: suggested from the map, and picking one keeps where it is.
               <span className="block [&>span]:w-full">
                 <PlaceInput value={x.title} own={sights} onChange={(title) => onSet({ title, place: atPlace ? x.place : '' })} maxLength={200}
@@ -1031,3 +1073,7 @@ function DriveRow({ leg, depart, samePlace, onSamePlace }: {
     </li>
   )
 }
+
+/** The title of a row the builder fills: "Check-in", "Breakfast", "Lunch", "Dinner". */
+const slotTitle = (x: ScheduleItem, t: (k: TKey) => string) =>
+  x.ref === 'hotel' ? t('progCheckin') : x.ref === 'breakfast' ? t('breakfast') : x.ref === 'lunch' ? t('lunch') : t('dinner')

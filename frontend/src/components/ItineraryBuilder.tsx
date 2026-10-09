@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, BedDouble, Bookmark, Bus, Car, Clock, Coffee, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronDown, ChevronRight, Download, ListChecks } from 'lucide-react'
+import { AlertTriangle, BedDouble, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ListChecks } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { api, type BreakfastMode, type DayExtra, type DayTemplate, type ScheduleItem, type StaffAssignment, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
@@ -91,7 +91,10 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
     try { const v = localStorage.getItem('itineraryView'); return v === 'days' || v === 'check' ? v : 'overview' } catch { return 'overview' }
   })
   const setView = (v: 'overview' | 'days' | 'check') => { setViewState(v); try { localStorage.setItem('itineraryView', v) } catch { /* private window */ } }
-  const [listOpen, setListOpen] = useState(false)   // the drag-and-drop list: on demand, so the days get the width
+  // The drag-and-drop list on the left: open, or a slim rail of icons (remembered on this computer).
+  const [listOpen, setListOpenRaw] = useState(() => { try { return localStorage.getItem('builder.list') !== '0' } catch { return true } })
+  const setListOpen = (v: boolean) => { setListOpenRaw(v); try { localStorage.setItem('builder.list', v ? '1' : '0') } catch { /* private window */ } }
+  const [listTab, setListTab] = useState<Tab>('hotels')
   // Simple day cards (the four questions; the rest under "More for this day") unless "Show everything" is on.
   const [full, setFullState] = useState(() => { try { return localStorage.getItem('builderFull') === '1' } catch { return false } })
   const setFull = (v: boolean) => { setFullState(v); try { localStorage.setItem('builderFull', v ? '1' : '0') } catch { /* private window */ } }
@@ -230,8 +233,10 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   return (
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd}
       onDragCancel={() => { setDragging(null); setCarrying(null) }}>
-      <div className={cn('grid gap-4', view === 'days' && listOpen && !disabled && 'lg:grid-cols-[18rem_1fr]')}>
+      <div className={cn('grid gap-4', view === 'days' && !disabled && (listOpen ? 'lg:grid-cols-[16rem_1fr]' : 'lg:grid-cols-[2.75rem_1fr]'))}>
+        {view === 'days' && !disabled && !listOpen && <PaletteRail onOpen={(tab) => { setListTab(tab); setListOpen(true) }} />}
         {view === 'days' && listOpen && !disabled && <Palette vendors={vs} services={services.data ?? []} picked={picked} onPick={setPicked}
+          tab={listTab} onTab={setListTab}
           onClose={() => { setListOpen(false); setPicked(null) }}
           onAdd={canCreate ? (tab) => (tab === 'services' ? setNewService({}) : setNewVendor({ type: tab === 'hotels' ? 'hotel' : 'restaurant' })) : undefined} />}
         <div className="stagger min-w-0 space-y-3">
@@ -486,12 +491,29 @@ type Tab = 'hotels' | 'food' | 'services'
 /** Prices the day slots already cover (hotel nights, lunch, dinner): not offered again as extras. */
 const SLOT_CODES = new Set(['room_SGL', 'room_DBL', 'room_TWN', 'room_TRP', 'room_QUAD', 'lunch', 'dinner'])
 
-function Palette({ vendors, services, picked, onPick, onAdd, onClose }: {
+const TAB_ICON: Record<Tab, typeof BedDouble> = { hotels: BedDouble, food: Utensils, services: Ticket }
+
+/** The list, folded: three icons on the left; a tap opens the list on that tab. Only on wide screens. */
+function PaletteRail({ onOpen }: { onOpen: (tab: Tab) => void }) {
+  const { t } = useI18n()
+  return (
+    <div className="hidden lg:sticky lg:top-[92px] lg:flex lg:flex-col lg:items-center lg:gap-1 lg:self-start lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:py-1.5">
+      {(['hotels', 'food', 'services'] as Tab[]).map((x) => {
+        const Icon = TAB_ICON[x]
+        return (
+          <button type="button" key={x} onClick={() => onOpen(x)} title={t(`palette_${x}`)} aria-label={t(`palette_${x}`)}
+            className="rounded-lg p-2 text-slate-500 hover:bg-brand-50 hover:text-brand-700"><Icon size={18} /></button>
+        )
+      })}
+    </div>
+  )
+}
+
+function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab: setTab }: {
   vendors: Vendor[]; services: ServiceBrief[]; picked: Item | null; onPick: (i: Item | null) => void
-  onAdd?: (tab: Tab) => void; onClose: () => void
+  onAdd?: (tab: Tab) => void; onClose: () => void; tab: Tab; onTab: (t: Tab) => void
 }) {
   const { t } = useI18n()
-  const [tab, setTab] = useState<Tab>('hotels')
   const [q, setQ] = useState('')
   const match = (...xs: (string | undefined)[]) => !q || xs.some((x) => x?.toLowerCase().includes(q.toLowerCase()))
   const people = new Set(vendors.filter((v) => v.type === 'guide' || v.type === 'driver').map((v) => v.id))
@@ -507,28 +529,30 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose }: {
     ? vendors.filter((v) => v.is_active && v.type === 'hotel' && serving.has(v.id) && match(v.name, v.city)).map((vendor) => ({ kind: 'vendor', vendor }))
     : []
   return (
-    <aside className="rounded-xl border border-slate-200 bg-white lg:sticky lg:top-12 lg:flex lg:max-h-[calc(100vh-11rem)] lg:flex-col lg:self-start">
-      <div className="space-y-2 border-b border-slate-200 p-3">
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-sm font-semibold">{t('builderPalette')}</p>
-          <IconButton size="sm" label={t('hideList')} onClick={onClose}><X size={16} /></IconButton>
-        </div>
-        <div className="flex flex-wrap gap-1 text-xs" role="tablist" aria-label={t('builderPalette')}>
-          {(['hotels', 'food', 'services'] as Tab[]).map((x) => (
-            <button type="button" key={x} onClick={() => setTab(x)} role="tab" aria-selected={tab === x}
-              className={cn('min-w-fit flex-1 whitespace-nowrap rounded-lg px-2 py-1.5 font-medium', tab === x ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200')}>
-              {t(`palette_${x}`)}
-            </button>
-          ))}
+    <aside className="rounded-xl border border-slate-200 bg-white lg:sticky lg:top-[92px] lg:flex lg:max-h-[calc(100vh-7rem)] lg:flex-col lg:self-start">
+      <div className="space-y-2 border-b border-slate-200 p-2">
+        {/* Tabs as icons with a word, and "fold" - one line. The how-to sits in the title. */}
+        <div className="flex items-center gap-1 text-xs" role="tablist" aria-label={t('builderPalette')} title={t('builderHelp')}>
+          {(['hotels', 'food', 'services'] as Tab[]).map((x) => {
+            const Icon = TAB_ICON[x]
+            return (
+              <button type="button" key={x} onClick={() => setTab(x)} role="tab" aria-selected={tab === x}
+                title={t(`palette_${x}`)} aria-label={t(`palette_${x}`)}
+                className={cn('flex min-w-0 items-center justify-center gap-1 whitespace-nowrap rounded-lg px-2 py-1.5 font-medium',
+                  tab === x ? 'flex-1 bg-brand-50 text-brand-700 ring-1 ring-brand-200' : 'text-slate-500 hover:bg-slate-100')}>
+                <Icon size={15} className="shrink-0" />{tab === x && <span className="truncate">{t(`palette_${x}`)}</span>}
+              </button>
+            )
+          })}
+          <IconButton size="sm" label={t('hideList')} onClick={onClose}><PanelLeft size={16} /></IconButton>
         </div>
         <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('search')} className="h-8 pl-8 text-xs" />
         </div>
-        <p className="text-xs text-slate-500">{t('builderHelp')}</p>
         {tab === 'services' && <p className="rounded-md bg-slate-50 px-2 py-1.5 text-xs text-slate-600">{t('paletteStaffHint')}</p>}
       </div>
-      <ul className="max-h-72 space-y-1 overflow-y-auto p-2 lg:max-h-none lg:min-h-0 lg:flex-1">
+      <ul className="max-h-72 space-y-0.5 overflow-y-auto p-1.5 lg:max-h-none lg:min-h-0 lg:flex-1">
         {items.length === 0 && hotelMeals.length === 0 && <li className="px-2 py-4 text-center text-xs text-slate-500">{tab === 'services' ? t('noServicesYet') : tab === 'hotels' ? t('noHotelsYet') : t('noRestaurantsYet')}</li>}
         {[...items, ...hotelMeals].map((item, i) => {
           const id = item.kind === 'vendor' ? item.vendor.id : item.service.id
@@ -557,26 +581,28 @@ function PaletteItem({ id, item, picked, onPick }: { id: string; item: Item; pic
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `p-${id}`, data: { item } })
   return (
     <li ref={setNodeRef} {...listeners} {...attributes} onClick={onPick}
-      className={cn('cursor-grab touch-none rounded-lg active:cursor-grabbing', isDragging && 'opacity-40')}>
-      <Chip item={item} selected={picked} />
+      className={cn('group/row cursor-grab touch-none rounded-lg active:cursor-grabbing', isDragging && 'opacity-40')}>
+      <Chip item={item} selected={picked} flat />
     </li>
   )
 }
 
-function Chip({ item, selected, lifted }: { item: Item; selected?: boolean; lifted?: boolean }) {
+function Chip({ item, selected, lifted, flat }: { item: Item; selected?: boolean; lifted?: boolean; flat?: boolean }) {
   const { t } = useI18n()
   const icon = item.kind === 'service' ? <Ticket size={14} /> : item.vendor.type === 'hotel' ? <BedDouble size={14} /> : <Utensils size={14} />
   const name = item.kind === 'vendor' ? item.vendor.name : item.service.name
   const sub = item.kind === 'vendor' ? item.vendor.city : `${item.service.vendor.name} · ${t(`unit_${item.service.unit}`)}`
   return (
-    <div className={cn('flex items-center gap-2 rounded-lg border px-2.5 py-1.5 text-sm',
-      selected ? 'border-brand-500 bg-brand-50 ring-1 ring-brand-300' : 'border-slate-200 bg-white hover:border-slate-300',
-      lifted && 'shadow-lg ring-2 ring-brand-400')}>
-      <span className="text-slate-500">{icon}</span>
-      <span className="min-w-0">
-        <span className="block truncate font-medium">{name}</span>
-        {sub && <span className="block truncate text-xs text-slate-500">{sub}</span>}
+    <div className={cn('flex items-center gap-2 rounded-lg px-2 text-sm',
+      flat ? 'py-1' : 'border py-1.5',
+      selected ? 'bg-brand-50 ring-1 ring-brand-300' : flat ? 'hover:bg-slate-100' : 'border-slate-200 bg-white',
+      lifted && 'border-brand-300 bg-white shadow-lg ring-2 ring-brand-400')}>
+      <span className="text-slate-400">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate font-medium text-slate-800">{name}</span>
+        {sub && <span className="block truncate text-[11px] leading-tight text-slate-500">{sub}</span>}
       </span>
+      {flat && <GripVertical size={14} aria-hidden className="shrink-0 text-slate-300 opacity-0 group-hover/row:opacity-100" />}
     </div>
   )
 }
@@ -781,26 +807,34 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
           {alerts.map((a, i) => <li key={i} className="flex items-center gap-1.5"><AlertTriangle size={13} />{t(`alert_${a.code}` as TKey, a.params)}</li>)}
         </ul>
       )}
-      <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-4">
-        <SlotBox day={index} slot="hotel" label={last ? t('lastDayNoHotel') : simple ? t('whereSleep') : t('hotel')} icon={<BedDouble size={14} />}
-          dragging={dragging} picked={picked} onTap={(item) => onPlace('hotel', item)} state={hotelState} carry={holds(day.hotel_id)}
-          footer={!disabled && hotel && !last && <button type="button" onClick={onHotelNext} className="text-xs text-brand-700 hover:underline">{t('sameHotelNextNight')}</button>}>
+      {/* The day is one list, in time order: the hotel, breakfast, lunch and dinner are chosen in their rows. */}
+      <div className="p-2 sm:p-3">
+        <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel} date={date}
+          bare onSetDay={onSet} onChange={(schedule) => onSet({ schedule })}
+          onAddMore={disabled ? undefined : (what) => (what === 'flight' ? setDetails(true) : setMore(true))}
+          slots={{
+            ...(last ? {} : { hotel: {
+              state: hotelState, grip: (() => { const c = holds(day.hotel_id); return c ? <SlotGrip day={index} slot="hotel" item={c} /> : null })(),
+              node: <SlotDrop day={index} slot="hotel" dragging={dragging} picked={picked} onTap={(item) => onPlace('hotel', item)}>
+
           <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['hotel']} value={day.hotel_id} onChange={(v) => onSet({ hotel_id: v })}
             placeholder={last ? undefined : t('chooseHotel')}
             cities={[day.city]}
             onAddNew={canCreate ? () => onNewVendor('hotel', (v) => onSet({ hotel_id: v.id, city: day.city || v.city })) : undefined} />
-          {!last && (show || (day.staff_stay ?? 'none') !== 'none' || Object.keys(day.staff_stays ?? {}).length > 0) && (
+          {!last && (show || (day.staff_stay ?? 'none') !== 'none' || Object.keys(day.staff_stays ?? {}).length > 0 || (crew?.staff ?? []).length > 0) && (
             <StaffStayPick day={day} vendors={vendors} disabled={disabled} onSet={onSet}
               people={(crew?.staff ?? []).filter((a) => ['guide', 'driver', 'assistant'].includes(a.role)
                 && a.start_day <= index + 1 && (a.end_day === null || a.end_day >= index + 1))} />
           )}
-        </SlotBox>
-        {/* Breakfast is always shown: usually last night's hotel, named - one glance confirms it. */}
-        {<SlotBox day={index} slot="breakfast" label={t('breakfast')} icon={<Coffee size={14} />} dragging={dragging} picked={picked} state={breakfastState}
-          carry={['hotel', 'own'].includes(bm) ? undefined : holds(day.breakfast_id)}
-          onTap={(item) => onPlace('breakfast', item)}
-          aside={<BreakfastModePick value={day.breakfast_mode ?? 'hotel'} disabled={disabled}
-            onChange={(m) => onSet(m === 'hotel' || m === 'own' ? { breakfast_mode: m, breakfast_id: null, breakfast_menu_id: null } : { breakfast_mode: m })} />}>
+
+                {!disabled && hotel && <button type="button" onClick={onHotelNext} className="mt-1 text-xs text-brand-700 hover:underline">{t('sameHotelNextNight')}</button>}
+              </SlotDrop> } }),
+            breakfast: {
+              state: breakfastState,
+              aside: <BreakfastModePick value={day.breakfast_mode ?? 'hotel'} disabled={disabled}
+                onChange={(m) => onSet(m === 'hotel' || m === 'own' ? { breakfast_mode: m, breakfast_id: null, breakfast_menu_id: null } : { breakfast_mode: m })} />,
+              node: <SlotDrop day={index} slot="breakfast" dragging={dragging} picked={picked} onTap={(item) => onPlace('breakfast', item)}>
+
           {(day.breakfast_mode ?? 'hotel') === 'hotel' ? (
             // Which hotel: last night's, by name - or a quiet note when that night has no hotel yet.
             <p className={cn('flex items-center gap-1 py-1.5 text-xs', index > 0 && !prevHotel ? 'text-amber-700' : 'text-slate-600')}>
@@ -820,11 +854,16 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
               onAddNew={canCreate && day.breakfast_id ? () => onNewService(day.breakfast_id!, true, (s) => onSet({ breakfast_menu_id: s.id ?? null }), 'breakfast') : undefined} />
             {day.breakfast_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
-        </SlotBox>}
-        <SlotBox day={index} slot="lunch" label={t('lunch')} icon={<Utensils size={14} />} dragging={dragging} picked={picked} onTap={(item) => onPlace('lunch', item)} state={mealState('lunch')}
-          carry={day.lunch_mode === 'own' ? undefined : holds(day.lunch_id)}
-          aside={(show || (day.lunch_mode ?? 'included') !== 'included') && <MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
-            onChange={(m) => onSet(m === 'own' ? { lunch_mode: m, lunch_id: null, lunch_menu_id: null } : { lunch_mode: m })} />}>
+
+              </SlotDrop>,
+            },
+            lunch: {
+              state: mealState('lunch'),
+              grip: (() => { const c = day.lunch_mode === 'own' ? undefined : holds(day.lunch_id); return c ? <SlotGrip day={index} slot="lunch" item={c} /> : null })(),
+              aside: <MealModePick value={day.lunch_mode ?? 'included'} disabled={disabled}
+                onChange={(m) => onSet(m === 'own' ? { lunch_mode: m, lunch_id: null, lunch_menu_id: null } : { lunch_mode: m })} />,
+              node: <SlotDrop day={index} slot="lunch" dragging={dragging} picked={picked} onTap={(item) => onPlace('lunch', item)}>
+
           {(day.lunch_mode ?? 'included') === 'own' ? (
             <OwnMealWhere value={day.meal_tbd?.lunch ?? ''} disabled={disabled}
               onChange={(x) => onSet({ meal_tbd: x.trim() ? { ...day.meal_tbd, lunch: x } : withoutTbd(day, 'lunch') })} />
@@ -842,7 +881,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
               className="mt-1 text-xs text-slate-500 hover:text-brand-700 hover:underline">{t('mealTbdSet')}</button>
           )}
           </>}
-          {day.lunch_id && !show && !mealOpen.lunch ? (
+          {day.lunch_id && !mealOpen.lunch ? (
             <MealSummary meal="lunch" todo={needsMenu('lunch')} day={day} menu={menuOf(menus, day.lunch_menu_id, day.lunch_id, 'lunch')} crew={crew} dayNumber={index + 1}
               onOpen={() => setMealOpen({ ...mealOpen, lunch: true })} />
           ) : <>
@@ -857,11 +896,16 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
           </>}
           {day.lunch_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
-        </SlotBox>
-        <SlotBox day={index} slot="dinner" label={t('dinner')} icon={<Utensils size={14} />} dragging={dragging} picked={picked} onTap={(item) => onPlace('dinner', item)} state={mealState('dinner')}
-          carry={day.dinner_mode === 'own' ? undefined : holds(day.dinner_id)}
-          aside={(show || (day.dinner_mode ?? 'included') !== 'included') && <MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
-            onChange={(m) => onSet(m === 'own' ? { dinner_mode: m, dinner_id: null, dinner_menu_id: null } : { dinner_mode: m })} />}>
+
+              </SlotDrop>,
+            },
+            dinner: {
+              state: mealState('dinner'),
+              grip: (() => { const c = day.dinner_mode === 'own' ? undefined : holds(day.dinner_id); return c ? <SlotGrip day={index} slot="dinner" item={c} /> : null })(),
+              aside: <MealModePick value={day.dinner_mode ?? 'included'} disabled={disabled}
+                onChange={(m) => onSet(m === 'own' ? { dinner_mode: m, dinner_id: null, dinner_menu_id: null } : { dinner_mode: m })} />,
+              node: <SlotDrop day={index} slot="dinner" dragging={dragging} picked={picked} onTap={(item) => onPlace('dinner', item)}>
+
           {(day.dinner_mode ?? 'included') === 'own' ? (
             <OwnMealWhere value={day.meal_tbd?.dinner ?? ''} disabled={disabled}
               onChange={(x) => onSet({ meal_tbd: x.trim() ? { ...day.meal_tbd, dinner: x } : withoutTbd(day, 'dinner') })} />
@@ -879,7 +923,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
               className="mt-1 text-xs text-slate-500 hover:text-brand-700 hover:underline">{t('mealTbdSet')}</button>
           )}
           </>}
-          {day.dinner_id && !show && !mealOpen.dinner ? (
+          {day.dinner_id && !mealOpen.dinner ? (
             <MealSummary meal="dinner" todo={needsMenu('dinner')} day={day} menu={menuOf(menus, day.dinner_menu_id, day.dinner_id, 'dinner')} crew={crew} dayNumber={index + 1}
               onOpen={() => setMealOpen({ ...mealOpen, dinner: true })} />
           ) : <>
@@ -894,10 +938,16 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
           </>}
           {day.dinner_mode === 'tourists' && <p className="mt-1 text-[11px] text-amber-700">{t('mealTouristsHelp')}</p>}
           </>}
-        </SlotBox>
-        <SlotBox day={index} slot="extras" label={simple ? t('whatTheyDo') : t('dayServices')} icon={<Ticket size={14} />} wide dragging={dragging} picked={picked}
-          state={day.extras.length ? 'done' : 'optional'}
-          onTap={(item) => onPlace('extras', item)}>
+
+              </SlotDrop>,
+            },
+          }}
+          footer={<div className="mt-1 space-y-2">
+            {/* What they do: one line of places (step 3 folds them into their rows). */}
+            <div className="flex items-start gap-2">
+              <span className="w-20 shrink-0 pt-1.5 text-right text-xs text-slate-500">{t('whatTheyDo')}</span>
+              <SlotDrop day={index} slot="extras" dragging={dragging} picked={picked} onTap={(item) => onPlace('extras', item)}>
+
           <DayServices value={day.extras} disabled={disabled} onChange={setExtras}
             visits={(day.schedule ?? []).filter((x) => x.kind === 'visit' && !x.ref && x.title.trim()).map((x) => ({ id: x.id, title: x.title, vendorId: sightOf(x, byId)?.id }))}
             onAddVisit={(v) => onSet({ schedule: withStep(day.schedule?.length ? day.schedule : suggest(day, index, last, menus, factor),
@@ -908,10 +958,10 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
               return s ? <SlotGrip day={index} slot="extras" item={{ kind: 'service', service: s }} serviceIds={ids} /> : null
             }}
             onAddNew={canCreate ? (vendorId) => onNewService(vendorId, false, (s) => s.id && setExtras([...day.extras, { id: slotId(), service_id: s.id, quantity: null, notes: '' }])) : undefined} />
-        </SlotBox>
-        {<DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel} date={date}
-          onSetDay={onSet}
-          onChange={(schedule) => onSet({ schedule })} />}
+
+              </SlotDrop>
+            </div>
+
         {/* Border crossings and notes are rare: folded away until used. */}
         {more || day.border_crossing || day.notes ? (
           <div className="col-span-full grid gap-2 sm:grid-cols-2">
@@ -920,19 +970,9 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
             <Input disabled={disabled} value={day.notes} onChange={(e) => onSet({ notes: e.target.value })}
               placeholder={t('notes')} className="h-8 text-xs" aria-label={t('notes')} />
           </div>
-        ) : !disabled && show && (
-          <button type="button" onClick={() => setMore(true)} className="col-span-full justify-self-start text-xs text-slate-500 hover:text-brand-700">
-            + {t('dayBorderNotes')}
-          </button>
-        )}
-        {simple && (
-          // The rest of the day, one tap away.
-          <button type="button" onClick={() => setDetails(!details)} aria-expanded={details}
-            className="col-span-full flex items-center gap-1 justify-self-start text-xs font-medium text-brand-700 hover:underline">
-            <ChevronDown size={14} className={cn('transition-transform', details && 'rotate-180')} aria-hidden />
-            {details ? t('fewerDetails') : t('moreForDay')}
-          </button>
-        )}
+        ) : null}
+
+          </div>} />
       </div>
     </article>
   )
@@ -999,47 +1039,18 @@ function BuildSteps({ days, restaurants }: { days: DayFields[]; restaurants: Set
   )
 }
 
-const SLOT_TONE: Partial<Record<Slot, { pill: string }>> = {
-  hotel: { pill: 'bg-sky-50 text-sky-800' },
-  breakfast: { pill: 'bg-emerald-50 text-emerald-800' },
-  lunch: { pill: 'bg-emerald-50 text-emerald-800' },
-  dinner: { pill: 'bg-emerald-50 text-emerald-800' },
-  extras: { pill: 'bg-pink-50 text-pink-800' },
-}
-
-function SlotBox({ day, slot, label, icon, wide, dragging, picked, onTap, children, footer, aside, state, carry }: {
-  day: number; slot: Slot; label: string; icon: ReactNode; wide?: boolean; dragging: Item | null; picked: Item | null
-  onTap: (item: Item) => void; children: ReactNode; footer?: ReactNode; aside?: ReactNode
-  carry?: Item   // what's in the box: a grip drags it to another day
-  state?: 'done' | 'todo' | 'optional'   // a tick in the label, an amber frame and "to do", or a quiet dashed "optional"
+/** A frameless place to drop (or tap) a hotel, restaurant or activity from the list onto a row of the day. */
+function SlotDrop({ day, slot, dragging, picked, onTap, children }: {
+  day: number; slot: Slot; dragging: Item | null; picked: Item | null; onTap: (item: Item) => void; children: ReactNode
 }) {
-  const { t } = useI18n()
   const { setNodeRef, isOver } = useDroppable({ id: `${day}:${slot}`, data: { day, slot } })
   const active = dragging ?? picked
   const ok = active ? accepts(slot, active) : false
-  // The kind of box at a glance, in the calculation's colours: hotel blue, meals green, activities pink -
-  // only the label is a soft coloured pill; the box stays white, so warnings still stand out.
-  const tone = SLOT_TONE[slot]
   return (
     <div ref={setNodeRef} onClick={() => picked && ok && onTap(picked)}
-      className={cn('rounded-xl border p-2.5 transition-colors', wide && 'col-span-full',
-        active && ok ? 'border-dashed border-brand-400 bg-brand-50/60'
-          : state === 'todo' ? 'border-amber-400 bg-white'
-            // Done: a green frame (to do: amber) - state by the border alone, the box stays white and calm.
-            : state === 'done' ? 'border-emerald-400 bg-white'
-            : state === 'optional' ? 'border-dashed border-slate-300 bg-white' : 'border-slate-200 bg-white',
-        isOver && ok && 'border-solid border-brand-600 bg-brand-100', picked && ok && 'cursor-copy')}>
-      <div className="mb-1.5 flex items-center gap-1.5 text-xs font-medium text-slate-600">
-        <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2 py-0.5', tone?.pill)}>
-          {icon}{label}{state === 'done' && <Check size={12} className="text-emerald-600" aria-label={t('gridLegendDone')} />}
-        </span>
-        {state === 'todo' && <span className="text-[11px] font-semibold text-amber-700">{t('slotTodo')}</span>}
-        {state === 'optional' && <span className="text-[11px] text-slate-500">{t('stepOptional')}</span>}
-        {carry && <SlotGrip day={day} slot={slot} item={carry} />}
-        {aside && <span className="ml-auto">{aside}</span>}
-      </div>
+      className={cn('min-w-0 flex-1 rounded-lg transition-colors', active && ok && 'bg-brand-50/70 outline-1 outline-dashed outline-brand-400',
+        isOver && ok && 'bg-brand-100', picked && ok && 'cursor-copy')}>
       {children}
-      {footer && <div className="mt-1">{footer}</div>}
     </div>
   )
 }
@@ -1582,13 +1593,12 @@ function OwnMealWhere({ value, disabled, onChange }: { value: string; disabled?:
 function DateTile({ date, n, active }: { date?: string; n: number; active: boolean }) {
   const { lang } = useI18n()
   return (
-    <span className={cn('flex w-11 shrink-0 flex-col items-center rounded-lg border py-0.5 text-center leading-none',
-      active ? 'border-brand-300 bg-white' : 'border-slate-200 bg-white')}>
+    <span className={cn('flex shrink-0 flex-col items-center rounded-md px-1.5 py-1 text-center leading-none',
+      active ? 'bg-brand-50' : 'bg-slate-100')}>
       {date ? <>
         <span className={cn('text-[10px] font-semibold uppercase', active ? 'text-brand-700' : 'text-slate-500')}>{weekday(date, lang)}</span>
-        <span className="my-0.5 text-lg font-bold tabular-nums text-slate-900">{Number(date.slice(8))}</span>
-        <span className="text-[10px] text-slate-500">{fmt(date, lang, { month: 'short' })}</span>
-      </> : <span className="py-1.5 text-lg font-bold text-slate-900">{n}</span>}
+        <span className="mt-0.5 whitespace-nowrap text-xs font-semibold tabular-nums text-slate-900">{Number(date.slice(8))} {fmt(date, lang, { month: 'short' })}</span>
+      </> : <span className="text-sm font-semibold text-slate-900">{n}</span>}
     </span>
   )
 }
