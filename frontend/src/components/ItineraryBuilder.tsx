@@ -118,6 +118,13 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   )
 
   const set = (i: number, patch: Partial<DayFields>) => onChange(days.map((d, j) => (j === i ? { ...d, ...patch } : d)))
+  // Saved days ("Tbilisi day"): one fills a day - its hotel, meals, programme (the day keeps its town if it has one).
+  const savedDays = useQuery({ queryKey: ['day-templates', ws.id], queryFn: () => api<DayTemplate[]>(wsPath(ws.id, '/day-templates')), staleTime: 60_000, enabled: !disabled })
+  const applyDayTemplate = (i: number, tpl: DayTemplate) => {
+    const before = days
+    onChange(days.map((d, j) => (j === i ? { ...blankDay(), ...tpl.data, city: d.city.trim() || tpl.city } : d)))
+    toast('savedDayAppliedTo', 'ok', { label: t('undo'), onClick: () => onChange(before) })
+  }
   const place = (i: number, slot: Slot, item: Item) => {
     if (!accepts(slot, item)) return
     if (slot === 'extras' && item.kind === 'service') set(i, { extras: [...days[i].extras, { id: slotId(), service_id: item.service.id, quantity: null, notes: '' }] })
@@ -214,6 +221,12 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
     setCarrying(null)
     const { active, over } = e
     if (!over) return
+    const tpl = active.data.current?.template as DayTemplate | undefined
+    if (tpl) {   // a saved day dropped on a day (its card, or the day in the list)
+      const at = keys.current.indexOf(String(over.id).replace(/^pd:/, ''))
+      if (at >= 0) applyDayTemplate(at, tpl)
+      return
+    }
     const item = active.data.current?.item as Item | undefined
     if (item) {   // palette → slot, or a box from one day to another
       const target = over.data.current as { day: number; slot: Slot } | undefined
@@ -254,6 +267,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
         {view === 'days' && !disabled && !listOpen && <PaletteRail onOpen={(tab) => { setListTab(tab); setListOpen(true) }} />}
         {view === 'days' && listOpen && !disabled && <Palette vendors={vs} services={services.data ?? []} picked={picked} onPick={setPicked}
           tab={listTab} onTab={setListTab} days={days} dates={dates} dayKeys={keys.current} at={activeDay}
+          templates={savedDays.data ?? []} onUseTemplate={applyDayTemplate}
           onClose={() => { setListOpen(false); setPicked(null) }}
           onAdd={canCreate ? (tab) => (tab === 'services' ? setNewService({}) : setNewVendor({ type: tab === 'hotels' ? 'hotel' : 'restaurant' })) : undefined} />}
         <div className={cn('stagger min-w-0 space-y-3', view === 'days' && 'w-full max-w-[60rem] justify-self-center')}>
@@ -474,12 +488,15 @@ function DayStrip({ days, dates, at, onAt: setAt }: { days: DayFields[]; dates?:
         return (
           <button type="button" key={i} onClick={() => jump(i)} data-day={i} aria-current={at === i ? 'true' : undefined}
             title={[`${t('day')} ${i + 1}`, d.city, dates?.[i] && fmt(dates[i], lang)].filter(Boolean).join(' · ')}
-            className={cn('flex shrink-0 items-center gap-2 rounded-full px-2.5 py-1 text-left text-xs text-slate-700',
-              at === i ? 'bg-white shadow-sm ring-1 ring-brand-300' : 'hover:bg-white hover:shadow-sm')}>
-            <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold text-white',
-              at === i ? 'bg-brand-600' : (!last && !d.hotel_id) || (!d.lunch_id && d.lunch_mode !== 'own') || (!d.dinner_id && d.dinner_mode !== 'own') ? 'bg-amber-500' : 'bg-slate-800')}>{i + 1}</span>
-            {dates?.[i] && <span className="tabular-nums text-slate-500">{weekday(dates[i], lang)} {Number(dates[i].slice(8))}</span>}
-            <span className="max-w-[8rem] truncate font-medium text-slate-700">{d.city || '—'}</span>
+            className={cn('relative flex shrink-0 items-baseline gap-1.5 rounded-md px-2 py-1 text-left text-xs',
+              at === i ? 'bg-brand-50 text-brand-800' : 'text-slate-600 hover:bg-white')}>
+            {/* Quiet: "1  Baku  Sat 25"; the day being worked on is tinted; a small amber dot = something missing. */}
+            <span className={cn('tabular-nums', at === i ? 'font-semibold' : 'text-slate-400')}>{i + 1}</span>
+            <span className={cn('max-w-[8rem] truncate', at === i ? 'font-semibold' : 'font-medium text-slate-700')}>{d.city || '—'}</span>
+            {dates?.[i] && <span className={cn('tabular-nums', at === i ? 'text-brand-700' : 'text-slate-400')}>{weekday(dates[i], lang)} {Number(dates[i].slice(8))}</span>}
+            {((!last && !d.hotel_id) || (!d.lunch_id && d.lunch_mode !== 'own') || (!d.dinner_id && d.dinner_mode !== 'own')) && (
+              <span className="absolute right-0.5 top-0.5 h-1.5 w-1.5 rounded-full bg-amber-400" aria-label={t('somethingMissing')} />
+            )}
           </button>
         )
       })}
@@ -489,19 +506,21 @@ function DayStrip({ days, dates, at, onAt: setAt }: { days: DayFields[]; dates?:
 
 // --- palette ---------------------------------------------------------------------------------
 
-type Tab = 'days' | 'hotels' | 'food' | 'services'
+type Tab = 'days' | 'saved' | 'hotels' | 'food' | 'services'
 
 /** Prices the day slots already cover (hotel nights, lunch, dinner): not offered again as extras. */
 const SLOT_CODES = new Set(['room_SGL', 'room_DBL', 'room_TWN', 'room_TRP', 'room_QUAD', 'lunch', 'dinner'])
 
-const TAB_ICON: Record<Tab, typeof BedDouble> = { days: CalendarDays, hotels: BedDouble, food: Utensils, services: Ticket }
+const TAB_ICON: Record<Tab, typeof BedDouble> = { days: CalendarDays, saved: Bookmark, hotels: BedDouble, food: Utensils, services: Ticket }
+/** What the list on the left offers: the tour's days (go to, reorder) and the saved days (preview, drop on a day). */
+const LIST_TABS: Tab[] = ['days', 'saved']
 
 /** The list, folded: three icons on the left; a tap opens the list on that tab. Only on wide screens. */
 function PaletteRail({ onOpen }: { onOpen: (tab: Tab) => void }) {
   const { t } = useI18n()
   return (
     <div className="hidden lg:sticky lg:top-[calc(var(--tabs-h,42px)+var(--bar-h,45px)+0.5rem)] lg:flex lg:flex-col lg:items-center lg:gap-1 lg:self-start lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:py-1.5">
-      {(['days', 'hotels', 'food', 'services'] as Tab[]).map((x) => {
+      {LIST_TABS.map((x) => {
         const Icon = TAB_ICON[x]
         return (
           <button type="button" key={x} onClick={() => onOpen(x)} title={t(`palette_${x}`)} aria-label={t(`palette_${x}`)}
@@ -512,11 +531,13 @@ function PaletteRail({ onOpen }: { onOpen: (tab: Tab) => void }) {
   )
 }
 
-function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab: setTab, days, dates, dayKeys, at }: {
+function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab: setTab, days, dates, dayKeys, at, templates, onUseTemplate }: {
   vendors: Vendor[]; services: ServiceBrief[]; picked: Item | null; onPick: (i: Item | null) => void
   onAdd?: (tab: Tab) => void; onClose: () => void; tab: Tab; onTab: (t: Tab) => void
   days: DayFields[]; dates?: string[]; dayKeys: string[]; at: number   // the "Days" tab: the tour's days, to jump to and reorder
+  templates: DayTemplate[]; onUseTemplate: (day: number, tpl: DayTemplate) => void   // the "Saved days" tab
 }) {
+  const byId = useMemo(() => new Map(vendors.map((v) => [v.id, v])), [vendors])
   const { t } = useI18n()
   const [q, setQ] = useState('')
   const match = (...xs: (string | undefined)[]) => !q || xs.some((x) => x?.toLowerCase().includes(q.toLowerCase()))
@@ -537,7 +558,7 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab
       <div className="space-y-2 border-b border-slate-200 p-2">
         {/* Tabs as icons with a word, and "fold" - one line. The how-to sits in the title. */}
         <div className="flex items-center gap-1 text-xs" role="tablist" aria-label={t('builderPalette')} title={t('builderHelp')}>
-          {(['days', 'hotels', 'food', 'services'] as Tab[]).map((x) => {
+          {LIST_TABS.map((x) => {
             const Icon = TAB_ICON[x]
             return (
               <button type="button" key={x} onClick={() => setTab(x)} role="tab" aria-selected={tab === x}
@@ -550,11 +571,10 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab
           })}
           <IconButton size="sm" label={t('hideList')} onClick={onClose}><PanelLeft size={16} /></IconButton>
         </div>
-        {tab !== 'days' && <div className="relative">
+        {tab === 'saved' && <div className="relative">
           <Search size={14} className="absolute left-2.5 top-2.5 text-slate-400" />
           <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t('search')} className="h-8 pl-8 text-xs" />
         </div>}
-        {tab === 'services' && <p className="rounded-md bg-slate-50 px-2 py-1.5 text-xs text-slate-600">{t('paletteStaffHint')}</p>}
       </div>
       {tab === 'days' ? (
         // The tour's days: a click goes to the day, the grip moves it (drop on another day here or on its card).
@@ -563,6 +583,14 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab
             {days.map((d, i) => <PaletteDay key={dayKeys[i]} id={`pd:${dayKeys[i]}`} day={d} index={i} date={dates?.[i]} last={i === days.length - 1} active={at === i} />)}
           </ul>
         </SortableContext>
+      ) : tab === 'saved' ? (
+        // Saved days: drag one onto a day (or open it: what's in it, and "Use on day N").
+        <ul className="max-h-72 space-y-0.5 overflow-y-auto p-1.5 lg:max-h-none lg:min-h-0 lg:flex-1">
+          {templates.filter((x) => match(x.name, x.city)).length === 0 && <li className="px-2 py-4 text-center text-xs text-slate-500">{t('savedDaysNone')}</li>}
+          {templates.filter((x) => match(x.name, x.city)).map((x) => (
+            <PaletteTemplate key={x.id} tpl={x} byId={byId} services={services} day={at} onUse={() => onUseTemplate(at, x)} />
+          ))}
+        </ul>
       ) : (
       <ul className="max-h-72 space-y-0.5 overflow-y-auto p-1.5 lg:max-h-none lg:min-h-0 lg:flex-1">
         {items.length === 0 && hotelMeals.length === 0 && <li className="px-2 py-4 text-center text-xs text-slate-500">{tab === 'services' ? t('noServicesYet') : tab === 'hotels' ? t('noHotelsYet') : t('noRestaurantsYet')}</li>}
@@ -578,11 +606,11 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab
         })}
       </ul>
       )}
-      {onAdd && tab !== 'days' && (
+      {onAdd && !LIST_TABS.includes(tab) && (
         <div className="border-t border-slate-200 p-2">
           <button type="button" onClick={() => onAdd(tab)}
             className="flex w-full items-center justify-center gap-1.5 rounded-lg py-1.5 text-sm font-medium text-brand-700 hover:bg-brand-50">
-            <Plus size={15} />{t(`paletteNew_${tab}`)}
+            <Plus size={15} />{t(`paletteNew_${tab as 'hotels' | 'food' | 'services'}`)}
           </button>
         </div>
       )}
@@ -609,6 +637,48 @@ function PaletteDay({ id, day: d, index: i, date, last, active }: { id: string; 
       </button>
       <span {...listeners} {...attributes} aria-label={t('dragToReorder')} title={t('dragToReorder')}
         className="cursor-grab touch-none rounded-md p-1 text-slate-300 hover:text-slate-500 active:cursor-grabbing"><GripVertical size={14} /></span>
+    </li>
+  )
+}
+
+/** A saved day in the list: drag it onto a day; a click shows what's in it (hotel, meals, programme) and "Use on day N". */
+function PaletteTemplate({ tpl, byId, services, day, onUse }: { tpl: DayTemplate; byId: Map<string, Vendor>; services: ServiceBrief[]; day: number; onUse: () => void }) {
+  const { t } = useI18n()
+  const [open, setOpen] = useState(false)
+  const { attributes, listeners, setNodeRef, isDragging } = useDraggable({ id: `t-${tpl.id}`, data: { template: tpl } })
+  const d = tpl.data
+  const name = (id?: string | null) => (id ? byId.get(id)?.name : undefined)
+  const meal = (m: 'lunch' | 'dinner') => {
+    const mode = m === 'lunch' ? d.lunch_mode : d.dinner_mode
+    return mode === 'own' ? t('mealOwn') : name(m === 'lunch' ? d.lunch_id : d.dinner_id) ?? (d.meal_tbd?.[m] ? `${t('mealTbd')} · ${d.meal_tbd[m]}` : '—')
+  }
+  const extras = (d.extras ?? []).map((x) => services.find((s) => s.id === x.service_id)?.vendor.name).filter(Boolean)
+  const steps = (d.schedule ?? []).filter((x) => x.time)
+  return (
+    <li ref={setNodeRef} className={cn('rounded-lg', open ? 'bg-slate-50 ring-1 ring-slate-200' : 'hover:bg-slate-100', isDragging && 'opacity-40')}>
+      <div className="flex items-center gap-1">
+        <button type="button" onClick={() => setOpen(!open)} aria-expanded={open} className="flex min-w-0 flex-1 items-center gap-2 px-2 py-1 text-left text-sm">
+          <Bookmark size={14} aria-hidden className="shrink-0 text-slate-400" />
+          <span className="min-w-0 flex-1">
+            <span className="block truncate font-medium text-slate-800">{tpl.name}</span>
+            {tpl.city && <span className="block text-[11px] leading-tight text-slate-500">{tpl.city}</span>}
+          </span>
+          <ChevronRight size={13} aria-hidden className={cn('shrink-0 text-slate-400 transition-transform', open && 'rotate-90')} />
+        </button>
+        <span {...listeners} {...attributes} aria-label={t('dragOntoDay')} title={t('dragOntoDay')}
+          className="cursor-grab touch-none rounded-md p-1 text-slate-300 hover:text-slate-500 active:cursor-grabbing"><GripVertical size={14} /></span>
+      </div>
+      {open && (
+        // Quick look: what using it puts in the day.
+        <div className="animate-reveal space-y-0.5 px-2 pb-2 pl-8 text-xs text-slate-600">
+          {d.hotel_id && <p><span className="text-slate-400">{t('hotel')}:</span> {name(d.hotel_id)}</p>}
+          <p><span className="text-slate-400">{t('lunch')}:</span> {meal('lunch')}</p>
+          <p><span className="text-slate-400">{t('dinner')}:</span> {meal('dinner')}</p>
+          {extras.length > 0 && <p><span className="text-slate-400">{t('whatTheyDo')}:</span> {extras.join(', ')}</p>}
+          {steps.length > 0 && <p className="text-slate-400">{steps.map((x) => `${x.time} ${x.title || t(`prog_${x.kind}` as TKey)}`).join(' · ')}</p>}
+          <Button type="button" size="sm" variant="secondary" className="mt-1.5 w-full" onClick={onUse}>{t('useOnDay', { n: day + 1 })}</Button>
+        </div>
+      )}
     </li>
   )
 }

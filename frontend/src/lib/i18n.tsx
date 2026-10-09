@@ -3020,6 +3020,12 @@ const en = {
   recalcTimesAuto: "The times already follow each day by themselves (nothing was set by hand).",
   palette_days: "Days",
   savedDaysHere: "Saved days:",
+  somethingMissing: "Something still missing",
+  palette_saved: "Saved days",
+  savedDaysNone: "No saved days yet - on any day: ⋯ → Save this day as a template.",
+  dragOntoDay: "Drag onto a day",
+  useOnDay: "Use on day {n}",
+  savedDayAppliedTo: "The saved day filled the day",
 }
 
 type Dict = typeof en
@@ -6036,6 +6042,12 @@ const ka: Dict = {
   recalcTimesAuto: "დროები უკვე ავტომატურად ითვლება ყოველ დღეზე (ხელით არაფერი შეცვლილა).",
   palette_days: "დღეები",
   savedDaysHere: "შენახული დღეები:",
+  somethingMissing: "რაღაც ჯერ აკლია",
+  palette_saved: "შენახული დღეები",
+  savedDaysNone: "შენახული დღეები ჯერ არ არის - ნებისმიერ დღეზე: ⋯ → დღის შენახვა შაბლონად.",
+  dragOntoDay: "გადაიტანეთ დღეზე",
+  useOnDay: "გამოყენება დღე {n}-ზე",
+  savedDayAppliedTo: "შენახულმა დღემ შეავსო დღე",
 }
 
 export type Lang = 'en' | 'ka'
