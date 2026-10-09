@@ -432,18 +432,34 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
 /** The whole trip at a glance: one chip per day (city + what is still missing); a click jumps there. */
 function DayStrip({ days, dates }: { days: DayFields[]; dates?: string[] }) {
   const { t, lang } = useI18n()
+  // The day on screen (the one nearest the top), marked in the strip and kept in view in it.
+  const [at, setAt] = useState(0)
+  const strip = useRef<HTMLElement>(null)
+  useEffect(() => {
+    const seen = new Map<number, number>()
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) seen.set(Number(e.target.id.slice(9)), e.isIntersecting ? e.boundingClientRect.top : Infinity)
+      const visible = [...seen].filter(([, top]) => top !== Infinity).sort((a, b) => a[0] - b[0])
+      if (visible.length) setAt(visible[0][0])
+    }, { rootMargin: '-120px 0px -55% 0px' })
+    days.forEach((_, i) => { const el = document.getElementById(`day-card-${i}`); if (el) io.observe(el) })
+    return () => io.disconnect()
+  }, [days.length])   // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { strip.current?.querySelector(`[data-day="${at}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [at])
   if (days.length < 2) return null
   const jump = (i: number) => document.getElementById(`day-card-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const dot = (on: boolean, need = true) => cn('h-3 w-3', on ? 'text-emerald-600' : need ? 'text-amber-500' : 'text-slate-300')
   return (
-    <nav aria-label={t('itinerary')} className="flex gap-1.5 overflow-x-auto pb-1">
+    <nav ref={strip} aria-label={t('itinerary')}
+      className="no-scrollbar sticky top-[42px] z-20 -mx-4 flex gap-1.5 overflow-x-auto border-b border-slate-200 bg-slate-50/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8">
       {days.map((d, i) => {
         const last = i === days.length - 1
         return (
-          <button type="button" key={i} onClick={() => jump(i)}
+          <button type="button" key={i} onClick={() => jump(i)} data-day={i} aria-current={at === i ? 'true' : undefined}
             title={[`${t('day')} ${i + 1}`, [...(d.stops ?? []), d.city].filter(Boolean).join(' → '), dates?.[i] && fmt(dates[i], lang)].filter(Boolean).join(' · ')}
-            className="flex shrink-0 items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs text-slate-700 hover:bg-white hover:shadow-sm">
-            <span className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-800 text-[11px] font-semibold text-white">{i + 1}</span>
+            className={cn('flex shrink-0 items-center gap-2 rounded-full px-2.5 py-1 text-left text-xs text-slate-700',
+              at === i ? 'bg-white shadow-sm ring-1 ring-brand-300' : 'hover:bg-white hover:shadow-sm')}>
+            <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold text-white', at === i ? 'bg-brand-600' : 'bg-slate-800')}>{i + 1}</span>
             <span className="max-w-[8rem] truncate font-medium text-slate-700">{d.city || '—'}</span>
             {(d.stops?.length ?? 0) > 0 && <span className="text-[11px] text-slate-500">+{d.stops!.length}</span>}
             {(d.flights?.length ?? 0) > 0 && <Plane className="h-3 w-3 text-sky-600" />}

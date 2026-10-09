@@ -79,6 +79,30 @@ export function ProgrammeWeb({ d, banner }: { d: Programme; banner?: ReactNode }
               </button>
             ))}
           </div>
+          {tab === 'days' && d.days.length > 1 && (
+            // Every day in one row: tap one to open it (today is marked).
+            <nav className="no-scrollbar -mx-4 mt-2 flex gap-1.5 overflow-x-auto px-4" aria-label={L.tab_days}>
+              {d.days.map((day) => {
+                const on = shown === day.number
+                const isToday = !!day.date && day.date === now
+                const town = day.route[day.route.length - 1] || day.title
+                return (
+                  <button key={day.number} type="button" aria-current={on ? 'true' : undefined}
+                    onClick={(e) => {
+                      setOpen(day.number)
+                      e.currentTarget.scrollIntoView({ block: 'nearest', inline: 'center', behavior: 'smooth' })
+                      setTimeout(() => document.getElementById(`pday-${day.number}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+                    }}
+                    className={cn('flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs',
+                      on ? 'border-brand-300 bg-brand-50 text-brand-900' : 'border-slate-200 bg-white text-slate-700')}>
+                    <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold text-white', isToday ? 'bg-brand-600' : 'bg-slate-800')}>{day.number}</span>
+                    <span className="max-w-[7rem] truncate font-medium">{town}</span>
+                    {day.hotel && <BedDouble size={12} className="text-slate-400" aria-hidden />}
+                  </button>
+                )
+              })}
+            </nav>
+          )}
         </div>
       </header>
 
@@ -88,7 +112,7 @@ export function ProgrammeWeb({ d, banner }: { d: Programme; banner?: ReactNode }
           const isToday = !!day.date && day.date === now
           return (
             <article key={day.number} id={`pday-${day.number}`}
-              className={cn('scroll-mt-36 overflow-hidden rounded-2xl border bg-white', isToday ? 'border-brand-400 ring-2 ring-brand-100' : 'border-slate-200')}>
+              className={cn('scroll-mt-52 overflow-hidden rounded-2xl border bg-white', isToday ? 'border-brand-400 ring-2 ring-brand-100' : 'border-slate-200')}>
               <button type="button" onClick={() => setOpen(isOpen ? -1 : day.number)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
                 <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white', isToday ? 'bg-brand-600' : 'bg-slate-800')}>{day.number}</span>
                 <span className="min-w-0 flex-1">
