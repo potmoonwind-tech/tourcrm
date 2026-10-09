@@ -61,7 +61,7 @@ export function VendorsPage() {
 
   const all = vendors.data ?? []
   const [cat, setCat] = useState('')
-  const rows = all.filter((v) => (!type || v.type === type) && (type !== 'activity' || !cat || v.category === cat)
+  const rows = all.filter((v) => !v.placeholder && (!type || v.type === type) && (type !== 'activity' || !cat || v.category === cat)
     && matches(q, v.name, v.city, v.contact_person, v.phone))
   const cats = [...new Set(all.filter((v) => v.type === 'activity' && v.category).map((v) => v.category!))]
   const counts = Object.fromEntries(VENDOR_TYPES.map((ty) => [ty, all.filter((v) => v.type === ty).length]))

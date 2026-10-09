@@ -301,6 +301,7 @@ class VendorOut(_Out):
     visit_minutes: int | None = None
     company_id: str | None = None
     category: str = ""
+    placeholder: bool = False
 
 
 class VendorRef(_Out):
@@ -308,6 +309,7 @@ class VendorRef(_Out):
     name: str
     type: VendorType
     phone: str
+    placeholder: bool = False       # a person not named yet ("Guide (to be named)")
 
 
 class ClientUpdate(BaseModel):
@@ -673,7 +675,7 @@ class StaffUpdate(BaseModel):
 
 
 class StaffIn(StaffUpdate):
-    vendor_id: str
+    vendor_id: str | None = None      # none: the role without a name yet ("Guide (to be named)"), named later
     role: StaffRole
     start_day: int = Field(default=1, ge=1, le=60)
 

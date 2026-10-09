@@ -75,6 +75,7 @@ export interface Vendor {
   vat_invoice?: boolean         // gives VAT invoices: its costs carry the agency's VAT rate
   visit_minutes?: number | null // a sight or activity: how long a visit usually takes
   category?: string             // an activity place: museum, cable_car... (lib/activities.tsx) or the agency's own word
+  placeholder?: boolean         // a stand-in for staff not named yet - never listed in the catalogue or pickers
   company_id?: string | null    // a driver's (or guide's) company: the bus company that sends them
 }
 /** Dates a guide or driver can't work, both days included. */
@@ -94,7 +95,7 @@ export interface ScheduleOut {
 }
 /** Cancelled within N days (of arrival, or of a vendor's first service) → percent. */
 export interface ScaleRow { within_days: number; percent: number }
-export interface VendorRef { id: string; name: string; type: VendorType; phone: string }
+export interface VendorRef { id: string; name: string; type: VendorType; phone: string ; placeholder?: boolean }
 export interface Client {
   id: string; name: string; type: 'agency' | 'direct'; country: string
   contact_person: string; email: string; phone: string; notes: string; cancellation_scale: ScaleRow[] | null

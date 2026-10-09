@@ -42,3 +42,21 @@ def test_an_activity_place_has_a_category(make_client):
     assert v["category"] == "cable_car"
     assert c.patch(f"{base}/vendors/{v['id']}", json={"category": "Sky ride"}).json()["category"] == "Sky ride"   # the agency's own word
     assert mk(c, f"{base}/vendors", {"name": "Hotel", "type": "hotel"})["category"] == ""
+
+
+
+def test_a_guide_to_be_named_then_named(make_client):
+    c, base, _ = agency(make_client)
+    tour = mk(c, f"{base}/tours", {"start_date": "2027-05-01", "end_date": "2027-05-03", "pax": 10})
+    url = f"{base}/tours/{tour['id']}/staff"
+    a = mk(c, url, {"role": "guide"})
+    b = mk(c, url, {"role": "guide", "start_day": 2})
+    assert a["vendor"]["placeholder"] and a["vendor"]["name"] == "Guide (to be named)" and a["vendor"]["id"] == b["vendor"]["id"]
+    other = mk(c, f"{base}/tours", {"start_date": "2027-05-01", "end_date": "2027-05-03", "pax": 10})
+    mk(c, f"{base}/tours/{other['id']}/staff", {"role": "guide"})        # the same stand-in on two tours: no "busy twice"
+    alerts = c.get(f"{base}/alerts").json()
+    assert not any(x.get("code") == "staff_double_booked" for x in (alerts if isinstance(alerts, list) else alerts.get("items", [])))
+    assert all(not v.get("placeholder") or v["name"].endswith("(to be named)") for v in c.get(f"{base}/vendors").json())
+    real = mk(c, f"{base}/vendors", {"name": "Levan", "type": "guide"})
+    named = c.patch(f"{url}/{a['id']}", json={"vendor_id": real["id"]}).json()
+    assert named["vendor"]["name"] == "Levan" and not named["vendor"]["placeholder"]

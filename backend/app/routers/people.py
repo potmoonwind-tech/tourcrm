@@ -62,7 +62,10 @@ def list_staff(tour_id: str, ctx: WorkspaceCtx = Depends(office), db: Session = 
 @router.post("/staff", response_model=StaffOut, status_code=status.HTTP_201_CREATED)
 def add_staff(tour_id: str, body: StaffIn, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
     t = _tour(db, ctx, tour_id)
-    check_refs(db, ctx, {"vendor_id": (Vendor, body.vendor_id)})
+    if body.vendor_id:
+        check_refs(db, ctx, {"vendor_id": (Vendor, body.vendor_id)})
+    else:
+        body = body.model_copy(update={"vendor_id": stand_in(db, ctx.workspace.id, body.role).id})
     _check_range(t, body.start_day, body.end_day)
     a = StaffAssignment(tour_id=t.id, **body.model_dump(exclude_none=True))
     db.add(a)
@@ -71,6 +74,22 @@ def add_staff(tour_id: str, body: StaffIn, ctx: WorkspaceCtx = Depends(office), 
     db.commit()
     db.refresh(a)
     return a
+
+
+# The supplier type a role's stand-in has (a tour leader or assistant is a guide-like person).
+STAND_IN_TYPE = {"guide": "guide", "driver": "driver", "transport": "transport", "tour_leader": "guide", "assistant": "guide", "other": "other"}
+STAND_IN_NAME = {"guide": "Guide", "driver": "Driver", "transport": "Transport", "tour_leader": "Tour leader", "assistant": "Assistant", "other": "Staff"}
+
+
+def stand_in(db: Session, workspace_id: str, role: str) -> Vendor:
+    """The agency's stand-in for a role not named yet - one per role, made the first time it's needed."""
+    name = f"{STAND_IN_NAME.get(role, 'Staff')} (to be named)"
+    v = db.scalar(select(Vendor).where(Vendor.workspace_id == workspace_id, Vendor.placeholder.is_(True), Vendor.name == name))
+    if v is None:
+        v = Vendor(workspace_id=workspace_id, name=name, type=STAND_IN_TYPE.get(role, "other"), placeholder=True)
+        db.add(v)
+        db.flush()
+    return v
 
 
 def _assignment(db: Session, t: Tour, staff_id: str) -> StaffAssignment:

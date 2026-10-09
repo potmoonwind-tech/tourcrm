@@ -390,7 +390,7 @@ def _list(db: Session, ctx: WorkspaceCtx, s: AiSession, a: dict):
         return not q or any(q in (x or "").lower() for x in xs)
     if kind == "vendors":
         rows = [{"id": v.id, "name": v.name, "type": v.type, "category": v.category, "city": v.city, "currency": v.currency, "services": len(v.services)}
-                for v in db.scalars(select(Vendor).where(Vendor.workspace_id == ws).options(selectinload(Vendor.services))
+                for v in db.scalars(select(Vendor).where(Vendor.workspace_id == ws, Vendor.placeholder.is_(False)).options(selectinload(Vendor.services))
                                     .order_by(Vendor.name)) if hit(v.name, v.city, v.type)]
     elif kind == "clients":
         rows = [{"id": c.id, "name": c.name, "type": c.type, "country": c.country}

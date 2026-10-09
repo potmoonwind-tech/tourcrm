@@ -317,7 +317,14 @@ export function StaffTab({ tour }: { tour: Tour }) {
             <li key={a.id} className="flex flex-wrap items-center gap-3 px-5 py-3 text-sm">
               <span className="w-32 shrink-0 rounded-md bg-slate-100 px-2 py-1 text-center text-xs font-semibold text-slate-700">{t(`staffRole_${a.role}`)}</span>
               <span className="min-w-40 flex-1">
-                <b>{a.vendor.name}</b> <Phone phone={a.vendor.phone} />
+                {a.vendor.placeholder ? (
+                  // Not named yet: say so, and name them right here when known.
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="rounded-full border border-dashed border-slate-300 px-2 py-0.5 text-xs text-slate-600">{t('staffToBeNamed')}</span>
+                    <VendorSelect className="h-8 w-56" vendors={ordered} types={ROLE_VENDOR_TYPES[a.role]} value={null} placeholder={t('staffNameNow')}
+                      onChange={(v) => v && update.mutate({ id: a.id, body: { vendor_id: v } as Partial<StaffAssignment> })} />
+                  </span>
+                ) : <><b>{a.vendor.name}</b> <Phone phone={a.vendor.phone} /></>}
                 {companyOf(a.vendor.id) && <span className="block text-xs text-slate-600">{t('worksForShort', { company: companyOf(a.vendor.id)! })}</span>}
                 {languagesOf(a.vendor.id) && <span className="block text-xs text-slate-500">{languagesOf(a.vendor.id)}</span>}
               </span>
@@ -352,7 +359,7 @@ export function StaffTab({ tour }: { tour: Tour }) {
       {quickAdd && <QuickVendorDialog type={ROLE_VENDOR_TYPES[form.role][0]} onCreated={(v) => setForm({ ...form, vendor_id: v.id })} onClose={() => setQuickAdd(false)} />}
       <Card className="p-4">
         <h3 className="mb-3 text-sm font-semibold">{t('addStaff')}</h3>
-        <form onSubmit={(e: FormEvent) => { e.preventDefault(); if (form.vendor_id) add.mutate() }}
+        <form onSubmit={(e: FormEvent) => { e.preventDefault(); add.mutate() }}
           className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[10rem_1fr_10rem_10rem_auto]">
           <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value as StaffRole, vendor_id: null })}>
             {STAFF_ROLES.map((r) => <option key={r} value={r}>{t(`staffRole_${r}`)}</option>)}
@@ -368,7 +375,8 @@ export function StaffTab({ tour }: { tour: Tour }) {
             <option value="">{t('untilEnd')}</option>
             {dayOptions.filter((d) => d >= form.start_day).map((d) => <option key={d} value={d}>{dayLabel(d)}</option>)}
           </Select>
-          <Button type="submit" disabled={!form.vendor_id || add.isPending}><Plus size={16} />{t('add')}</Button>
+          <Button type="submit" disabled={add.isPending} title={form.vendor_id ? undefined : t('staffAddUnnamedTip')}>
+            <Plus size={16} />{form.vendor_id ? t('add') : t('staffAddUnnamed')}</Button>
         </form>
         {pickedAway && (
           <p className="mt-2 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-800">{t('pickedAway', { name: picked!.name, when: awayText(pickedAway, lang) })}</p>

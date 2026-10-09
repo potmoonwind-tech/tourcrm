@@ -173,6 +173,9 @@ class Vendor(Base):
     visit_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # What kind of activity place: one of the ready keys (museum, church, cable_car...) or the agency's own word.
     category: Mapped[str] = mapped_column(String(40), default="", server_default="")
+    # A stand-in for a person not named yet ("Guide (to be named)"): a tour's staff before the agency knows
+    # who. Not in the catalogue, never booked, never "busy on two tours".
+    placeholder: Mapped[bool] = mapped_column(default=False, server_default="0")
     # A driver (or guide) who works for a company of ours — the bus company that sends them.
     company_id: Mapped[str | None] = mapped_column(ForeignKey("vendors.id", ondelete="SET NULL"), nullable=True, index=True)
     is_active: Mapped[bool] = mapped_column(default=True)

@@ -93,7 +93,7 @@ def staff_week(ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db
     for t in tours:
         for a in t.staff:
             # People only (as the double-booking check): a coach company runs several buses at once.
-            if a.role not in BOOKED_ROLES or a.vendor.type not in PERSON_TYPES:
+            if a.role not in BOOKED_ROLES or a.vendor.type not in PERSON_TYPES or a.vendor.placeholder:
                 continue
             first, last = _span(a, t)
             row = by_person.setdefault(a.vendor_id, {"vendor": a.vendor, "role": a.role, "days": defaultdict(list)})

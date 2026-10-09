@@ -71,7 +71,7 @@ def _double_bookings(db: Session, ws_id: str, tours: list[Tour]) -> dict[str, li
     rows = db.execute(select(StaffAssignment, Tour).join(Tour)
                       .join(Vendor, Vendor.id == StaffAssignment.vendor_id)
                       .where(Tour.workspace_id == ws_id, Tour.status != "cancelled", StaffAssignment.role.in_(BOOKED_ROLES),
-                             Vendor.type.in_(PERSON_TYPES))
+                             Vendor.type.in_(PERSON_TYPES), Vendor.placeholder.is_(False))
                       .options(selectinload(StaffAssignment.vendor))).all()
     by_vendor: dict[str, list[tuple[StaffAssignment, Tour, date, date]]] = defaultdict(list)
     for a, t in rows:

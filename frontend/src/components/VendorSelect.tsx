@@ -36,7 +36,7 @@ export function VendorSelect({ vendors, types, value, onChange, className, disab
   // restaurants before hotels.
   const groups = useMemo(() => {
     const text = q.trim().toLowerCase()
-    const fits = vendors.filter((v) => (types.includes(v.type) && (!only || only(v))) || v.id === value)
+    const fits = vendors.filter((v) => (types.includes(v.type) && !v.placeholder && (!only || only(v))) || v.id === value)
       .filter((v) => !text || v.name.toLowerCase().includes(text) || (v.city ?? '').toLowerCase().includes(text))
       .sort((a, b) => (a.type === b.type ? a.name.localeCompare(b.name) : a.type === 'hotel' ? 1 : b.type === 'hotel' ? -1 : 0))
     const by = new Map<string, Vendor[]>()

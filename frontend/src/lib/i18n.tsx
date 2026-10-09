@@ -2976,6 +2976,10 @@ const en = {
   mealOwnWhere: "Where they'll be",
   mealOwnWherePh: "Where: town or place (optional)",
   mealOwnWhereTip: "Free time for this meal here - the day's road goes there and the programme says it",
+  staffAddUnnamed: "Add, name later",
+  staffAddUnnamedTip: "No person picked: adds the role now (e.g. a guide) - name them when you know",
+  staffToBeNamed: "to be named",
+  staffNameNow: "Choose who…",
 }
 
 type Dict = typeof en
@@ -5948,6 +5952,10 @@ const ka: Dict = {
   mealOwnWhere: "სად იქნებიან",
   mealOwnWherePh: "სად: ქალაქი ან ადგილი (არასავალდებულო)",
   mealOwnWhereTip: "ამ კვების თავისუფალი დრო აქ - დღის მარშრუტი აქ გადის და პროგრამაში ჩანს",
+  staffAddUnnamed: "დამატება, სახელი მოგვიანებით",
+  staffAddUnnamedTip: "პირი არ არის არჩეული: ემატება როლი (მაგ. გიდი) - სახელი მიუთითეთ, როცა გაიგებთ",
+  staffToBeNamed: "დასაზუსტებელია",
+  staffNameNow: "აირჩიეთ ვინ…",
 }
 
 export type Lang = 'en' | 'ka'

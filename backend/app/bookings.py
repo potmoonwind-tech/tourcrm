@@ -96,7 +96,7 @@ def usage(db: Session, t: Tour, vendors: dict[str, Vendor] | None = None) -> dic
 
     def of(vendor_id: str) -> Usage | None:
         v = vendors.get(vendor_id)
-        if v is None:
+        if v is None or v.placeholder:          # a person not named yet: nothing to book
             return None
         return out.setdefault(vendor_id, Usage(v))
 
