@@ -812,6 +812,12 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
         <DayProgramme day={day} index={index} last={last} byId={byId} services={menus} disabled={disabled} from={prevCity} fromHotel={prevHotel} date={date}
           bare onSetDay={onSet} onChange={(schedule) => onSet({ schedule })}
           onAddMore={disabled ? undefined : (what) => (what === 'flight' ? setDetails(true) : setMore(true))}
+          addAside={whatOpen || ((dragging ?? picked) && accepts('extras', (dragging ?? picked)!)) ? undefined : (
+            <button type="button" onClick={() => setWhatOpen(true)}
+                className="flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-brand-700">
+                {t('whatTheyDo')}{day.extras.length > 0 && <span className="rounded-full bg-slate-100 px-1.5 font-medium tabular-nums text-slate-700">{day.extras.length}</span>}
+                <ChevronRight size={13} aria-hidden />
+              </button>)}
           slots={{
             ...(last ? {} : { hotel: {
               state: hotelState, grip: (() => { const c = holds(day.hotel_id); return c ? <SlotGrip day={index} slot="hotel" item={c} /> : null })(),
@@ -963,13 +969,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
 
               </SlotDrop>
             </div>
-            ) : (
-              <button type="button" onClick={() => setWhatOpen(true)}
-                className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-brand-700">
-                {t('whatTheyDo')}{day.extras.length > 0 && <span className="rounded-full bg-slate-100 px-1.5 font-medium tabular-nums text-slate-700">{day.extras.length}</span>}
-                <ChevronRight size={13} aria-hidden />
-              </button>
-            )}
+            ) : null}
 
         {/* Border crossings and notes are rare: folded away until used. */}
         {more || day.border_crossing || day.notes ? (

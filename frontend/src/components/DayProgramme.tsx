@@ -159,11 +159,12 @@ export function dayLegs(day: DayFields, from: string | undefined, factor: number
 export interface SlotRow { node: ReactNode; state?: 'done' | 'todo'; aside?: ReactNode; grip?: ReactNode }
 export type SlotRows = Partial<Record<'hotel' | 'breakfast' | 'lunch' | 'dinner', SlotRow>>
 
-export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay, date, slots, footer, bare, onAddMore }: {
+export function DayProgramme({ day, index, last, byId, services, disabled, from, fromHotel, onChange, onSetDay, date, slots, footer, bare, onAddMore, addAside }: {
   slots?: SlotRows          // the builder: these rows are where the hotel, breakfast, lunch and dinner are chosen
   footer?: ReactNode        // under the list (the day's activities, notes)
   bare?: boolean            // inside the day's card: no frame of its own
   onAddMore?: (what: 'flight' | 'note') => void   // "+ Flight", "+ Note" in the add line
+  addAside?: ReactNode      // at the end of the add line ("What they do ›")
   day: DayFields; index: number; last: boolean; byId: Map<string, Vendor>; services: ServiceBrief[]; disabled?: boolean; startOpen?: boolean
   date?: string      // the day's date (a tour): visits are checked against the places' opening hours
   from?: string      // where the group slept the night before
@@ -582,6 +583,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
           {ADDABLE.map((k) => addChip(k, () => insertAt(items.length, k)))}
           {onAddMore && addChip('flight', () => onAddMore('flight'), t('progAddFlight'))}
           {onAddMore && addChip('other', () => onAddMore('note'), t('progAddNote'))}
+          {addAside && <span className="ml-auto">{addAside}</span>}
           {outOfOrder && (
             <Button type="button" size="sm" variant="secondary" onClick={byTime} className="ml-auto border-amber-400 text-amber-900">
               <ArrowDownUp size={16} aria-hidden />{t('progSortByTime')}
