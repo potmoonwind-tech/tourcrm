@@ -100,7 +100,8 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   // The day being worked on: the one in view (the strip follows it), or the one just clicked into.
   const [activeDay, setActiveDay] = useState(0)
   const canMap = days.flatMap((d) => [...(d.stops ?? []), d.city]).filter((x) => x?.trim()).length > 1
-  const nextGap = nextGapOf(days)
+  const restaurants = useMemo(() => new Set((vendors.data ?? []).filter((v) => v.type === 'restaurant').map((v) => v.id)), [vendors.data])
+  const nextGap = nextGapOf(days, restaurants)
   const openDay = (i: number) => {
     setView('days')
     setTimeout(() => document.getElementById(`day-card-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 60)
@@ -267,7 +268,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             {/* Where the tour stands: plain text, nothing to press. */}
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-2">
               <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
-              <BuildSteps days={days} />
+              <BuildSteps days={days} restaurants={restaurants} />
             </div>
           </div>
           {view === 'days' && <DayStrip days={days} dates={dates} at={activeDay} onAt={setActiveDay} />}
@@ -611,9 +612,16 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
   const show = !simple || details          // the less used parts of the day
   const [mealOpen, setMealOpen] = useState<Record<string, boolean>>({})
   // What's done and what's missing in this day (the same rules as "Check" and "Next missing").
+  const restaurantIds = useMemo(() => new Set(vendors.filter((v) => v.type === 'restaurant').map((v) => v.id)), [vendors])
+  // A restaurant chosen without its menu: the step isn't finished (say so under it).
+  const needsMenu = (m: 'lunch' | 'dinner') => {
+    const id = m === 'lunch' ? day.lunch_id : day.dinner_id
+    return !!id && restaurantIds.has(id) && (m === 'lunch' ? day.lunch_mode : day.dinner_mode) !== 'own'
+      && !(m === 'lunch' ? day.lunch_menu_id : day.dinner_menu_id) && !day.meal_dishes?.[m]
+  }
   const mealState = (m: 'lunch' | 'dinner') =>
     (!(m === 'lunch' ? day.lunch_id : day.dinner_id) && day.meal_tbd?.[m] && (m === 'lunch' ? day.lunch_mode : day.dinner_mode) !== 'own'
-      ? undefined : mealDone(day, m) ? 'done' : 'todo') as 'done' | 'todo' | undefined
+      ? undefined : mealDone(day, m, restaurantIds) ? 'done' : 'todo') as 'done' | 'todo' | undefined
   const hotelState = last ? undefined : day.hotel_id ? 'done' as const : 'todo' as const
   const bm = day.breakfast_mode ?? 'hotel'
   const breakfastState = bm === 'hotel' || bm === 'own' ? (index === 0 && bm === 'hotel' ? undefined : 'done' as const) : day.breakfast_id ? 'done' as const : 'todo' as const
@@ -822,7 +830,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
           )}
           </>}
           {day.lunch_id && !show && !mealOpen.lunch ? (
-            <MealSummary meal="lunch" day={day} menu={menuOf(menus, day.lunch_menu_id, day.lunch_id, 'lunch')} crew={crew} dayNumber={index + 1}
+            <MealSummary meal="lunch" todo={needsMenu('lunch')} day={day} menu={menuOf(menus, day.lunch_menu_id, day.lunch_id, 'lunch')} crew={crew} dayNumber={index + 1}
               onOpen={() => setMealOpen({ ...mealOpen, lunch: true })} />
           ) : <>
           <MenuPick meal="lunch" vendorId={day.lunch_id} value={day.lunch_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday} compact
@@ -859,7 +867,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
           )}
           </>}
           {day.dinner_id && !show && !mealOpen.dinner ? (
-            <MealSummary meal="dinner" day={day} menu={menuOf(menus, day.dinner_menu_id, day.dinner_id, 'dinner')} crew={crew} dayNumber={index + 1}
+            <MealSummary meal="dinner" todo={needsMenu('dinner')} day={day} menu={menuOf(menus, day.dinner_menu_id, day.dinner_id, 'dinner')} crew={crew} dayNumber={index + 1}
               onOpen={() => setMealOpen({ ...mealOpen, dinner: true })} />
           ) : <>
           <MenuPick meal="dinner" vendorId={day.dinner_id} value={day.dinner_menu_id ?? null} menus={menus} disabled={disabled} twice={twiceToday} compact
@@ -918,17 +926,18 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
 }
 
 /** A meal in one line (simple card): its menu and tables - tap to open them. */
-function MealSummary({ meal, day, menu, crew, dayNumber, onOpen }: {
+function MealSummary({ meal, day, menu, crew, dayNumber, onOpen, todo }: {
   meal: 'lunch' | 'dinner'; day: DayFields; menu: ServiceBrief | undefined; crew?: Crew; dayNumber: number; onOpen: () => void
+  todo?: boolean      // a restaurant without its menu: "Choose a menu", in amber
 }) {
   const { t } = useI18n()
   const own = day.meal_dishes?.[meal]
-  const what = own ? t('gridOwnMenu') : menu?.name ?? t('menuNone')
+  const what = own ? t('gridOwnMenu') : menu?.name ?? (todo ? t('menuChoose') : t('menuNone'))
   const n = (own ?? menu?.dishes ?? []).length
   const staff = crew ? crew.staff.filter((a) => ['guide', 'driver', 'assistant'].includes(a.role) && a.start_day <= dayNumber && (a.end_day === null || a.end_day >= dayNumber)).length + (crew.leaders || 0) : 0
   return (
     <button type="button" onClick={onOpen} className="mt-1.5 flex w-full items-center gap-1 rounded-md px-1 py-1 text-left text-xs text-slate-600 hover:bg-slate-50">
-      <span className="min-w-0 flex-1 truncate">{what}{n > 0 && ` · ${t('dishesN', { n })}`}{crew && ` · ${staff ? `${crew.pax} + ${staff}` : crew.pax}`}</span>
+      <span className={cn('min-w-0 flex-1 truncate', todo && 'font-medium text-amber-700')}>{what}{n > 0 && ` · ${t('dishesN', { n })}`}{crew && ` · ${staff ? `${crew.pax} + ${staff}` : crew.pax}`}</span>
       <span className="shrink-0 font-medium text-brand-700">{t('menuAndTables')}</span>
       <ChevronRight size={13} className="shrink-0 text-brand-700" aria-hidden />
     </button>
@@ -936,19 +945,26 @@ function MealSummary({ meal, day, menu, crew, dayNumber, onOpen }: {
 }
 
 /** The next day with something missing (a night's hotel, lunch, dinner, the city), or -1. */
-const mealDone = (d: DayFields, m: 'lunch' | 'dinner') => (m === 'lunch' ? d.lunch_mode : d.dinner_mode) === 'own' || !!(m === 'lunch' ? d.lunch_id : d.dinner_id) || !!d.meal_tbd?.[m]
-const nextGapOf = (days: DayFields[]) =>
-  days.findIndex((d, i) => !d.city.trim() || (i < days.length - 1 && !d.hotel_id) || !mealDone(d, 'lunch') || !mealDone(d, 'dinner'))
+// A meal is done when it's their own, still to decide (TBD), or has its place - and, at a restaurant, its menu
+// (a hotel's lunch or dinner needs none). `restaurants`: the ids of the agency's restaurants.
+const mealDone = (d: DayFields, m: 'lunch' | 'dinner', restaurants?: Set<string>) => {
+  if ((m === 'lunch' ? d.lunch_mode : d.dinner_mode) === 'own' || d.meal_tbd?.[m]) return true
+  const id = m === 'lunch' ? d.lunch_id : d.dinner_id
+  if (!id) return false
+  return !restaurants?.has(id) || !!(m === 'lunch' ? d.lunch_menu_id : d.dinner_menu_id) || !!d.meal_dishes?.[m]
+}
+const nextGapOf = (days: DayFields[], restaurants?: Set<string>) =>
+  days.findIndex((d, i) => !d.city.trim() || (i < days.length - 1 && !d.hotel_id) || !mealDone(d, 'lunch', restaurants) || !mealDone(d, 'dinner', restaurants))
 
 /** Where the build stands, as plain text: route, hotels, meals, activities (optional). */
-function BuildSteps({ days }: { days: DayFields[] }) {
+function BuildSteps({ days, restaurants }: { days: DayFields[]; restaurants: Set<string> }) {
   const { t } = useI18n()
   if (!days.length) return null
   const nights = days.slice(0, -1)
   const steps: [string, number, number, boolean][] = [
     [t('stepRoute'), days.filter((d) => d.city.trim()).length, days.length, false],
     [t('stepHotels'), nights.filter((d) => d.hotel_id).length, nights.length, false],
-    [t('stepMeals'), days.reduce((n, d) => n + (mealDone(d, 'lunch') ? 1 : 0) + (mealDone(d, 'dinner') ? 1 : 0), 0), days.length * 2, false],
+    [t('stepMeals'), days.reduce((n, d) => n + (mealDone(d, 'lunch', restaurants) ? 1 : 0) + (mealDone(d, 'dinner', restaurants) ? 1 : 0), 0), days.length * 2, false],
     [t('stepActivities'), days.filter((d) => d.extras.length).length, days.length, true],
   ]
   return (

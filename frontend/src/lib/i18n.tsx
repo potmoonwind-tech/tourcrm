@@ -3005,6 +3005,7 @@ const en = {
   useSavedDay: "Use saved day “{name}”",
   flightArrives: "Arrives",
   flightDeparts: "Departs",
+  menuChoose: "Choose a menu",
 }
 
 type Dict = typeof en
@@ -6006,6 +6007,7 @@ const ka: Dict = {
   useSavedDay: "შენახული დღის გამოყენება: „{name}“",
   flightArrives: "ჩამოფრენა",
   flightDeparts: "გაფრენა",
+  menuChoose: "აირჩიეთ მენიუ",
 }
 
 export type Lang = 'en' | 'ka'

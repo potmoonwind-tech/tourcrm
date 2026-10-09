@@ -49,7 +49,9 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
       if (!id && d.meal_tbd?.[meal]) { out.push({ icon: <Utensils size={13} />, label: t(meal), text: t('mealTbdShort', { town: d.meal_tbd[meal]! }), state: 'soft' }); continue }
       if (!id) { out.push({ icon: <Utensils size={13} />, label: t(meal), text: t('gridMissing'), state: 'todo' }); continue }
       const menu = menuOf(d, meal)
-      out.push({ icon: <Utensils size={13} />, label: t(meal), text: name(id), sub: menu || t('gridNoMenu'), state: menu ? 'ok' : 'soft' })
+      const atRestaurant = byId.get(id)?.type === 'restaurant'
+      out.push({ icon: <Utensils size={13} />, label: t(meal), text: name(id), sub: menu || (atRestaurant ? t('menuChoose') : undefined),
+        state: menu || !atRestaurant ? 'ok' : 'todo' })
     }
     // What they do: the places with activities and the free visits of the day's timeline - as "what they do" shows it.
     const paid = d.extras.map((x) => menus.find((s) => s.id === x.service_id)?.vendor.name)
