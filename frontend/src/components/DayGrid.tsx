@@ -70,11 +70,11 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
     return out
   }
 
-  // The day's way: from last night's town (when it changes), through the stops, to tonight's.
+  // The day's title: from last night's town (when it changes) to tonight's.
   const route = (i: number) => {
     const d = days[i]
     const from = i > 0 ? days[i - 1].city.trim() : ''
-    const out = [from, ...(d.stops ?? []), d.city].map((x) => x.trim()).filter(Boolean)
+    const out = [from, d.city].map((x) => x.trim()).filter(Boolean)
     return out.filter((x, k) => k === 0 || townKey(x) !== townKey(out[k - 1]))
   }
   const cards = days.map((d, i) => {

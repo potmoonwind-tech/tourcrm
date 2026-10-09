@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, Drawer, Menu, useGuardedClose } from '../components/overlay'
 import { Ban, Calculator, Check, Minus, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
+import { useStickyHeight } from '../lib/sticky'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { CodeChip } from '../components/tour'
 import { Button, Card, ErrorText, Field, FullPageSpinner, Input, Select, Textarea } from '../components/ui'
@@ -33,6 +34,7 @@ export function TourDetailPage() {
   const { t, lang } = useI18n()
   const navigate = useNavigate()
   const qc = useQueryClient()
+  const tabsBar = useStickyHeight('--tabs-h')
   const key = ['tour', ws.id, tourId]
   const tour = useQuery({ queryKey: key, queryFn: () => api<Tour>(wsPath(ws.id, `/tours/${tourId}`)) })
   const canEdit = atLeast(ws.role, 'staff') && !tour.data?.closed_at
@@ -85,7 +87,7 @@ export function TourDetailPage() {
         <AlertBars tourId={tr.id} onTab={setTab} />
         <TourSummary tour={tr} canEdit={canEdit} onEdit={(f) => setEditing({ focus: f })} />
         {editing && <TourDetailsDrawer tour={tr} focus={editing.focus} onClose={() => setEditing(null)} onSaved={(t2) => qc.setQueryData(key, t2)} />}
-        <div role="tablist" aria-label={t('tourSections')}
+        <div role="tablist" aria-label={t('tourSections')} ref={tabsBar}
           className="sticky top-0 z-30 -mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 bg-slate-50/95 px-4 backdrop-blur md:-mx-8 md:px-8"
           onKeyDown={(e) => {
             // Arrow keys move between the tabs (the usual tab keyboard pattern).
@@ -346,10 +348,10 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
     onSuccess: (t2) => { onSaved(t2); setDraft(null); setBack(undefined); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
   })
   return (
-    <div className={cn('space-y-3', dirty && 'pb-20')}>
+    <div className={cn('space-y-3 pb-16', dirty && 'pb-36')}>
       {dirty && (
         // Floating at the bottom of the screen: it never stacks with the sticky bars at the top.
-        <div role="status" className="fixed inset-x-0 bottom-4 z-40 mx-auto flex w-[min(42rem,calc(100%-2rem))] flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm shadow-lg">
+        <div role="status" data-savebar className="fixed inset-x-0 bottom-4 z-40 mx-auto flex w-[min(42rem,calc(100%-2rem))] flex-wrap items-center gap-3 rounded-xl border border-brand-200 bg-brand-50 px-4 py-2.5 text-sm shadow-lg">
           <span className="min-w-0 flex-1 font-medium text-brand-900">{t('unsavedItinerary')}</span>
           <Button size="sm" variant="secondary" onClick={() => { setDraft(null); setBack(undefined) }}>{t('discard')}</Button>
           <Button size="sm" disabled={save.isPending} onClick={() => save.mutate()}>{t('saveChanges')}</Button>

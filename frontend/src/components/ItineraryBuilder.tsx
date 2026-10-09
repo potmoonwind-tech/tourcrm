@@ -12,9 +12,10 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, BedDouble, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ListChecks } from 'lucide-react'
+import { AlertTriangle, BedDouble, CalendarDays, Table2, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ListChecks } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useStickyHeight } from '../lib/sticky'
 import { api, type BreakfastMode, type DayExtra, type DayTemplate, type ScheduleItem, type StaffAssignment, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
 import { fmt, weekday } from '../lib/dates'
@@ -95,6 +96,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   const [listOpen, setListOpenRaw] = useState(() => { try { return localStorage.getItem('builder.list') !== '0' } catch { return true } })
   const setListOpen = (v: boolean) => { setListOpenRaw(v); try { localStorage.setItem('builder.list', v ? '1' : '0') } catch { /* private window */ } }
   const [listTab, setListTab] = useState<Tab>('hotels')
+  const toolbar = useStickyHeight('--bar-h')
   // Simple day cards (the four questions; the rest under "More for this day") unless "Show everything" is on.
   const [full, setFullState] = useState(() => { try { return localStorage.getItem('builderFull') === '1' } catch { return false } })
   const setFull = (v: boolean) => { setFullState(v); try { localStorage.setItem('builderFull', v ? '1' : '0') } catch { /* private window */ } }
@@ -233,6 +235,26 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   return (
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd}
       onDragCancel={() => { setDragging(null); setCarrying(null) }}>
+        {/* The builder's one toolbar, kept in view: how to look at the days, the days themselves, the next step. */}
+        <div ref={toolbar} className="sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-slate-50/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8">
+          <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView} className="shrink-0"
+            options={[
+              ['check', <span key="c" className="flex items-center gap-1.5" title={t('viewCheck')}><ListChecks size={15} aria-hidden /><span className={cn(view !== 'check' && 'max-sm:sr-only')}>{t('viewCheck')}</span></span>],
+              ['overview', <span key="o" className="flex items-center gap-1.5" title={t('viewOverview')}><Table2 size={15} aria-hidden /><span className={cn(view !== 'overview' && 'max-sm:sr-only')}>{t('viewOverview')}</span></span>],
+              ['days', <span key="d" className="flex items-center gap-1.5" title={t('viewDays')}><CalendarDays size={15} aria-hidden /><span className={cn(view !== 'days' && 'max-sm:sr-only')}>{t('viewDays')}</span></span>],
+            ]} />
+          {view === 'days' ? <DayStrip days={days} dates={dates} at={activeDay} onAt={setActiveDay} /> : <div className="flex-1" />}
+          <Menu kind="icon" label={t('moreActions')} items={[
+            { label: t('programmeDownload'), icon: <Download size={16} />, onClick: () => onDownload?.(), hidden: !onDownload },
+            { label: listOpen ? t('hideList') : t('addFromList'), icon: <PanelLeft size={16} />, hidden: disabled,
+              onClick: () => { setView('days'); setListOpen(!listOpen); setPicked(null) } },
+            { label: full ? t('simpleView') : t('showEverything'), icon: <ListChecks size={16} />,
+              onClick: () => { setView('days'); setFull(!full) } },
+            { label: t('mapOpen'), icon: <MapIcon size={16} />, onClick: () => tools.current.openMap?.(), hidden: !canMap },
+            { label: t('suggestKm'), icon: <MapPinned size={16} />, onClick: () => tools.current.suggestKm?.(), hidden: disabled || !days.some((d) => d.city.trim()) },
+            { label: t('recalcTimes'), icon: <Clock size={16} />, onClick: () => tools.current.recalc?.(), hidden: disabled || !days.some((d) => (d.schedule ?? []).length) },
+          ]} />
+        </div>
       <div className={cn('grid gap-4', view === 'days' && !disabled && (listOpen ? 'lg:grid-cols-[16rem_1fr]' : 'lg:grid-cols-[2.75rem_1fr]'))}>
         {view === 'days' && !disabled && !listOpen && <PaletteRail onOpen={(tab) => { setListTab(tab); setListOpen(true) }} />}
         {view === 'days' && listOpen && !disabled && <Palette vendors={vs} services={services.data ?? []} picked={picked} onPick={setPicked}
@@ -250,33 +272,17 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               <button type="button" className={cn('rounded-md p-1 hover:bg-brand-100', picked.kind !== 'service' && 'ml-auto')} onClick={() => setPicked(null)} aria-label={t('done')} title={t('done')}><X size={14} /></button>
             </p>
           )}
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView}
-                options={[['check', t('viewCheck')], ['overview', t('viewOverview')], ['days', t('viewDays')]]} />
-              <div className="flex-1" />
-              {/* The one main action: the next thing to fill in. Everything occasional sits in "⋯". */}
-              {!disabled && nextGap >= 0 && (
-                <Button type="button" onClick={() => openDay(nextGap)}>{t('nextMissing', { n: nextGap + 1 })}<ArrowRight size={16} aria-hidden /></Button>
-              )}
-              <Menu kind="more" label={t('moreActions')} items={[
-                { label: t('programmeDownload'), icon: <Download size={16} />, onClick: () => onDownload?.(), hidden: !onDownload },
-                { label: listOpen ? t('hideList') : t('addFromList'), icon: <PanelLeft size={16} />, hidden: disabled,
-                  onClick: () => { setView('days'); setListOpen(!listOpen); setPicked(null) } },
-                { label: full ? t('simpleView') : t('showEverything'), icon: <ListChecks size={16} />,
-                  onClick: () => { setView('days'); setFull(!full) } },
-                { label: t('mapOpen'), icon: <MapIcon size={16} />, onClick: () => tools.current.openMap?.(), hidden: !canMap },
-                { label: t('suggestKm'), icon: <MapPinned size={16} />, onClick: () => tools.current.suggestKm?.(), hidden: disabled || !days.some((d) => d.city.trim()) },
-                { label: t('recalcTimes'), icon: <Clock size={16} />, onClick: () => tools.current.recalc?.(), hidden: disabled || !days.some((d) => (d.schedule ?? []).length) },
-              ]} />
-            </div>
-            {/* Where the tour stands: plain text, nothing to press. */}
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-xl border border-slate-200 bg-white px-4 py-2">
-              <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
-              <BuildSteps days={days} restaurants={restaurants} />
-            </div>
+          {/* Where the tour stands and the one main action (the next thing to fill in), floating at the bottom;
+              it moves up when the "save changes" bar is there. */}
+          <div className="fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit max-w-[calc(100%-2rem)] items-center gap-x-4 rounded-full border border-slate-200 bg-white/95 py-1.5 pl-4 pr-1.5 text-sm shadow-lg backdrop-blur transition-[bottom] [body:has([data-savebar])_&]:bottom-20">
+            <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
+            <span className="max-md:hidden"><BuildSteps days={days} restaurants={restaurants} /></span>
+            {!disabled && nextGap >= 0 ? (
+              <Button type="button" size="sm" className="shrink-0 rounded-full" onClick={() => openDay(nextGap)}>
+                {t('nextMissing', { n: nextGap + 1 })}<ArrowRight size={15} aria-hidden />
+              </Button>
+            ) : <span className="pr-2.5" />}
           </div>
-          {view === 'days' && <DayStrip days={days} dates={dates} at={activeDay} onAt={setActiveDay} />}
           {view === 'check' && (
             // Every day on one screen: what is done, what is missing, days side by side.
             <DayGrid days={days} dates={dates} byId={byId} menus={services.data ?? []} alerts={alerts} crew={crew} onOpen={openDay} />
@@ -393,7 +399,7 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
                   </button>
                   {dates?.[i] && <span className="mt-0.5 block whitespace-nowrap text-xs text-slate-500">{fmt(dates[i], lang)}</span>}
                 </th>
-                <td className="px-2 py-2">
+                <td className="min-w-[9rem] px-2 py-2">
                   <PlaceInput disabled={disabled} value={d.city} onChange={(city) => onSet(i, { city })} placeholder={t('cityNight')}
                     className={cn(field, 'h-9 font-medium')} aria-label={`${t('day')} ${i + 1} · ${t('city')}`} />
                   {warn.map((a, k) => <p key={k} className="mt-1 flex items-start gap-1 text-xs text-amber-800"><AlertTriangle size={12} className="mt-0.5 shrink-0" />{t(`alert_${a.code}` as TKey, a.params)}</p>)}
@@ -425,7 +431,7 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
                 <td className="px-2 py-2">{meal(i, 'dinner')}</td>
                 <td className="px-2 py-2">
                   <button type="button" onClick={() => onOpen(i)} className="max-w-56 text-left text-xs text-slate-600 hover:text-brand-700">
-                    {extrasOf(d) || [...(d.stops ?? [])].join(', ') || <span className="text-slate-400">+ {t('placeAdd')}</span>}
+                    {extrasOf(d) || <span className="text-slate-400">+ {t('placeAdd')}</span>}
                   </button>
                 </td>
                 <td className="px-3 py-2 text-right tabular-nums text-slate-600">{i > 0 ? d.km ?? '—' : ''}</td>
@@ -454,23 +460,22 @@ function DayStrip({ days, dates, at, onAt: setAt }: { days: DayFields[]; dates?:
     return () => io.disconnect()
   }, [days.length])   // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { strip.current?.querySelector(`[data-day="${at}"]`)?.scrollIntoView({ block: 'nearest', inline: 'nearest' }) }, [at])
-  if (days.length < 2) return null
+  if (days.length < 2) return <div className="flex-1" />
   const jump = (i: number) => document.getElementById(`day-card-${i}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   const dot = (on: boolean, need = true) => cn('h-3 w-3', on ? 'text-emerald-600' : need ? 'text-amber-500' : 'text-slate-300')
   return (
     <nav ref={strip} aria-label={t('itinerary')}
-      className="no-scrollbar sticky top-[42px] z-20 -mx-4 flex gap-1.5 overflow-x-auto border-b border-slate-200 bg-slate-50/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8">
+      className="no-scrollbar flex min-w-0 flex-1 gap-1 overflow-x-auto">
       {days.map((d, i) => {
         const last = i === days.length - 1
         return (
           <button type="button" key={i} onClick={() => jump(i)} data-day={i} aria-current={at === i ? 'true' : undefined}
-            title={[`${t('day')} ${i + 1}`, [...(d.stops ?? []), d.city].filter(Boolean).join(' → '), dates?.[i] && fmt(dates[i], lang)].filter(Boolean).join(' · ')}
+            title={[`${t('day')} ${i + 1}`, d.city, dates?.[i] && fmt(dates[i], lang)].filter(Boolean).join(' · ')}
             className={cn('flex shrink-0 items-center gap-2 rounded-full px-2.5 py-1 text-left text-xs text-slate-700',
               at === i ? 'bg-white shadow-sm ring-1 ring-brand-300' : 'hover:bg-white hover:shadow-sm')}>
             <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold text-white', at === i ? 'bg-brand-600' : 'bg-slate-800')}>{i + 1}</span>
             {dates?.[i] && <span className="tabular-nums text-slate-500">{weekday(dates[i], lang)} {Number(dates[i].slice(8))}</span>}
             <span className="max-w-[8rem] truncate font-medium text-slate-700">{d.city || '—'}</span>
-            {(d.stops?.length ?? 0) > 0 && <span className="text-[11px] text-slate-500">+{d.stops!.length}</span>}
             {(d.flights?.length ?? 0) > 0 && <Plane className="h-3 w-3 text-sky-600" />}
             <span className="flex items-center gap-0.5">
               {!last && <BedDouble className={dot(!!d.hotel_id)} />}
@@ -497,7 +502,7 @@ const TAB_ICON: Record<Tab, typeof BedDouble> = { hotels: BedDouble, food: Utens
 function PaletteRail({ onOpen }: { onOpen: (tab: Tab) => void }) {
   const { t } = useI18n()
   return (
-    <div className="hidden lg:sticky lg:top-[92px] lg:flex lg:flex-col lg:items-center lg:gap-1 lg:self-start lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:py-1.5">
+    <div className="hidden lg:sticky lg:top-[calc(var(--tabs-h,42px)+var(--bar-h,45px)+0.5rem)] lg:flex lg:flex-col lg:items-center lg:gap-1 lg:self-start lg:rounded-xl lg:border lg:border-slate-200 lg:bg-white lg:py-1.5">
       {(['hotels', 'food', 'services'] as Tab[]).map((x) => {
         const Icon = TAB_ICON[x]
         return (
@@ -529,7 +534,7 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab
     ? vendors.filter((v) => v.is_active && v.type === 'hotel' && serving.has(v.id) && match(v.name, v.city)).map((vendor) => ({ kind: 'vendor', vendor }))
     : []
   return (
-    <aside className="rounded-xl border border-slate-200 bg-white lg:sticky lg:top-[92px] lg:flex lg:max-h-[calc(100vh-7rem)] lg:flex-col lg:self-start">
+    <aside className="rounded-xl border border-slate-200 bg-white lg:sticky lg:top-[calc(var(--tabs-h,42px)+var(--bar-h,45px)+0.5rem)] lg:flex lg:max-h-[calc(100vh-var(--tabs-h,42px)-var(--bar-h,45px)-5rem)] lg:flex-col lg:self-start">
       <div className="space-y-2 border-b border-slate-200 p-2">
         {/* Tabs as icons with a word, and "fold" - one line. The how-to sits in the title. */}
         <div className="flex items-center gap-1 text-xs" role="tablist" aria-label={t('builderPalette')} title={t('builderHelp')}>
@@ -719,7 +724,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
         : active ? 'border-brand-300 shadow-md ring-1 ring-brand-200' : 'border-slate-200',
         alerts.some((a) => a.severity === 'error') && 'border-red-300')}>
       {/* The day's head: which day, when, from where to where - pinned while working down the day. */}
-      <header className={cn('group/head sticky top-[83px] z-10 flex items-center gap-2.5 rounded-t-xl border-b px-3 py-1.5 backdrop-blur',
+      <header className={cn('group/head sticky top-[calc(var(--tabs-h,42px)+var(--bar-h,45px))] z-10 flex items-center gap-2.5 rounded-t-xl border-b px-3 py-1.5 backdrop-blur',
         active ? 'border-brand-200 bg-brand-50/95' : 'border-slate-100 bg-slate-50/95')}>
         {!disabled && (
           <button type="button" {...attributes} {...listeners} aria-label={t('dragToReorder')} title={t('dragToReorder')}
@@ -1024,6 +1029,7 @@ function BuildSteps({ days, restaurants }: { days: DayFields[]; restaurants: Set
     <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" aria-label={t('buildProgress')}>
       {steps.map(([label, n, total, optional]) => {
         const done = n >= total
+        if (optional && !n) return null
         return (
           <li key={label} className="flex items-center gap-1">
             {done ? <Check size={14} className="text-emerald-600" aria-hidden />
