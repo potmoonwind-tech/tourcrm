@@ -634,6 +634,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
   const twiceToday = new Set(dishesOf(day.dinner_menu_id, day.dinner_id, 'dinner').filter((x) => lunchDishes.includes(x)))
   const [more, setMore] = useState(false)
   const [details, setDetails] = useState(false)
+  const [whatOpen, setWhatOpen] = useState(false)   // "What they do": folded (the timeline shows the visits)
   const [editStops, setEditStops] = useState(false)      // the stops' chips open only while editing them
   const show = !simple || details          // the less used parts of the day
   const [mealOpen, setMealOpen] = useState<Record<string, boolean>>({})
@@ -942,7 +943,9 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
             },
           }}
           footer={<div className="mt-1 space-y-2">
-            {/* What they do: one line of places (step 3 folds them into their rows). */}
+            {/* What they do: already in the timeline, so folded - "What they do · 3 ›" opens the list (tickets, prices).
+                It opens by itself while an activity is dragged or picked, to drop it here. */}
+            {whatOpen || ((dragging ?? picked) && accepts('extras', (dragging ?? picked)!)) ? (
             <div className="flex items-start gap-2">
               <span className="w-20 shrink-0 pt-1.5 text-right text-xs text-slate-500">{t('whatTheyDo')}</span>
               <SlotDrop day={index} slot="extras" dragging={dragging} picked={picked} onTap={(item) => onPlace('extras', item)}>
@@ -960,6 +963,13 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
 
               </SlotDrop>
             </div>
+            ) : (
+              <button type="button" onClick={() => setWhatOpen(true)}
+                className="ml-1 flex items-center gap-1 rounded-md px-1.5 py-1 text-xs text-slate-500 hover:bg-slate-100 hover:text-brand-700">
+                {t('whatTheyDo')}{day.extras.length > 0 && <span className="rounded-full bg-slate-100 px-1.5 font-medium tabular-nums text-slate-700">{day.extras.length}</span>}
+                <ChevronRight size={13} aria-hidden />
+              </button>
+            )}
 
         {/* Border crossings and notes are rare: folded away until used. */}
         {more || day.border_crossing || day.notes ? (
