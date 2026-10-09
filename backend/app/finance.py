@@ -335,14 +335,19 @@ def _plan(t: Tour, services: dict[str, Service], ctx: _Ctx) -> list[_Plan]:
                     what = f"{meal} × {n}" + (f" ({n - staff} + {staff} staff)" if staff else "")
                 if menu is not None and menu.vendor_id == vendor.id:
                     served = dish_util.served(d, meal, menu)      # this tour's own dishes, else the menu's
-                    shared = dish_util.plate_total(served, int(n), t.plate_share, ctx.plate_share) \
-                        if dish_util.sharing(served, t.plate_share, ctx.plate_share) else None
+                    # Shared dishes, all priced: the plates, counted table by table (the staff table eats too).
+                    # Otherwise (a dish without a price, or one portion each) the menu's price per person.
+                    tables = seat.tables if not staff_price else seat.tables[:1]
+                    shared = None
+                    if dish_util.sharing(served, t.plate_share, ctx.plate_share):
+                        cost, _, by_plates = dish_util.meal_cost(None, None, int(n), 0, tables, served, t.plate_share, ctx.plate_share)
+                        shared = cost if by_plates else None     # a dish without a price: the menu's price per person
                     if shared is not None:
                         # Family style: so many plates of each dish, not a price per person.
                         share = t.plate_share or ctx.plate_share or 1
                         cur = (menu.rates[0].currency if menu.rates else None) or vendor.currency or ""
                         plans.append(_Plan(f"{meal}:{d.id}", vendor, "meal",
-                                           f"{what} · {menu.name} · {dish_util.plates(int(n), share)} plates of each dish (1 per {share})",
+                                           f"{what} · {menu.name} · {sum(dish_util.plates(x, share) for x in tables)} plates of each dish (1 per {share})",
                                            d.date, None, Decimal(1), meal, menu, fixed=(shared, cur)))
                         continue
                     plans.append(_Plan(f"{meal}:{d.id}", vendor, "meal", f"{what} · {menu.name}", d.date, None, n, meal, menu))

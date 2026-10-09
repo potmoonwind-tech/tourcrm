@@ -4,6 +4,7 @@ One row per lunch and dinner (restaurant, set menu, dishes, price per person for
 date and group size, people eating, total), and every dish across the tour with the
 days it's served and its price at each restaurant. Prices are for managers only.
 """
+from types import SimpleNamespace
 from collections import defaultdict
 from datetime import date
 from typing import Literal
@@ -123,14 +124,12 @@ def meals_of(t: Tour, share_all: int, money: bool) -> TourMeals:
             rate = catalog.pick(menu.rates, d.date, pax or None) if menu else catalog.price_for(vendor, meal, d.date, pax or None)
             seat = seating.tables(t, d.day_number, pax, meal)      # the group's table, and the staff table when some eat apart
             people = seat.group + seat.staff
-            price = rate.price if rate else None
-            total = (price * people).quantize(Decimal("0.01")) if price is not None else None
-            # Family style: so many plates of each dish (12 people, 1 plate per 4 → 3 plates).
-            shared = bool(ds) and dish_util.sharing(ds, t.plate_share, share_all)
-            if shared:
-                each = [dish_util.plate_total(ds, n, t.plate_share, share_all) for n in seat.tables]
-                total = None if None in each else sum(each)        # plates are set table by table
-                price = (total / people).quantize(Decimal("0.01")) if total is not None and people else None
+            # The staff at the restaurant's staff price, when it has one (their own table).
+            staff_rate = catalog.price_for(vendor, "staff_meal", d.date) if seat.staff else None
+            total, price, shared = dish_util.meal_cost(rate.price if rate else None, staff_rate.price if staff_rate else None,
+                                                       seat.group, seat.staff, seat.tables, ds, t.plate_share, share_all)
+            if rate is None and total is not None:
+                rate = SimpleNamespace(currency=(menu.rates[0].currency if menu and menu.rates else None) or vendor.currency or "")
             paid_by_them = (getattr(d, f"{meal}_mode", None) or "included") == "tourists"
             if total is not None and money and not paid_by_them:
                 totals[rate.currency] += total
