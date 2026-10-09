@@ -97,6 +97,8 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   const setFull = (v: boolean) => { setFullState(v); try { localStorage.setItem('builderFull', v ? '1' : '0') } catch { /* private window */ } }
   // The map, "Suggest km" and "Recalculate times" keep their own dialogs; the "⋯" opens them.
   const tools = useRef<Tools>({})
+  // The day being worked on: the one in view (the strip follows it), or the one just clicked into.
+  const [activeDay, setActiveDay] = useState(0)
   const canMap = days.flatMap((d) => [...(d.stops ?? []), d.city]).filter((x) => x?.trim()).length > 1
   const nextGap = nextGapOf(days)
   const openDay = (i: number) => {
@@ -268,7 +270,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               <BuildSteps days={days} />
             </div>
           </div>
-          {view === 'days' && <DayStrip days={days} dates={dates} />}
+          {view === 'days' && <DayStrip days={days} dates={dates} at={activeDay} onAt={setActiveDay} />}
           {view === 'check' && (
             // Every day on one screen: what is done, what is missing, days side by side.
             <DayGrid days={days} dates={dates} byId={byId} menus={services.data ?? []} alerts={alerts} crew={crew} onOpen={openDay} />
@@ -281,6 +283,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           {view === 'days' && <SortableContext items={keys.current} strategy={verticalListSortingStrategy}>
             {days.map((d, i) => (
               <DayCard key={keys.current[i]} id={keys.current[i]} index={i} day={d} date={dates?.[i]} last={i === days.length - 1}
+                total={days.length} active={activeDay === i} onFocusDay={() => setActiveDay(i)}
                 prevCity={i > 0 ? days[i - 1].city : undefined} prevHotel={i > 0 ? days[i - 1].hotel_id : null}
                 vendors={vs} byId={byId} disabled={disabled} fixedLength={fixedLength} dragging={dragging} picked={picked}
                 menus={services.data ?? []} canCreate={canCreate} crew={crew} simple={!full}
@@ -430,10 +433,9 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
 }
 
 /** The whole trip at a glance: one chip per day (city + what is still missing); a click jumps there. */
-function DayStrip({ days, dates }: { days: DayFields[]; dates?: string[] }) {
+function DayStrip({ days, dates, at, onAt: setAt }: { days: DayFields[]; dates?: string[]; at: number; onAt: (i: number) => void }) {
   const { t, lang } = useI18n()
   // The day on screen (the one nearest the top), marked in the strip and kept in view in it.
-  const [at, setAt] = useState(0)
   const strip = useRef<HTMLElement>(null)
   useEffect(() => {
     const seen = new Map<number, number>()
@@ -441,7 +443,7 @@ function DayStrip({ days, dates }: { days: DayFields[]; dates?: string[] }) {
       for (const e of entries) seen.set(Number(e.target.id.slice(9)), e.isIntersecting ? e.boundingClientRect.top : Infinity)
       const visible = [...seen].filter(([, top]) => top !== Infinity).sort((a, b) => a[0] - b[0])
       if (visible.length) setAt(visible[0][0])
-    }, { rootMargin: '-120px 0px -55% 0px' })
+    }, { rootMargin: '-140px 0px -55% 0px' })
     days.forEach((_, i) => { const el = document.getElementById(`day-card-${i}`); if (el) io.observe(el) })
     return () => io.disconnect()
   }, [days.length])   // eslint-disable-line react-hooks/exhaustive-deps
@@ -460,6 +462,7 @@ function DayStrip({ days, dates }: { days: DayFields[]; dates?: string[] }) {
             className={cn('flex shrink-0 items-center gap-2 rounded-full px-2.5 py-1 text-left text-xs text-slate-700',
               at === i ? 'bg-white shadow-sm ring-1 ring-brand-300' : 'hover:bg-white hover:shadow-sm')}>
             <span className={cn('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-semibold text-white', at === i ? 'bg-brand-600' : 'bg-slate-800')}>{i + 1}</span>
+            {dates?.[i] && <span className="tabular-nums text-slate-500">{weekday(dates[i], lang)} {Number(dates[i].slice(8))}</span>}
             <span className="max-w-[8rem] truncate font-medium text-slate-700">{d.city || '—'}</span>
             {(d.stops?.length ?? 0) > 0 && <span className="text-[11px] text-slate-500">+{d.stops!.length}</span>}
             {(d.flights?.length ?? 0) > 0 && <Plane className="h-3 w-3 text-sky-600" />}
@@ -579,10 +582,11 @@ function Chip({ item, selected, lifted }: { item: Item; selected?: boolean; lift
 
 // --- day card --------------------------------------------------------------------------------
 
-function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLength, dragging, picked, alerts,
+function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendors, byId, disabled, fixedLength, dragging, picked, alerts,
   menus, canCreate, onNewVendor, onNewService, prevCity, prevHotel, crew, simple,
   onSet, onPlace, onDuplicate, onInsert, onRemove, onHotelNext }: {
   id: string; index: number; day: DayFields; date?: string; last: boolean; vendors: Vendor[]; byId: Map<string, Vendor>
+  total: number; active: boolean; onFocusDay: () => void      // the day being worked on: highlighted
   prevCity?: string
   prevHotel?: string | null
   disabled?: boolean; fixedLength?: boolean; dragging: Item | null; picked: Item | null; alerts: TourAlert[]
@@ -593,7 +597,7 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   onSet: (p: Partial<DayFields>) => void; onPlace: (slot: Slot, item: Item) => void
   onDuplicate: () => void; onInsert: () => void; onRemove: () => void; onHotelNext: () => void
 }) {
-  const { t, lang } = useI18n()
+  const { t } = useI18n()
   const factor = useWorkspace()?.drive_factor ?? 1.25
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
   const hotel = day.hotel_id ? byId.get(day.hotel_id) : undefined
@@ -631,6 +635,8 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
       toast('savedDaySaved')
     } catch { toast('savedDayFailed', 'error') }
   }
+  const savedAll = useQuery({ queryKey: ['day-templates', ws.id], queryFn: () => api<DayTemplate[]>(wsPath(ws.id, '/day-templates')), staleTime: 60_000, enabled: !disabled })
+  const savedHere = (savedAll.data ?? []).filter((x) => day.city.trim() && townKey(x.city) === townKey(day.city))
   const applyTemplate = (tpl: DayTemplate) => {
     const before = day
     onSet({ ...blankDay(), ...tpl.data, city: day.city.trim() || tpl.city })
@@ -673,64 +679,81 @@ function DayCard({ id, index, day, date, last, vendors, byId, disabled, fixedLen
   const mealNote = (v: Vendor) => (v.type === 'hotel' && !serving.has(v.id) ? ` · ${t('noMealPrice')}` : '')
   return (
     <article ref={setNodeRef} id={`day-card-${index}`} style={{ transform: CSS.Transform.toString(transform), transition }}
-      className={cn('scroll-mt-28 rounded-xl border bg-white', isDragging ? 'z-10 border-brand-400 shadow-lg' : 'border-slate-200',
+      onFocusCapture={onFocusDay}
+      className={cn('scroll-mt-24 rounded-xl border bg-white transition-shadow', isDragging ? 'z-10 border-brand-400 shadow-lg'
+        : active ? 'border-brand-300 shadow-md ring-1 ring-brand-200' : 'border-slate-200',
         alerts.some((a) => a.severity === 'error') && 'border-red-300')}>
-      <header className="flex flex-wrap items-center gap-2 rounded-t-xl border-b border-slate-100 bg-slate-50/70 px-3 py-2">
+      {/* The day's head: which day, when, from where to where - pinned while working down the day. */}
+      <header className={cn('group/head sticky top-[83px] z-10 flex items-start gap-3 rounded-t-xl border-b px-3 py-2.5 backdrop-blur',
+        active ? 'border-brand-200 bg-brand-50/95' : 'border-slate-100 bg-slate-50/95')}>
         {!disabled && (
           <button type="button" {...attributes} {...listeners} aria-label={t('dragToReorder')} title={t('dragToReorder')}
-            className="cursor-grab touch-none rounded-md p-1 text-slate-400 hover:bg-slate-100 active:cursor-grabbing"><GripVertical size={16} /></button>
+            className="mt-3 -ml-1 cursor-grab touch-none rounded-md p-0.5 text-slate-400 opacity-0 hover:bg-slate-100 focus:opacity-100 active:cursor-grabbing group-hover/head:opacity-100"><GripVertical size={16} /></button>
         )}
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-semibold text-white"
-          title={`${t('day')} ${index + 1}`}>{index + 1}</span>
-        <span className="sr-only">{t('day')} {index + 1}</span>
-        {/* Where they come from: last night's town (Sheki → Tbilisi), unless they stay in the same one. */}
-        {index > 0 && prevCity?.trim() && townKey(prevCity) !== townKey(day.city) && (
-          <span className="flex max-w-[12rem] items-center gap-1.5 text-sm font-medium text-slate-500" title={t('fromLastNight')}>
-            <span className="truncate">{prevCity.trim()}</span><ArrowRight size={14} aria-hidden className="shrink-0" />
-          </span>
-        )}
-        <PlaceInput disabled={disabled} value={day.city} onChange={(city) => onSet({ city })} placeholder={t('cityNight')}
-          title={t('cityNightHelp')} className={cn(field, 'h-9 w-52 font-semibold')} aria-label={t('city')} />
-        {!disabled && <SavedDays city={day.city} onApply={applyTemplate} />}
-        {(show || (day.stops ?? []).length > 0) && <Stops stops={day.stops ?? []} disabled={disabled} onChange={(stops) => onSet({ stops })}
-          own={vendors.filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
-            .map((v) => ({ name: v.name, detail: v.city, kind: '', lat: 0, lon: 0, own: true }))} />}
-        {(show || (day.flights ?? []).length > 0) && <Flights flights={day.flights ?? []} disabled={disabled} onChange={(flights) => onSet({ flights })} />}
-        {date && <span className="text-xs text-slate-500">{weekday(date, lang)} {fmt(date, lang)}</span>}
-        {index > 0 && (show || !!day.km) && (
-          <label className="flex items-center gap-1 text-xs text-slate-500" title={prevCity ? t('kmFrom', { city: prevCity }) : t('kmDriven')}>
-            <Car size={14} className="shrink-0" />
-            <input type="number" min={0} max={5000} disabled={disabled} value={day.km ?? ''} placeholder="—"
-              onChange={(e) => onSet({ km: e.target.value === '' ? null : Math.max(0, Math.round(Number(e.target.value))) })}
-              className="h-7 w-16 rounded-md border border-transparent bg-transparent px-1 text-right tabular-nums hover:border-slate-300 focus:border-brand-600 focus:outline-none"
-              aria-label={t('kmDriven')} />
-            km
-          </label>
-        )}
-        {(day.drive_minutes ?? []).some((m) => m > 0) && (() => {
-          const drive = (day.drive_minutes ?? []).reduce((x, m) => x + m, 0) * factor
-          return (
-            <Tooltip label={t('driveDayTip', { h: hours(drive) })}>
-              <span tabIndex={0} className={cn('rounded-md px-1.5 py-0.5 text-xs tabular-nums', drive > 9 * 60 ? 'bg-amber-100 font-medium text-amber-900' : 'text-slate-600')}>
-                ≈ {hours(drive)} {t('driveShort')}
+        <DateTile date={date} n={index + 1} active={active} />
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-wrap items-center gap-1.5 text-xs">
+            <span className={cn('rounded-full px-2 py-0.5 font-bold tracking-wide', active ? 'bg-brand-600 text-white' : 'bg-slate-800 text-white')}>
+              {t('dayN', { n: index + 1 })}
+            </span>
+            <span className="text-slate-500">{t('dayOfN', { n: total })}</span>
+            {active && <span className="font-medium text-brand-700">· {t('dayEditing')}</span>}
+          </div>
+          {/* From where (last night's town) to tonight's: the day's title. */}
+          <div className="mt-0.5 flex flex-wrap items-center gap-1.5">
+            {index > 0 && prevCity?.trim() && townKey(prevCity) !== townKey(day.city) && (
+              <span className="flex max-w-[12rem] items-center gap-1.5 text-lg font-semibold text-slate-500" title={t('fromLastNight')}>
+                <span className="truncate">{prevCity.trim()}</span><ArrowRight size={16} aria-hidden className="shrink-0" />
               </span>
-            </Tooltip>
-          )
-        })()}
-        <div className="flex-1" />
-        {/* The day's verdict, in the words of "Check". */}
-        <span className={cn('flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
-          missing ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800')}>
-          {missing ? t('gridMissingN', { n: missing }) : <><Check size={12} aria-hidden />{t('gridReadyShort')}</>}
-        </span>
-        {!disabled && (
-          <Menu kind="icon" label={t('dayActions', { n: index + 1 })} items={[
-            { label: t('saveDayAsTemplate'), icon: <Bookmark size={16} />, onClick: () => void saveTemplate() },
-            { label: t('duplicateDay'), icon: <CopyPlus size={16} />, onClick: onDuplicate, hidden: fixedLength },
-            { label: t('insertDayAfter'), icon: <Plus size={16} />, onClick: onInsert, hidden: fixedLength },
-            { label: t('delete'), icon: <Trash2 size={16} />, onClick: onRemove, danger: true, hidden: fixedLength },
-          ]} />
-        )}
+            )}
+            <PlaceInput disabled={disabled} value={day.city} onChange={(city) => onSet({ city })} placeholder={t('cityNight')}
+              title={t('cityNightHelp')} aria-label={t('city')}
+              className="h-9 w-56 min-w-0 rounded-md border border-transparent bg-transparent px-1.5 text-lg font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-600 focus:bg-white focus:outline-none" />
+          </div>
+          {/* The day's way and flights, quietly. */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {(show || (day.stops ?? []).length > 0) && <Stops stops={day.stops ?? []} disabled={disabled} onChange={(stops) => onSet({ stops })}
+              own={vendors.filter((v) => (v.type === 'activity' || v.type === 'other') && v.is_active)
+                .map((v) => ({ name: v.name, detail: v.city, kind: '', lat: 0, lon: 0, own: true }))} />}
+            {(show || (day.flights ?? []).length > 0) && <Flights flights={day.flights ?? []} disabled={disabled} onChange={(flights) => onSet({ flights })} />}
+            {index > 0 && (show || !!day.km) && (
+              <label className="flex items-center gap-1 text-xs text-slate-500" title={prevCity ? t('kmFrom', { city: prevCity }) : t('kmDriven')}>
+                <Car size={14} className="shrink-0" />
+                <input type="number" min={0} max={5000} disabled={disabled} value={day.km ?? ''} placeholder="—"
+                  onChange={(e) => onSet({ km: e.target.value === '' ? null : Math.max(0, Math.round(Number(e.target.value))) })}
+                  className="h-7 w-16 rounded-md border border-transparent bg-transparent px-1 text-right tabular-nums hover:border-slate-300 focus:border-brand-600 focus:outline-none"
+                  aria-label={t('kmDriven')} />
+                km
+              </label>
+            )}
+            {(day.drive_minutes ?? []).some((m) => m > 0) && (() => {
+              const drive = (day.drive_minutes ?? []).reduce((x, m) => x + m, 0) * factor
+              return (
+                <Tooltip label={t('driveDayTip', { h: hours(drive) })}>
+                  <span tabIndex={0} className={cn('rounded-md px-1.5 py-0.5 text-xs tabular-nums', drive > 9 * 60 ? 'bg-amber-100 font-medium text-amber-900' : 'text-slate-600')}>
+                    ≈ {hours(drive)} {t('driveShort')}
+                  </span>
+                </Tooltip>
+              )
+            })()}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1 pt-1">
+          {/* The day's verdict, in the words of "Check". */}
+          <span className={cn('flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold',
+            missing ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-800')}>
+            {missing ? t('gridMissingN', { n: missing }) : <><Check size={12} aria-hidden />{t('gridReadyShort')}</>}
+          </span>
+          {!disabled && (
+            <Menu kind="icon" label={t('dayActions', { n: index + 1 })} items={[
+              ...savedHere.map((x) => ({ label: t('useSavedDay', { name: x.name }), icon: <Bookmark size={16} />, onClick: () => applyTemplate(x) })),
+              { label: t('saveDayAsTemplate'), icon: <Bookmark size={16} />, onClick: () => void saveTemplate() },
+              { label: t('duplicateDay'), icon: <CopyPlus size={16} />, onClick: onDuplicate, hidden: fixedLength },
+              { label: t('insertDayAfter'), icon: <Plus size={16} />, onClick: onInsert, hidden: fixedLength },
+              { label: t('delete'), icon: <Trash2 size={16} />, onClick: onRemove, danger: true, hidden: fixedLength },
+            ]} />
+          )}
+        </div>
       </header>
       {alerts.length > 0 && (
         <ul className="space-y-1 border-b border-slate-100 bg-amber-50/60 px-3 py-1.5 text-xs text-amber-900">
@@ -1438,7 +1461,7 @@ function Flights({ flights, disabled, onChange }: { flights: Flight[]; disabled?
         <span key={i} title={f.notes || undefined}
           className="inline-flex items-center gap-1 rounded-full bg-indigo-50 px-2 py-0.5 font-medium text-indigo-800 ring-1 ring-indigo-200">
           <Plane size={11} className={f.direction === 'arrival' ? 'rotate-90' : ''} />
-          {f.number}{f.time && ` ${f.time}`}{f.airport && ` ${f.airport}`}{f.other && ` ${f.direction === 'arrival' ? '←' : '→'} ${f.other}`}
+          {t(f.direction === 'arrival' ? 'flightArrives' : 'flightDeparts')} {f.number}{f.time && ` ${f.time}`}{f.airport && ` ${f.airport}`}{f.other && ` ${f.direction === 'arrival' ? '←' : '→'} ${f.other}`}
           {!disabled && <button type="button" aria-label={`${t('delete')} ${f.number}`} onClick={() => onChange(flights.filter((_, j) => j !== i))}
             className="text-indigo-400 hover:text-red-600"><X size={11} /></button>}
         </span>
@@ -1471,21 +1494,6 @@ function Flights({ flights, disabled, onChange }: { flights: Flight[]; disabled?
   )
 }
 
-/** The saved days for the day's city ("2 saved Kutaisi days ▾"); with no city yet, every saved day. */
-function SavedDays({ city, onApply }: { city: string; onApply: (d: DayTemplate) => void }) {
-  const { t } = useI18n()
-  const ws = useWorkspace()!
-  const all = useQuery({ queryKey: ['day-templates', ws.id], queryFn: () => api<DayTemplate[]>(wsPath(ws.id, '/day-templates')), staleTime: 60_000 })
-  const c = city.trim().toLowerCase()
-  const list = (all.data ?? []).filter((x) => !c || x.city.trim().toLowerCase() === c)
-  if (!list.length) return null
-  return (
-    <Menu label={t('savedDaysPick')}
-      trigger={<><Bookmark size={13} aria-hidden />{c ? t('savedDaysFor', { n: list.length, city: city.trim() }) : t('savedDaysAny', { n: list.length })}<ChevronDown size={13} aria-hidden /></>}
-      triggerClassName="inline-flex h-7 items-center gap-1 rounded-full bg-brand-50 px-2.5 text-xs font-medium text-brand-800 hover:bg-brand-100"
-      items={list.map((x) => ({ label: c ? x.name : `${x.name}${x.city ? ` · ${x.city}` : ''}`, icon: <Bookmark size={16} />, onClick: () => onApply(x) }))} />
-  )
-}
 
 let lastTbd = 0      // when a meal was just marked "to be decided" (its location field then takes the focus)
 
@@ -1538,5 +1546,20 @@ function OwnMealWhere({ value, disabled, onChange }: { value: string; disabled?:
         </span>
       </div>
     </div>
+  )
+}
+
+/** The day's date as a calendar leaf: weekday, day, month - or just "Day N" on a route (no dates). */
+function DateTile({ date, n, active }: { date?: string; n: number; active: boolean }) {
+  const { lang } = useI18n()
+  return (
+    <span className={cn('flex w-14 shrink-0 flex-col items-center rounded-xl border py-1 text-center leading-tight',
+      active ? 'border-brand-300 bg-white' : 'border-slate-200 bg-white')}>
+      {date ? <>
+        <span className={cn('text-[11px] font-semibold uppercase', active ? 'text-brand-700' : 'text-slate-500')}>{weekday(date, lang)}</span>
+        <span className="text-xl font-bold tabular-nums text-slate-900">{Number(date.slice(8))}</span>
+        <span className="text-[11px] text-slate-500">{fmt(date, lang, { month: 'short' })}</span>
+      </> : <span className="py-2 text-xl font-bold text-slate-900">{n}</span>}
+    </span>
   )
 }

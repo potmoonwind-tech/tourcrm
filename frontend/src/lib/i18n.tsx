@@ -3000,6 +3000,11 @@ const en = {
   fieldPeople: "{n} people",
   fieldTonight: "Tonight",
   fieldGlance: "Whole tour at a glance",
+  dayOfN: "of {n}",
+  dayEditing: "editing",
+  useSavedDay: "Use saved day “{name}”",
+  flightArrives: "Arrives",
+  flightDeparts: "Departs",
 }
 
 type Dict = typeof en
@@ -5996,6 +6001,11 @@ const ka: Dict = {
   fieldPeople: "{n} ადამიანი",
   fieldTonight: "ამაღამ",
   fieldGlance: "მთელი ტური ერთ ხედზე",
+  dayOfN: "{n}-დან",
+  dayEditing: "რედაქტირდება",
+  useSavedDay: "შენახული დღის გამოყენება: „{name}“",
+  flightArrives: "ჩამოფრენა",
+  flightDeparts: "გაფრენა",
 }
 
 export type Lang = 'en' | 'ka'
