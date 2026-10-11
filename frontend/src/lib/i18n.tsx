@@ -3060,6 +3060,14 @@ const en = {
   placeUseMapName: "Use this name",
   placeOnMapPinned: "On the map",
   placeClientAuto: "auto",
+  placeKind: "Kind",
+  placeKind_all: "All",
+  placeKind_place: "Places",
+  placeKind_hotel: "Hotels",
+  placeKind_restaurant: "Restaurants",
+  placeKind_activity: "Sights and activities",
+  placeRenamedSupplier: "Renamed in the catalogue",
+  placeRenameSupplier: "“{old}” becomes “{new}” in the catalogue - every tour shows the new name.",
 }
 
 type Dict = typeof en
@@ -6116,6 +6124,14 @@ const ka: Dict = {
   placeUseMapName: "ამ სახელის გამოყენება",
   placeOnMapPinned: "რუკაზე",
   placeClientAuto: "ავტო",
+  placeKind: "სახეობა",
+  placeKind_all: "ყველა",
+  placeKind_place: "ადგილები",
+  placeKind_hotel: "სასტუმროები",
+  placeKind_restaurant: "რესტორნები",
+  placeKind_activity: "ღირსშესანიშნაობები",
+  placeRenamedSupplier: "გადაერქვა კატალოგში",
+  placeRenameSupplier: "„{old}“ კატალოგში გახდება „{new}“ - ყველა ტური ახალ სახელს აჩვენებს.",
 }
 
 export type Lang = 'en' | 'ka'

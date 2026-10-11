@@ -42,3 +42,16 @@ def test_map_name_in_the_place_language(make_client, monkeypatch):
     monkeypatch.setattr(geo, "suggest", lambda q, cc=None, **k: asked.update(k) or [{"name": "Jvari Monastery", "place_id": "g1"}])
     assert c.post(f"{base}/place-names/map-name", json={"name": "ჯვარი"}).json() == {"name": "Jvari Monastery"}
     assert asked["lang"] == "en"
+
+
+def test_suppliers_are_listed_and_renamed_in_the_catalogue(make_client):
+    c, base, _ = agency(make_client)
+    v = c.post(f"{base}/vendors", json={"name": "სასტუმრო ქალაქი", "type": "hotel", "city": "Tbilisi"}).json()
+    route(c, base, [{"city": "Tbilisi", "hotel_id": v["id"]}, {"city": "Tbilisi"}])
+    row = next(r for r in c.get(f"{base}/place-names").json() if r.get("vendor_id") == v["id"])
+    assert row["kind"] == "hotel" and row["uses"] == 1
+    c.put(f"{base}/place-names/client-name", json={"name": "სასტუმრო ქალაქი", "lang": "en", "text": "City Hotel"})
+    assert c.post(f"{base}/place-names/rename", json={"old": "სასტუმრო ქალაქი", "new": "City Hotel Tbilisi", "vendor_id": v["id"]}).json() == {"changed": 1}
+    assert c.get(f"{base}/vendors/{v['id']}").json()["name"] == "City Hotel Tbilisi"
+    row = next(r for r in c.get(f"{base}/place-names").json() if r.get("vendor_id") == v["id"])
+    assert row["client"]["en"] == "City Hotel"
