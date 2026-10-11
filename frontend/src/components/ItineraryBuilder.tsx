@@ -407,7 +407,7 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
       <table className="w-full min-w-[720px] table-fixed text-sm">
         <caption className="sr-only">{t('viewOverview')}</caption>
         <colgroup>
-          <col className="w-28" /><col className="w-[13%]" /><col className="w-[22%]" /><col /><col /><col className="w-[13%]" /><col className="w-14" />
+          <col className="w-40" /><col className="w-[13%]" /><col className="w-[22%]" /><col /><col /><col className="w-[13%]" /><col className="w-14" />
         </colgroup>
         <thead className="border-b border-slate-200 text-left text-xs font-medium text-slate-500">
           <tr>
@@ -428,17 +428,25 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
             return (
               <tr key={i} className="align-top hover:bg-slate-50/60">
                 <th scope="row" className="px-3 py-1.5 text-left font-normal">
+                  <div className="flex items-center gap-1.5">
                   <button type="button" onClick={() => onOpen(i)} title={t('openDay', { n: i + 1 })}
                     className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md text-left text-xs tabular-nums text-slate-600 hover:text-brand-700">
                     <span className={cn('flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white', warn.length ? 'bg-amber-500' : 'bg-slate-700')}>{i + 1}</span>
                     {dates?.[i] && dayDate(dates[i], lang, dateStyle)}
                   </button>
+                  {/* The day's warnings, folded: "⚠ 2" (the text on hover; a click opens the day). Rows stay even. */}
+                  {warn.length > 0 && (
+                    <button type="button" onClick={() => onOpen(i)} title={warn.map((a) => t(`alert_${a.code}` as TKey, a.params)).join('\n')}
+                      className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-100">
+                      <AlertTriangle size={11} aria-hidden />{warn.length}
+                    </button>
+                  )}
+                  </div>
                 </th>
                 <td className="px-1.5 py-1.5">
                   <PlaceInput disabled={disabled} value={d.city} onChange={(city) => onSet(i, { city })} placeholder={t('cityNight')}
                     className="h-8 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1.5 font-medium text-slate-900 placeholder:font-normal placeholder:text-amber-700 hover:border-slate-300 hover:bg-white focus:border-brand-600 focus:bg-white focus:outline-none"
                     aria-label={`${t('day')} ${i + 1} · ${t('city')}`} />
-                  {warn.map((a, k) => <p key={k} className="mt-0.5 flex items-start gap-1 px-1.5 text-xs text-amber-800"><AlertTriangle size={12} className="mt-0.5 shrink-0" />{t(`alert_${a.code}` as TKey, a.params)}</p>)}
                 </td>
                 {last ? (
                   <td className="px-3 py-1.5"><span className="flex h-8 items-center text-xs text-slate-400">{t('departureDay')}</span></td>
