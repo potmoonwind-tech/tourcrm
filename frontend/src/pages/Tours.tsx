@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CodeChip, EmptyState, Modal, PhaseLabel } from '../components/tour'
 import { useGuardedClose, useUnsaved } from '../components/overlay'
+import { DescribeTour } from '../components/DescribeTour'
 import { QuickClientDialog } from '../components/QuickAdd'
 import { RoomsPicker, roomsText, suggestRooms } from '../components/RoomsPicker'
 import { Button, ButtonLink, ErrorText, Field, Input, SegmentedControl, Select } from '../components/ui'
@@ -153,6 +154,9 @@ function NewTourModal({ onClose }: { onClose: () => void }) {
   const clients = useClients()
   const [addingClient, setAddingClient] = useState(false)
   const [many, setMany] = useState(false)     // a series: many departures at once (NewDepartures.tsx)
+  // With the assistant: describe the tour in a few words first; the form is one tap away.
+  const ai = useQuery({ queryKey: ['aiStatus', ws.id], queryFn: () => api<{ available: boolean }>(wsPath(ws.id, '/ai/status')), staleTime: 5 * 60_000, meta: { silent: true } })
+  const [useForm, setUseForm] = useState(false)
   const [form, setForm] = useState({
     // With a single route (the usual start), it is the obvious choice.
     series_id: series.data?.length === 1 ? series.data[0].id : '',
@@ -204,8 +208,13 @@ function NewTourModal({ onClose }: { onClose: () => void }) {
             className={cn('flex-1 rounded-md py-1.5', many === k ? 'bg-white shadow-sm' : 'text-slate-500')}>{t(k ? 'severalDepartures' : 'oneTour')}</button>
         ))}
       </div>
-      {many ? <DeparturesForm series={series.data ?? []} onDone={onClose} /> : (
+      {many ? <DeparturesForm series={series.data ?? []} onDone={onClose} /> : ai.data?.available && !useForm ? (
+        <DescribeTour onForm={() => setUseForm(true)} />
+      ) : (
       <form onSubmit={submit} className="space-y-4">
+        {ai.data?.available && (
+          <button type="button" onClick={() => setUseForm(false)} className="text-sm text-brand-700 hover:underline">← {t('describeInstead')}</button>
+        )}
         <Field label={t('route')}>
           <Select value={form.series_id} onChange={(e) => { setRouteTouched(true); set('series_id')(e) }}>
             <option value="">{t('emptyDays')}</option>

@@ -10,7 +10,7 @@ from .config import settings
 from .locks import TourLocked
 from .routers import day_templates, menu_builder
 from .routers import (
-    alerts, assistant, auth, bills, bookings, distances, place_names, field, hotel_change, staff_change, meals, budget, cancellation, catalog, lifecycle, finance, imports, incidents, invites, invoices, people, pricing, programme, mail, quotes, rooms, search, series, setup, dashboard, tasks, tours, workspaces,
+    alerts, assistant, auth, bills, bookings, distances, place_names, tour_draft, field, hotel_change, staff_change, meals, budget, cancellation, catalog, lifecycle, finance, imports, incidents, invites, invoices, people, pricing, programme, mail, quotes, rooms, search, series, setup, dashboard, tasks, tours, workspaces,
 )
 
 from .config import LOCAL
@@ -58,6 +58,7 @@ app.include_router(bookings.router)
 app.include_router(tasks.router)
 app.include_router(distances.router)
 app.include_router(place_names.router)
+app.include_router(tour_draft.router)
 app.include_router(catalog.router)
 app.include_router(series.router)
 app.include_router(tours.router)

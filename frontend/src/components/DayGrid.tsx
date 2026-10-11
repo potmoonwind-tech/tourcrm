@@ -4,7 +4,7 @@
  * A card's top line says how complete the day is; missing things are amber, problems red. Tap a card to open
  * that day.
  */
-import { AlertTriangle, BedDouble, Check, CircleDashed, Coffee, Ticket, User, Utensils } from 'lucide-react'
+import { AlertTriangle, BedDouble, Check, Sparkles, CircleDashed, Coffee, Ticket, User, Utensils } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { DayFields, ServiceBrief, TourAlert, Vendor } from '../lib/api'
 import { dayDate } from '../lib/dates'
@@ -19,11 +19,12 @@ interface Line { icon: ReactNode; label: string; text: string; state: State; sub
   edit?: 'hotel' | 'lunch' | 'dinner' }     // chosen right on the card
 type Kind = 'hotel' | 'meal' | 'menu' | 'team'
 
-export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen, vendors, disabled, onSet }: {
+export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen, vendors, disabled, onSet, onFill }: {
   days: DayFields[]; dates?: string[]; byId: Map<string, Vendor>; menus: ServiceBrief[]; alerts: TourAlert[]
   crew?: Crew; onOpen: (i: number) => void
   vendors?: Vendor[]; disabled?: boolean
   onSet?: (i: number, patch: Partial<DayFields>) => void   // the hotel, lunch and dinner are chosen right on the card
+  onFill?: () => void      // "Fill the gaps from the catalogue"
 }) {
   const { t, lang } = useI18n()
   const dateStyle = useDateStyle()
@@ -109,6 +110,12 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen, vendor
               ))}
             {alertCount > 0 && <span className="rounded-full bg-red-50 px-2 py-0.5 font-semibold text-red-700">{t('gridCount_alerts', { n: alertCount })}</span>}
           </span>
+        )}
+        {missing.length > 0 && onFill && !disabled && (count('hotel') + count('meal') > 0) && (
+          <button type="button" onClick={onFill}
+            className="inline-flex items-center gap-1 rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-semibold text-brand-800 hover:bg-brand-100">
+            <Sparkles size={12} aria-hidden />{t('fillGaps')}
+          </button>
         )}
         {missing.length > 0 && ready > 0 && (
           <label className="flex items-center gap-1.5 text-xs text-slate-600">

@@ -120,6 +120,40 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   )
 
   const set = (i: number, patch: Partial<DayFields>) => onChange(days.map((d, j) => (j === i ? { ...d, ...patch } : d)))
+  // "Fill the gaps from the catalogue": a night without a hotel gets the one of the night before in the same town,
+  // else the catalogue's in that town; a meal without a place gets a restaurant of the town (lunch on the way
+  // first), not the same one twice in a row. Then it's checked and saved (or Discard).
+  const fillGaps = () => {
+    const act = (vendors.data ?? []).filter((v) => v.is_active && !v.placeholder)
+    const inTown = (type: string, town: string) => act.filter((v) => v.type === type && townKey(v.city ?? '') === townKey(town))
+    let filled = 0
+    let lastMeal: string | null = null
+    const next = days.map((d, i) => {
+      const out = { ...d }
+      const last = i === days.length - 1
+      if (!last && !out.hotel_id && out.city.trim()) {
+        const prev = i > 0 && townKey(days[i - 1].city) === townKey(out.city) ? days[i - 1].hotel_id : null
+        const h = prev ?? inTown('hotel', out.city)[0]?.id ?? null
+        if (h) { out.hotel_id = h; filled++ }
+      }
+      for (const m of ['lunch', 'dinner'] as const) {
+        const id = m === 'lunch' ? out.lunch_id : out.dinner_id
+        const mode = m === 'lunch' ? out.lunch_mode : out.dinner_mode
+        if (id) { lastMeal = id; continue }
+        if (mode === 'own' || out.meal_tbd?.[m]) continue
+        const towns = m === 'lunch' ? [...(out.stops ?? []), out.city] : [out.city]
+        const pick = towns.flatMap((x) => inTown('restaurant', x)).find((r) => r.id !== lastMeal)
+        if (pick) {
+          if (m === 'lunch') { out.lunch_id = pick.id; out.lunch_menu_id = null } else { out.dinner_id = pick.id; out.dinner_menu_id = null }
+          lastMeal = pick.id
+          filled++
+        }
+      }
+      return out
+    })
+    if (filled) onChange(next)
+    toast(filled ? t('fillGapsDone', { n: filled }) : t('fillGapsNone'))
+  }
   // Saved days ("Tbilisi day"): one fills a day - its hotel, meals, programme (the day keeps its town if it has one).
   const savedDays = useQuery({ queryKey: ['day-templates', ws.id], queryFn: () => api<DayTemplate[]>(wsPath(ws.id, '/day-templates')), staleTime: 60_000, enabled: !disabled })
   const applyDayTemplate = (i: number, tpl: DayTemplate) => {
@@ -317,7 +351,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           {view === 'check' && (
             // Every day on one screen: what is done, what is missing, days side by side.
             <DayGrid days={days} dates={dates} byId={byId} menus={services.data ?? []} alerts={alerts} crew={crew} onOpen={openDay}
-              vendors={vs} disabled={disabled} onSet={set} />
+              vendors={vs} disabled={disabled} onSet={set} onFill={fillGaps} />
           )}
           {view === 'days' && <SortableContext items={keys.current} strategy={verticalListSortingStrategy}>
             {days.map((d, i) => (
