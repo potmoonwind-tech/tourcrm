@@ -3032,6 +3032,7 @@ const en = {
   gridCount_team: "{n} day(s) without a team",
   gridCount_alerts: "{n} alert(s)",
   gridOnlyMissing: "Only days with something missing",
+  progArrives: "arrives {time}",
 }
 
 type Dict = typeof en
@@ -6060,6 +6061,7 @@ const ka: Dict = {
   gridCount_team: "{n} დღე გუნდის გარეშე",
   gridCount_alerts: "{n} გაფრთხილება",
   gridOnlyMissing: "მხოლოდ დღეები, სადაც რამე აკლია",
+  progArrives: "ჩადის {time}",
 }
 
 export type Lang = 'en' | 'ka'

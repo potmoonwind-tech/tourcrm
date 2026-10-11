@@ -1020,23 +1020,29 @@ function DriveRow({ leg, depart, samePlace, onSamePlace }: {
   samePlace?: string; onSamePlace?: (place: string) => void   // not on the map: "it's at the place before"
 }) {
   const { t } = useI18n()
-  const what = [leg.minutes != null ? dur(leg.minutes) : '', leg.km != null ? `${leg.km} km` : ''].filter(Boolean).join(' · ')
   const to = leg.to.split(',')[0]
+  // Laid out like a step: when it leaves and how long in the time column, a car on the line, then the km and
+  // where to (and when it gets there).
   return (
     <li className="flex gap-3">
-      <span className="w-28 shrink-0" />
-      <span className="flex w-8 shrink-0 justify-center" aria-hidden><span className="border-l-2 border-dashed border-slate-300" /></span>
-      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 py-1 text-sm text-slate-600">
-        <Car size={15} aria-hidden className="shrink-0 text-slate-500" />
+      <span className="flex h-8 w-28 shrink-0 items-center justify-end gap-1.5 pr-1 tabular-nums">
+        {depart !== null && <span className="text-sm text-slate-600">{hm(depart)}</span>}
+        {leg.minutes != null && <span className="text-xs text-slate-400">{dur(leg.minutes)}</span>}
+      </span>
+      <span className="relative flex w-8 shrink-0 justify-center" aria-hidden>
+        <span className="absolute inset-y-0 border-l-2 border-dashed border-slate-300" />
+        <span className="relative mt-1 flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-slate-500"><Car size={13} /></span>
+      </span>
+      <span className="flex min-h-8 min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 text-sm text-slate-600">
         {leg.skipped === 'asking' ? <span className="text-slate-500">{t('progRoadAsking')}</span>
           : leg.skipped ? <span className="text-amber-800">{t(leg.skipped === 'pending' ? 'progDrivePending' : 'progDriveUnknown')}</span>
-          : what && <span className="font-medium tabular-nums text-slate-700">{what}</span>}
-        {depart !== null && leg.minutes != null && (
-          <span className="tabular-nums text-slate-500">{t('progDriveTimes', { from: hm(depart), to: hm(depart + Math.round(leg.minutes / 5) * 5) })}</span>
-        )}
+          : leg.km != null && <span className="font-medium tabular-nums text-slate-700">{leg.km} km</span>}
         <span className="min-w-0 max-w-full truncate text-slate-500" title={leg.to}>
           → {to}{leg.via.length > 0 && ` (${t('via')} ${leg.via.join(', ')})`}
         </span>
+        {depart !== null && leg.minutes != null && (
+          <span className="text-xs tabular-nums text-slate-400">{t('progArrives', { time: hm(depart + Math.round(leg.minutes / 5) * 5) })}</span>
+        )}
         {samePlace && onSamePlace && (leg.skipped === 'not_found' || leg.skipped === 'far' || (!leg.skipped && leg.km == null)) && (
           <Tooltip label={t('progSamePlaceTip')}>
             <button type="button" onClick={() => onSamePlace(samePlace)}
