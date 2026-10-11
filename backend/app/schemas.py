@@ -110,6 +110,7 @@ class WorkspaceUpdate(BaseModel):
     task_owners: dict[Literal["hotel", "meal", "transport", "guide", "activity", "other", "payments"], str | None] | None = None
     fuel_l_per_100km: Decimal | None = Field(default=None, gt=0, le=200, max_digits=5, decimal_places=1)
     countries: list[str] | None = Field(default=None, max_length=20)
+    place_lang: Literal["", "en", "ka", "ru", "hy"] | None = None
     drive_factor: Decimal | None = Field(default=None, ge=1, le=3, max_digits=4, decimal_places=2)
     phone: str | None = Field(default=None, max_length=50)
     vat_rate: Decimal | None = Field(default=None, ge=0, le=50, max_digits=5, decimal_places=2)   # null clears (no VAT)
@@ -152,6 +153,7 @@ class WorkspaceOut(_Out):
     task_types: list[dict] = []
     fuel_l_per_100km: float = 30
     countries: list[str] = []
+    place_lang: str = ""
     drive_factor: float = 1.25
     phone: str = ""
     vat_rate: float | None = None

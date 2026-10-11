@@ -62,7 +62,7 @@ class PlaceSuggestion(BaseModel):
 def places(q: str = Query(min_length=2, max_length=80), session: str | None = Query(default=None, max_length=64),
            ctx: WorkspaceCtx = Depends(office)):
     ratelimit.hit("places", ctx.workspace.id, limit=300, per_seconds=600)   # typed with a pause; the map is shared
-    return geo.suggest(q, ctx.workspace.countries or None, session=session, lang=ctx.workspace.language or "en")
+    return geo.suggest(q, ctx.workspace.countries or None, session=session, lang=ctx.workspace.place_lang or ctx.workspace.language or "en")
 
 
 class PlaceDetails(BaseModel):
@@ -80,7 +80,7 @@ def place_details(id: str = Query(min_length=1, max_length=300), session: str | 
                   ctx: WorkspaceCtx = Depends(office)):
     """Where a picked Google suggestion is (ends the typing session, which Google prices as one lookup)."""
     ratelimit.hit("place-details", ctx.workspace.id, limit=200, per_seconds=600)
-    d = geo.place_details(id, session, lang=ctx.workspace.language or "en")
+    d = geo.place_details(id, session, lang=ctx.workspace.place_lang or ctx.workspace.language or "en")
     if d is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Place not found")
     return d
@@ -127,9 +127,9 @@ def vendor_hours_from_map(vendor_id: str, ctx: WorkspaceCtx = Depends(office), d
                      and (g := db.get(GeoPlace, geo.pin_key(ctx.workspace.id, n[:100]))) is not None and g.place_id), None)
     if not place_id:
         hits = [x for x in geo.suggest(" ".join(x for x in (v.name, v.city) if x), ctx.workspace.countries or None,
-                                       lang=ctx.workspace.language or "en") if x.get("place_id")]
+                                       lang=ctx.workspace.place_lang or ctx.workspace.language or "en") if x.get("place_id")]
         place_id = hits[0]["place_id"] if hits else None
-    d = geo.place_details(place_id, lang=ctx.workspace.language or "en") if place_id else None
+    d = geo.place_details(place_id, lang=ctx.workspace.place_lang or ctx.workspace.language or "en") if place_id else None
     if not d or not d.get("hours"):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "The map has no opening hours for this place")
     geo.pin(db, ctx.workspace.id, v.name[:100], d["lat"], d["lon"], d.get("detail") or v.name, place_id, d["hours"])

@@ -253,6 +253,7 @@ export function GeneralSettingsPage() {
   const [tolerance, setTolerance] = useState(String(ws.bill_tolerance_pct ?? 1))
   const [fuel, setFuel] = useState(String(ws.fuel_l_per_100km ?? 30))
   const [countries, setCountries] = useState((ws.countries ?? []).map((c) => c.toUpperCase()).join(', '))
+  const [placeLang, setPlaceLang] = useState(ws.place_lang ?? '')
   const [factorPct, setFactorPct] = useState(String(Math.round((ws.drive_factor ?? 1.25) * 100)))
   const [vat, setVat] = useState(ws.vat_rate != null ? String(ws.vat_rate) : '')
   const [plateShare, setPlateShare] = useState(String(ws.plate_share ?? 1))
@@ -262,7 +263,7 @@ export function GeneralSettingsPage() {
   const save = useMutation({
     mutationFn: () => api<Workspace>(`/workspaces/${ws.id}`, {
       method: 'PATCH', body: { ...form, incident_approval_limit: limit === '' ? null : limit, cancellation_scale: scale, payment_terms: terms, bill_tolerance_pct: tolerance || '0', fuel_l_per_100km: fuel || '30',
-        countries: countries.split(/[\s,;]+/).filter(Boolean), drive_factor: ((Number(factorPct) || 125) / 100).toFixed(2),
+        countries: countries.split(/[\s,;]+/).filter(Boolean), place_lang: placeLang, drive_factor: ((Number(factorPct) || 125) / 100).toFixed(2),
         vat_rate: vat.trim() === '' ? null : vat, plate_share: Number(plateShare) || 1 },
     }),
     onSuccess: () => refreshMe(),
@@ -324,6 +325,15 @@ export function GeneralSettingsPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label={t('countriesLabel')} hint={t('countriesHelp')}>
                   <Input value={countries} onChange={(e) => setCountries(e.target.value)} placeholder="GE, AM, AZ" maxLength={80} />
+                </Field>
+                <Field label={t('placeLangLabel')} hint={t('placeLangHelp')}>
+                  <Select value={placeLang} onChange={(e) => setPlaceLang(e.target.value)}>
+                    <option value="">{t('placeLangSame')}</option>
+                    <option value="en">English</option>
+                    <option value="ka">ქართული</option>
+                    <option value="ru">Русский</option>
+                    <option value="hy">Հայերեն</option>
+                  </Select>
                 </Field>
                 <Field label={t('driveFactorLabel')} hint={t('driveFactorHelp')}>
                   <div className="flex items-center gap-2">

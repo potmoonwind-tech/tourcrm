@@ -33,3 +33,14 @@ def test_hours_from_the_map_for_a_supplier(make_client, monkeypatch):
     r = c.post(f"{base}/vendors/{v['id']}/hours")
     assert r.status_code == 200 and r.json()["hours"] == hours
     assert c.post(f"{base}/places/hours", json={"names": ["Prometheus Cave"]}).json() == {"Prometheus Cave": hours}
+
+
+def test_map_names_come_in_the_agencys_place_language(make_client, monkeypatch):
+    c, base, ws_id = agency(make_client)
+    asked = {}
+    monkeypatch.setattr(geo, "suggest", lambda q, cc=None, **k: asked.update(k) or [])
+    c.get(f"{base}/places?q=Jvari")
+    assert asked["lang"] == "en"
+    assert c.patch(base, json={"place_lang": "ru"}).status_code == 200
+    c.get(f"{base}/places?q=Jvari2")
+    assert asked["lang"] == "ru"

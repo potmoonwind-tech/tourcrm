@@ -81,6 +81,17 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
     ? (found.data ?? []).filter((p) => (p.name.toLowerCase() !== typed || p.detail) && !mine.some((m) => m.name.toLowerCase() === p.name.toLowerCase()))
     : []
   const items = [...mine, ...fromMap]
+  // The place last picked here: renaming it ("Jvari Monastery" → "Джвари") keeps its spot on the map,
+  // its hours and the roads to it - the agency's own name is pinned to the same place.
+  const [last, setLast] = useState<{ name: string; p: PlaceSuggestion } | null>(null)
+  const keepSpot = () => {
+    const was = last
+    const now = value.trim()
+    if (!was || !now || now === was.name || was.p.lat == null) return
+    pin.mutate({ ...was.p, name: now })
+    setLast({ name: now, p: was.p })
+  }
+  const mapName = last && last.p.name !== value.trim() ? last.p.name : ''
   const choose = async (picked: PlaceSuggestion) => {
     onChange(picked.name)
     setOpen(false)
@@ -99,6 +110,7 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
       setSession(crypto.randomUUID())
     }
     if (!p.own && p.lat != null) pin.mutate(p)
+    if (!p.own && p.lat != null) setLast({ name: p.name, p })
     setActive(-1)
     onPicked?.(p)
   }
@@ -108,7 +120,10 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
         aria-controls={listId} aria-activedescendant={active >= 0 ? `${listId}-${active}` : undefined} autoComplete="off"
         onChange={(e) => { onChange(e.target.value); setOpen(true); setActive(-1) }}
         onFocus={(e) => { setOpen(true); onFocus?.(e) }}
-        onBlur={(e) => { setOpen(false); onBlur?.(e) }}
+        // A rename counts right after picking (still in the box); once it's left, typing starts afresh -
+        // a different town typed later never takes the old one's spot.
+        onBlur={(e) => { setOpen(false); keepSpot(); setLast(null); onBlur?.(e) }}
+        title={mapName ? t('placeOnMap', { name: mapName }) : rest.title}
         onKeyDown={(e) => {
           if (items.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
             e.preventDefault()

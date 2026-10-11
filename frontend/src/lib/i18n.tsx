@@ -3040,6 +3040,10 @@ const en = {
   stepToDo: "{n} of {total} still to choose",
   stepFirstOn: "click to go to day {n}",
   stepReady: "Ready",
+  placeLangLabel: "Place names from the map in",
+  placeLangHelp: "One language for the map's suggestions, so place names don't mix. You can still rename any place your own way - it keeps its spot on the map.",
+  placeLangSame: "The agency's language",
+  placeOnMap: "On the map: {name}",
 }
 
 type Dict = typeof en
@@ -6076,6 +6080,10 @@ const ka: Dict = {
   stepToDo: "{n} / {total} ჯერ ასარჩევია",
   stepFirstOn: "დააჭირეთ დღე {n}-ზე გადასასვლელად",
   stepReady: "მზადაა",
+  placeLangLabel: "რუკის ადგილების სახელები",
+  placeLangHelp: "ერთი ენა რუკის შემოთავაზებებისთვის, რომ სახელები არ აირიოს. ნებისმიერ ადგილს შეგიძლიათ საკუთარი სახელი დაარქვათ - რუკაზე ადგილი შენარჩუნდება.",
+  placeLangSame: "სააგენტოს ენა",
+  placeOnMap: "რუკაზე: {name}",
 }
 
 export type Lang = 'en' | 'ka'

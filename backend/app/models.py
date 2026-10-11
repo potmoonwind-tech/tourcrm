@@ -79,6 +79,9 @@ class Workspace(Base):
     fuel_l_per_100km: Mapped[Decimal] = mapped_column(Numeric(5, 1), default=Decimal(30), server_default="30")
     # Where the agency works (ISO codes, "ge", "am"): the map only searches there.
     countries: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
+    # The language the map's place names come in (one for everyone, so lists don't mix English, Georgian,
+    # Armenian...): "en", "ka", "ru", "hy"; empty = the agency's language.
+    place_lang: Mapped[str] = mapped_column(String(5), default="", server_default="")
     # A coach is slower than the map's car times (mountain roads, stops): times are shown × this.
     drive_factor: Mapped[Decimal] = mapped_column(Numeric(4, 2), default=Decimal("1.25"), server_default="1.25")
     # Family-style meals: how many people share one plate of a set menu's dish (1 = everyone their own).

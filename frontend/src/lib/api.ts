@@ -46,6 +46,7 @@ export interface Workspace {
   task_types?: TaskType[]
   fuel_l_per_100km: number
   countries?: string[]          // where the agency works: the map searches only there
+  place_lang?: string           // the language the map's place names come in ('' = the agency's language)
   drive_factor?: number         // coach time vs the map's car time (1.25 = +25%)
   vat_rate?: number | null      // VAT % inside suppliers' prices, claimed back; null = no VAT
   plate_share?: number          // family-style meals: people sharing one plate (1 = everyone their own)
