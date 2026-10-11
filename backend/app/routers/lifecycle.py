@@ -36,8 +36,8 @@ def phase(t: Tour, today: date | None = None) -> str:
         return "closed"
     if t.status == "cancelled":
         return "cancelled"
-    if t.status == "inquiry":
-        return "inquiry"
+    if t.status in ("draft", "inquiry"):
+        return t.status
     if today < t.start_date:
         return "confirmed"
     return "operating" if today <= t.end_date else "settling"

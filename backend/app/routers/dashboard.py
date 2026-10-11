@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session, selectinload
 from .. import finance
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_jobs, require_role
-from ..models import Invoice, StaffAssignment, Tour
+from ..models import LIVE_STATUSES, Invoice, StaffAssignment, Tour
 from ..schemas import VendorRef
 from .alerts import BOOKED_ROLES, PERSON_TYPES, _span
 from .finance import schedule
@@ -86,7 +86,7 @@ def staff_week(ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db
     """Guides, drivers and assistants on tours in the next 7 days, day by day."""
     today = date.today()
     days = [today + timedelta(days=i) for i in range(7)]
-    tours = db.scalars(select(Tour).where(Tour.workspace_id == ctx.workspace.id, Tour.status != "cancelled",
+    tours = db.scalars(select(Tour).where(Tour.workspace_id == ctx.workspace.id, Tour.status.in_(LIVE_STATUSES),
                                           Tour.start_date <= days[-1], Tour.end_date >= today)
                        .options(selectinload(Tour.staff).selectinload(StaffAssignment.vendor), selectinload(Tour.series))).all()
     by_person: dict[str, dict] = {}

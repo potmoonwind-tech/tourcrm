@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session, selectinload
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
 from ..finance import group_size, room_counts
-from ..models import Tour, TourBooking, TourDay
+from ..models import LIVE_STATUSES, Tour, TourBooking, TourDay
 from ..schemas import SeriesColor, VendorRef
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["rooms"])
@@ -75,7 +75,7 @@ def rooms_by_night(date_from: date = Query(...), date_to: date = Query(...), ctx
     if date_to < date_from or (date_to - date_from).days > MAX_DAYS:
         raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Pick at most {MAX_DAYS} days")
     tours = db.scalars(
-        select(Tour).where(Tour.workspace_id == ctx.workspace.id, Tour.status != "cancelled",
+        select(Tour).where(Tour.workspace_id == ctx.workspace.id, Tour.status.in_(LIVE_STATUSES),
                            Tour.start_date <= date_to, Tour.end_date >= date_from)
         .options(selectinload(Tour.days).selectinload(TourDay.hotel), selectinload(Tour.participants),
                  selectinload(Tour.staff), selectinload(Tour.series), selectinload(Tour.client))).all()

@@ -1,3 +1,4 @@
+import copy
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -10,7 +11,7 @@ from .. import changes
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
 from .. import programme as programme_mod
-from ..models import Client, Participant, Series, SeriesDay, StaffAssignment, Tour, TourBooking, TourDay, Vendor
+from ..models import LIVE_STATUSES, Client, Participant, Series, SeriesDay, StaffAssignment, Tour, TourBooking, TourChange, TourDay, Vendor
 from ..schemas import (
     BusReturn, DayFields, DayViewRow, StaffOut, TourCreate, TourDayOut, TourDayUpdate, TourOut, TourStatus, TourSummary, TourUpdate, VendorRef,
 )
@@ -94,7 +95,7 @@ def _check_dates(start: date, end: date) -> None:
 def busy_elsewhere(db: Session, t: Tour, vendor_id: str, start: date, end: date) -> str | None:
     """The tour this person already works on in these dates (a weekly 9-day series overlaps by 2 days)."""
     rows = db.execute(select(StaffAssignment, Tour).join(Tour, StaffAssignment.tour_id == Tour.id).where(
-        StaffAssignment.vendor_id == vendor_id, Tour.workspace_id == t.workspace_id, Tour.status != "cancelled",
+        StaffAssignment.vendor_id == vendor_id, Tour.workspace_id == t.workspace_id, Tour.status.in_(LIVE_STATUSES),
         Tour.id != t.id, Tour.start_date <= end, Tour.end_date >= start)).all()
     for s, o in rows:
         n = (o.end_date - o.start_date).days + 1
@@ -244,7 +245,8 @@ class TimelineRow(BaseModel):
 def timeline(date_from: date, date_to: date, ctx: WorkspaceCtx = Depends(read), db: Session = Depends(get_db)):
     """The tours in [date_from, date_to] with where each sleeps day by day, and the days with something missing:
     the timeline shows the towns on each bar."""
-    tours = db.scalars(select(Tour).where(Tour.workspace_id == ctx.workspace.id, Tour.end_date >= date_from, Tour.start_date <= date_to)
+    tours = db.scalars(select(Tour).where(Tour.workspace_id == ctx.workspace.id, Tour.end_date >= date_from, Tour.start_date <= date_to,
+                                         Tour.status != "draft")
                        .options(*_summary_opts, selectinload(Tour.days).selectinload(TourDay.hotel)).order_by(Tour.start_date, Tour.code)).all()
     counts = participant_counts(db, [t.id for t in tours])
     out = []
@@ -358,6 +360,8 @@ def update_tour(tour_id: str, body: TourUpdate, ctx: WorkspaceCtx = Depends(writ
     before = changes.snapshot(t)
     _price_allowed(ctx, values)
     # Cancelling (or bringing back) a tour changes money: penalties, invoices. Managers only.
+    if values.get("status") == "draft" and t.status != "draft":
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "A tour can't go back to a draft")
     if "status" in values and values["status"] != t.status and "cancelled" in (values["status"], t.status) \
             and not ctx.can("operations", "finance", "sales"):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Only managers cancel a tour or bring it back")
@@ -394,6 +398,76 @@ def update_tour(tour_id: str, body: TourUpdate, ctx: WorkspaceCtx = Depends(writ
 def delete_tour(tour_id: str, ctx: WorkspaceCtx = Depends(admin_write), db: Session = Depends(get_db)):
     db.delete(get_owned(db, ctx, Tour, tour_id))
     db.commit()
+
+
+class DuplicateIn(BaseModel):
+    start_date: date
+    code: str | None = Field(default=None, max_length=40)       # none: made from the series and the date
+    client_id: str | None = None
+    keep_client: bool = True             # client_id empty and keep_client: the same client as the tour copied
+    pax: int | None = Field(default=None, ge=0, le=10000)
+    leaders: int | None = Field(default=None, ge=0, le=20)
+    staff: bool = False                  # the same guide, driver, bus
+    people: bool = False                 # the same travellers (a group coming again)
+
+
+# What a copy takes from the tour: the plan, not what happened to it (bookings, money, history, links).
+_COPY_TOUR = ("name", "series_id", "client_id", "pax", "pax_estimated", "rooms", "bus_return", "plate_share", "leaders",
+              "staff_table", "leader_seat", "notes", "price_pp", "price_currency")
+_NOT_COPIED = {"id", "tour_id", "created_at"}
+
+
+@router.post("/tours/{tour_id}/duplicate", response_model=TourOut, status_code=status.HTTP_201_CREATED)
+def duplicate_tour(tour_id: str, body: DuplicateIn, ctx: WorkspaceCtx = Depends(write), db: Session = Depends(get_db)):
+    """A copy of the tour as a draft, on new dates: every day with its places, meals, menus, flights (a scheduled
+    flight has the same number every week) and programme; nothing booked yet."""
+    src = _load(db, ctx, tour_id)
+    end = body.start_date + (src.end_date - src.start_date)
+    _check_dates(body.start_date, end)
+    code = (body.code or "").strip() or _generate_code(db, ctx, src.series, body.start_date)
+    if _code_taken(db, ctx, code):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"Tour code {code} already exists")
+    money = ctx.can("operations", "finance", "sales")
+    fields = {k: copy.deepcopy(getattr(src, k)) for k in _COPY_TOUR if money or k not in ("price_pp", "price_currency")}
+    if body.client_id or not body.keep_client:
+        if body.client_id:
+            check_refs(db, ctx, {"client_id": (Client, body.client_id)})
+        fields["client_id"] = body.client_id
+    for k in ("pax", "leaders"):
+        if getattr(body, k) is not None:
+            fields[k] = getattr(body, k)
+    t = Tour(workspace_id=ctx.workspace.id, code=code, start_date=body.start_date, end_date=end, status="draft", **fields)
+    db.add(t)
+    for d in sorted(src.days, key=lambda x: x.day_number):
+        cols = {c.name: copy.deepcopy(getattr(d, c.name)) for c in TourDay.__table__.columns if c.name not in _NOT_COPIED}
+        cols["date"] = body.start_date + timedelta(days=d.day_number - 1)
+        t.days.append(TourDay(**cols))
+    if body.staff:
+        for a in src.staff:
+            t.staff.append(StaffAssignment(**{c.name: getattr(a, c.name) for c in StaffAssignment.__table__.columns if c.name not in _NOT_COPIED}))
+    if body.people:
+        for x in src.participants:
+            t.participants.append(Participant(**{c.name: copy.deepcopy(getattr(x, c.name)) for c in Participant.__table__.columns
+                                                 if c.name not in _NOT_COPIED}))
+    db.commit()
+    return full(_load(db, ctx, t.id), money)
+
+
+# The list of changes (with who made each and whether it can be taken back): GET .../changes, routers/field.py.
+
+@router.post("/tours/{tour_id}/changes/{change_id}/undo", response_model=TourOut)
+def undo_change(tour_id: str, change_id: str, ctx: WorkspaceCtx = Depends(write), db: Session = Depends(get_db)):
+    """Put that part of the day back as it was before the change (the hotel removed by mistake)."""
+    t = _load(db, ctx, tour_id)
+    c = db.scalar(select(TourChange).where(TourChange.id == change_id, TourChange.tour_id == t.id))
+    if not c:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Change not found")
+    try:
+        changes.undo(db, t, c, ctx.user.id)
+    except ValueError:
+        raise HTTPException(status.HTTP_409_CONFLICT, "That part of the day has changed again since")
+    db.commit()
+    return full(_load(db, ctx, t.id), ctx.can("operations", "finance", "sales"))
 
 
 class ItineraryIn(BaseModel):
@@ -484,8 +558,7 @@ def day_view(day: date, include_cancelled: bool = False, lang: str = "en", light
             .options(selectinload(TourDay.tour).options(*_summary_opts),
                      selectinload(TourDay.hotel), selectinload(TourDay.lunch), selectinload(TourDay.dinner))
             .order_by(Tour.code))
-    if not include_cancelled:
-        stmt = stmt.where(Tour.status != "cancelled")
+    stmt = stmt.where(Tour.status.in_(LIVE_STATUSES) if not include_cancelled else Tour.status != "draft")
     days = db.scalars(stmt).all()
     counts = participant_counts(db, [d.tour_id for d in days])
     # Last night's hotel of each group (breakfast "at the hotel" is there, and the day starts from it).

@@ -217,7 +217,7 @@ class InvitePublic(BaseModel):
 # --- Milestone 2: vendors, clients, series, tours ---------------------------------
 
 VendorType = Literal["hotel", "restaurant", "transport", "guide", "driver", "activity", "airline", "rail", "other"]
-TourStatus = Literal["inquiry", "confirmed", "cancelled"]
+TourStatus = Literal["draft", "inquiry", "confirmed", "cancelled"]
 SeriesColor = Literal["indigo", "emerald", "amber", "rose", "sky", "violet", "teal", "orange", "slate", "lime"]
 
 

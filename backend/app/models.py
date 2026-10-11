@@ -148,7 +148,10 @@ class Invite(Base):
 # must point inside the same workspace (checked in routers/_scoped.py).
 
 VENDOR_TYPES = ("hotel", "restaurant", "transport", "guide", "driver", "activity", "other")
-TOUR_STATUSES = ("inquiry", "confirmed", "cancelled")
+TOUR_STATUSES = ("draft", "inquiry", "confirmed", "cancelled")
+# Tours that are really happening (or may): they take hotels, guides and buses, need bookings and show on
+# the timeline. A draft is a plan being worked on (often a copy of another tour): only in the tours list.
+LIVE_STATUSES = ("inquiry", "confirmed")
 
 
 class Vendor(Base):
@@ -1155,6 +1158,9 @@ class TourChange(Base):
     text: Mapped[str] = mapped_column(String(300))
     by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    # How to take it back ("Return"): {"set": {field: old}, "now": {field: new}} on the day; none for the
+    # programme's times (one change moves many steps).
+    undo: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
 
 

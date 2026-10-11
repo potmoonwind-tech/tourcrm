@@ -19,11 +19,11 @@ from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from .. import finance, programme, ratelimit, storage
+from .. import changes, finance, programme, ratelimit, storage
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_jobs, require_role
 from ..models import (COST_CATEGORIES, FieldExpense, FieldLink, Service, StaffAssignment, Tour, TourChange, TourCost, TourDay,
-                      Vendor, VendorPayment, Workspace, utcnow)
+                      User, Vendor, VendorPayment, Workspace, utcnow)
 from ..schemas import DayFields, _currency
 from .meals import MealRow, meals_of
 from .people import birthday_on_tour
@@ -525,6 +525,8 @@ class ChangeOut(BaseModel):
     kind: str
     text: str
     at: datetime
+    by: str = ""                # who made it
+    can_undo: bool = False      # "Return": that part of the day is still as the change left it
 
 
 class TeamSeen(BaseModel):
@@ -556,7 +558,9 @@ def tour_changes(tour_id: str, ctx: WorkspaceCtx = Depends(office), db: Session 
         team.append(TeamSeen(staff_id=a.id, person=a.vendor.name, role=a.role, phone=a.vendor.phone or a.vendor.phone2,
                              has_link=link is not None, acked_at=link.acked_at if link else None,
                              unseen=len(new), unseen_texts=[c.text for c in new]))
-    return ChangesOut(changes=[ChangeOut(id=c.id, day=c.day, kind=c.kind, text=c.text, at=c.at) for c in rows], team=team)
+    names = {u.id: u.full_name or u.email for u in db.scalars(select(User).where(User.id.in_({c.by_id for c in rows if c.by_id})))}
+    return ChangesOut(changes=[ChangeOut(id=c.id, day=c.day, kind=c.kind, text=c.text, at=c.at, by=names.get(c.by_id or "", ""),
+                                         can_undo=changes.can_undo(t, c)) for c in rows], team=team)
 
 
 def _naive(d: datetime) -> datetime:

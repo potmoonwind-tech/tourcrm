@@ -1,7 +1,7 @@
 import { toFields } from '../components/DayProgramme'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, Drawer, Menu, useGuardedClose } from '../components/overlay'
-import { Ban, Calculator, Check, Minus, Pencil, Plus, Trash2 } from 'lucide-react'
+import { Ban, Calculator, Check, Copy, History, Minus, Pencil, Plus, Redo2, Send, Trash2, Undo2 } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useStickyHeight } from '../lib/sticky'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -27,6 +27,7 @@ import { ParticipantsTab, StaffTab } from './TourPeople'
 import { CURRENCIES } from './Onboarding'
 import { MealsTab } from './TourMeals'
 import { BookingsTab } from './TourBookings'
+import { DuplicateTour, TourHistory } from '../components/TourCopy'
 
 export function TourDetailPage() {
   const ws = useWorkspace()!
@@ -44,6 +45,8 @@ export function TourDetailPage() {
   const seesMoney = can(ws, 'operations', 'finance')   // the tour's costs
   const [cancelling, setCancelling] = useState(false)
   const [editing, setEditing] = useState<{ focus: DetailField } | null>(null)   // the details drawer, at a field
+  const [copying, setCopying] = useState(false)      // "Duplicate"
+  const [history, setHistory] = useState(false)      // the change history, with "Return"
   type Tab = typeof tab
   const setTab = (id: string) => setParams(id === 'itinerary' ? {} : { tab: id }, { replace: true })
 
@@ -72,11 +75,13 @@ export function TourDetailPage() {
           {fmt(tr.start_date, lang)} – {fmt(tr.end_date, lang, { day: 'numeric', month: 'short', year: 'numeric' })}
           · {nights + 1} {countWord(nights + 1, t('dayWord'), t('daysWord'))} / {nights} {countWord(nights, t('nightWord'), t('nights'))} · {paxText(tr)} {t('pax').toLowerCase()}
         </span>}
-        action={can(ws, 'operations', 'finance') && (
+        action={atLeast(ws.role, 'staff') && (
           <Menu items={[
+            { label: t('dupMenu'), icon: <Copy size={16} />, onClick: () => setCopying(true) },
+            { label: t('historyTitle'), icon: <History size={16} />, onClick: () => setHistory(true) },
             { label: t('cancelTour'), icon: <Ban size={16} />, onClick: () => setCancelling(true),
-              hidden: tr.status === 'cancelled' || !!tr.closed_at || tr.end_date < today() },
-            { label: t('deleteTour'), icon: <Trash2 size={16} />, danger: true, hidden: !!tr.closed_at,
+              hidden: !can(ws, 'operations', 'finance') || tr.status === 'cancelled' || tr.status === 'draft' || !!tr.closed_at || tr.end_date < today() },
+            { label: t('deleteTour'), icon: <Trash2 size={16} />, danger: true, hidden: !!tr.closed_at || !can(ws, 'operations', 'finance'),
               onClick: () => void ask({ title: t('confirmDeleteTour'), danger: true, confirmLabel: t('delete') }).then((ok) => ok && del.mutate()) },
           ]} />
         )}
@@ -86,6 +91,8 @@ export function TourDetailPage() {
         <ClosePanel tour={tr} onTab={setTab} />
         <AlertBars tourId={tr.id} onTab={setTab} />
         <TourSummary tour={tr} canEdit={canEdit} onEdit={(f) => setEditing({ focus: f })} />
+        {copying && <DuplicateTour tour={tr} onClose={() => setCopying(false)} />}
+        {history && <TourHistory tour={tr} onClose={() => setHistory(false)} onChanged={(t2) => qc.setQueryData(key, t2)} />}
         {editing && <TourDetailsDrawer tour={tr} focus={editing.focus} onClose={() => setEditing(null)} onSaved={(t2) => qc.setQueryData(key, t2)} />}
         <div role="tablist" aria-label={t('tourSections')} ref={tabsBar}
           className="sticky top-0 z-30 -mx-4 flex gap-1 overflow-x-auto border-b border-slate-200 bg-white/95 px-4 backdrop-blur md:-mx-8 md:px-8"
@@ -140,7 +147,7 @@ function TourSummary({ tour, canEdit, onEdit }: { tour: Tour; canEdit: boolean; 
     onSuccess: (q) => navigate(`/w/${ws.id}/calculations/${q.id}?for_tour=${tour.id}`, { state: { notices: q.notices ?? [] } }),
   })
   const confirm = useMutation({
-    mutationFn: () => api<Tour>(wsPath(ws.id, `/tours/${tour.id}`), { method: 'PATCH', body: { status: 'confirmed' } }),
+    mutationFn: (status: 'inquiry' | 'confirmed' = 'confirmed') => api<Tour>(wsPath(ws.id, `/tours/${tour.id}`), { method: 'PATCH', body: { status } }),
     onSuccess: (t2) => {
       qc.setQueryData(['tour', ws.id, tour.id], t2)
       for (const k of ['tours', 'bookings', 'tasks', 'alerts']) qc.invalidateQueries({ queryKey: [k, ws.id] })
@@ -168,6 +175,16 @@ function TourSummary({ tour, canEdit, onEdit }: { tour: Tour; canEdit: boolean; 
   ]
   return (
     <Card className="p-4">
+      {/* A draft: what it is (and isn't yet), and how it becomes a real tour. */}
+      {tour.status === 'draft' && (
+        <div className="-mx-4 -mt-4 mb-4 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-t-xl border-b border-slate-200 bg-slate-50 px-4 py-3">
+          <span className="min-w-[16rem] flex-1 text-sm text-slate-700"><b className="text-slate-900">{t('status_draft')}.</b> {t('draftExplain')}</span>
+          {canEdit && <>
+            <Button size="sm" variant="secondary" disabled={confirm.isPending} onClick={() => confirm.mutate('inquiry')}><Send size={14} />{t('draftToInquiry')}</Button>
+            <Button size="sm" disabled={confirm.isPending} onClick={() => confirm.mutate('confirmed')}><Check size={14} />{t('confirmTour')}</Button>
+          </>}
+        </div>
+      )}
       <div>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3 lg:grid-cols-6">
           {facts.map(({ label, value }) => (
@@ -180,7 +197,7 @@ function TourSummary({ tour, canEdit, onEdit }: { tour: Tour; canEdit: boolean; 
         {canEdit && (
           <div className="mt-4 flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 pt-3">
             {tour.status === 'inquiry' && (
-              <Button variant="secondary" disabled={confirm.isPending} onClick={() => confirm.mutate()}><Check size={16} />{t('confirmTour')}</Button>
+              <Button variant="secondary" disabled={confirm.isPending} onClick={() => confirm.mutate('confirmed')}><Check size={16} />{t('confirmTour')}</Button>
             )}
             {canCalc && seesPrice && (
               <Button variant={has || !['inquiry', 'confirmed'].includes(tour.phase) ? 'secondary' : 'primary'} disabled={calc.isPending} onClick={() => calc.mutate()} title={t('calcFromTourHelp')}>
@@ -265,7 +282,7 @@ function TourDetailsDrawer({ tour, focus, onClose, onSaved }: { tour: Tour; focu
             <Field label={t('tourCode')}><Input required value={form.code} onChange={set('code')} className="font-mono uppercase" /></Field>
             <Field label={t('status')}>
               <Select value={form.status} onChange={set('status')}>
-                {TOUR_STATUSES.map((s) => <option key={s} value={s}>{t(`status_${s}`)}</option>)}
+                {TOUR_STATUSES.filter((s) => s !== 'draft' || tour.status === 'draft').map((s) => <option key={s} value={s}>{t(`status_${s}`)}</option>)}
               </Select>
             </Field>
           </div>
@@ -331,6 +348,23 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
   const qc = useQueryClient()
   const saved = tour.days.map(toFields)
   const [draft, setDraft] = useState<DayFields[] | null>(null)
+  // Unsaved changes one by one: Undo steps back (a hotel removed by mistake comes back), Redo forward again.
+  const [undo, setUndo] = useState<{ past: (DayFields[] | null)[]; future: (DayFields[] | null)[] }>({ past: [], future: [] })
+  const change = (d: DayFields[]) => { setUndo((u) => ({ past: [...u.past.slice(-49), draft], future: [] })); setDraft(d) }
+  const stepBack = () => { if (!undo.past.length) return; setUndo((u) => ({ past: u.past.slice(0, -1), future: [draft, ...u.future] })); setDraft(undo.past[undo.past.length - 1]) }
+  const stepForward = () => { if (!undo.future.length) return; setUndo((u) => ({ past: [...u.past, draft], future: u.future.slice(1) })); setDraft(undo.future[0]) }
+  // Ctrl+Z / Ctrl+Shift+Z (or Ctrl+Y) - but not while typing, where the field undoes its own text.
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null
+      if (!(e.ctrlKey || e.metaKey) || el?.closest('input, textarea, select, [contenteditable="true"]')) return
+      const k = e.key.toLowerCase()
+      if (k === 'z' && !e.shiftKey && undo.past.length) { e.preventDefault(); stepBack() }
+      else if (((k === 'z' && e.shiftKey) || k === 'y') && undo.future.length) { e.preventDefault(); stepForward() }
+    }
+    window.addEventListener('keydown', key)
+    return () => window.removeEventListener('keydown', key)
+  })
   const [back, setBack] = useState<BusReturn | null | undefined>(undefined)   // undefined: as saved
   const [exporting, setExporting] = useState(false)
   const alerts = useAlerts(tour.id)
@@ -345,7 +379,7 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
   })
   const save = useMutation({
     mutationFn: () => api<Tour>(wsPath(ws.id, `/tours/${tour.id}/itinerary`), { method: 'PUT', body: { days, bus_return: busReturn } }),
-    onSuccess: (t2) => { onSaved(t2); setDraft(null); setBack(undefined); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
+    onSuccess: (t2) => { onSaved(t2); setDraft(null); setBack(undefined); setUndo({ past: [], future: [] }); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
   })
   return (
     <div className="space-y-3 pb-16">
@@ -359,13 +393,17 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
       {exporting && <ProgrammeDialog title={tour.name || tour.code} startDate={tour.start_date} days={days} people={tour.pax} tourId={tour.id} onClose={() => setExporting(false)} />}
       <ItineraryBuilder flush={!tour.route_changed} onDownload={() => setExporting(true)} days={days} dates={tour.days.map((d) => d.date)} fixedLength disabled={!canEdit}
         crew={{ pax: tour.pax, leaders: tour.leaders ?? 0, leaderSeat: tour.leader_seat, staff: tour.staff, share: tour.plate_share || ws.plate_share || 1 }}
-        alerts={dirty ? [] : alerts.data ?? []} onChange={setDraft}
+        alerts={dirty ? [] : alerts.data ?? []} onChange={change}
         busReturn={busReturn} onBusReturn={(b) => setBack(b)}
         pending={dirty ? (
           // Unsaved changes: in the builder's bottom bar, in place of its tools.
           <span role="status" className="flex shrink-0 items-center gap-2">
             <span className="font-medium text-brand-900 max-sm:sr-only">{t('unsavedItinerary')}</span>
-            <Button size="sm" variant="secondary" className="rounded-full" onClick={() => { setDraft(null); setBack(undefined) }}>{t('discard')}</Button>
+            <Button size="sm" variant="ghost" className="rounded-full px-2" disabled={!undo.past.length} onClick={stepBack}
+              aria-label={t('undoStep')} title={`${t('undoStep')} (Ctrl+Z)`}><Undo2 size={16} /></Button>
+            <Button size="sm" variant="ghost" className="rounded-full px-2" disabled={!undo.future.length} onClick={stepForward}
+              aria-label={t('redoStep')} title={`${t('redoStep')} (Ctrl+Shift+Z)`}><Redo2 size={16} /></Button>
+            <Button size="sm" variant="secondary" className="rounded-full" onClick={() => { setDraft(null); setBack(undefined); setUndo({ past: [], future: [] }) }}>{t('discard')}</Button>
             <Button size="sm" className="rounded-full" disabled={save.isPending} onClick={() => save.mutate()}>{t('saveChanges')}</Button>
           </span>
         ) : undefined} />

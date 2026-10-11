@@ -103,7 +103,7 @@ function useSoon() {
     queryKey: ['tours', ws.id, 'soon', now],
     queryFn: () => api<TourSummary[]>(wsPath(ws.id, `/tours?date_from=${addDays(now, 1)}&date_to=${addDays(now, 14)}`)),
   })
-  return { ...q, starting: (q.data ?? []).filter((r) => r.start_date > now && r.status !== 'cancelled') }
+  return { ...q, starting: (q.data ?? []).filter((r) => r.start_date > now && r.status !== 'cancelled' && r.status !== 'draft') }
 }
 
 function StatsWidget() {

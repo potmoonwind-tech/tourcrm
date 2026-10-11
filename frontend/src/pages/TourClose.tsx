@@ -19,16 +19,18 @@ export function LifecycleBar({ tour }: { tour: Tour }) {
   const cancelled = tour.status === 'cancelled'
   // A cancelled tour still settles (penalties paid) and closes.
   const current = tour.phase === 'cancelled' ? 'settling' : tour.phase
-  const at = STEPS.indexOf(current)
+  // A draft comes before the inquiry (only a draft shows that step).
+  const steps: TourPhase[] = tour.phase === 'draft' ? ['draft', ...STEPS] : STEPS
+  const at = steps.indexOf(current)
   return (
     <ol className="flex flex-wrap items-center gap-1 text-xs font-semibold">
-      {STEPS.map((s, i) => (
+      {steps.map((s, i) => (
         <li key={s} className="flex items-center gap-1">
           <span className={cn('rounded-full px-2.5 py-1',
             i < at ? 'bg-brand-100 text-brand-800' : i === at ? (cancelled ? 'bg-red-600 text-white' : 'bg-brand-600 text-white') : 'bg-slate-100 text-slate-400')}>
             {i === at && cancelled && s !== 'closed' ? t('life_cancelled') : t(`life_${s}` as TKey)}
           </span>
-          {i < STEPS.length - 1 && <span className="text-slate-300">›</span>}
+          {i < steps.length - 1 && <span className="text-slate-300">›</span>}
         </li>
       ))}
     </ol>

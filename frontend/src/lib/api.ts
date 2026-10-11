@@ -65,8 +65,9 @@ export interface InvitePublic { workspace_name: string; email: string; role: Rol
 // --- Milestone 2 ---------------------------------------------------------------
 export type VendorType = 'hotel' | 'restaurant' | 'transport' | 'guide' | 'driver' | 'activity' | 'airline' | 'rail' | 'other'
 export const VENDOR_TYPES: VendorType[] = ['hotel', 'restaurant', 'transport', 'guide', 'driver', 'activity', 'airline', 'rail', 'other']
-export type TourStatus = 'inquiry' | 'confirmed' | 'cancelled'
-export const TOUR_STATUSES: TourStatus[] = ['confirmed', 'inquiry', 'cancelled']
+// A draft: a plan being worked on (often a copy of a tour) - not on the timeline, nothing booked yet.
+export type TourStatus = 'draft' | 'inquiry' | 'confirmed' | 'cancelled'
+export const TOUR_STATUSES: TourStatus[] = ['confirmed', 'inquiry', 'draft', 'cancelled']
 export type SeriesColor = 'indigo' | 'emerald' | 'amber' | 'rose' | 'sky' | 'violet' | 'teal' | 'orange' | 'slate' | 'lime'
 export const SERIES_COLORS: SeriesColor[] = ['indigo', 'emerald', 'amber', 'rose', 'sky', 'violet', 'teal', 'orange', 'lime', 'slate']
 
@@ -149,7 +150,7 @@ export interface TourSummary {
   start_date: string; end_date: string; status: TourStatus; pax: number; pax_estimated?: boolean; rooms: string; quote_id?: string | null
   staff: StaffAssignment[]; participant_count: number; phase: TourPhase; closed_at: string | null
 }
-export type TourPhase = 'inquiry' | 'confirmed' | 'operating' | 'settling' | 'closed' | 'cancelled'
+export type TourPhase = 'draft' | 'inquiry' | 'confirmed' | 'operating' | 'settling' | 'closed' | 'cancelled'
 export interface CloseCheck {
   phase: TourPhase; closed_at: string | null; closed_by: string | null; close_note: string
   final_revenue: number | null; final_cost: number | null; ready: boolean; can_force: boolean

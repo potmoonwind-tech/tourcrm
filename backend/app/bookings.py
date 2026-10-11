@@ -19,7 +19,7 @@ from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.orm import Session
 
 from . import finance
-from .models import Tour, TourBooking, Vendor, utcnow
+from .models import LIVE_STATUSES, Tour, TourBooking, Vendor, utcnow
 
 # Kind of work, from the supplier's type (who books it — Settings → Who does what).
 KIND = {"hotel": "hotel", "restaurant": "meal", "transport": "transport", "driver": "transport",
@@ -159,7 +159,7 @@ def sync(db: Session, t: Tour, vendors: dict[str, Vendor] | None = None) -> tupl
     supplier no longer used goes away (a booked one stays, to be cancelled with the supplier)."""
     used = usage(db, t, vendors)
     rows = {b.vendor_id: b for b in db.scalars(select(TourBooking).where(TourBooking.tour_id == t.id))}
-    if t.closed_at is None and t.status != "cancelled":
+    if t.closed_at is None and t.status in LIVE_STATUSES:        # a draft books nothing yet
         missing = [vid for vid in used if vid not in rows]
         stale = [b.id for vid, b in rows.items() if vid not in used and b.status == "to_book" and not b.reference and not b.note]
         if missing or stale:

@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session, selectinload
 from .. import bookings, finance, geo
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
-from ..models import FieldExpense, Incident, Invoice, Service, StaffAssignment, Tour, TourDay, Vendor
+from ..models import LIVE_STATUSES, FieldExpense, Incident, Invoice, Service, StaffAssignment, Tour, TourDay, Vendor
 from ..dishes import names as dish_names
 from .people import rooming
 
@@ -61,8 +61,8 @@ def _load(db: Session, ws_id: str, tour_ids: list[str] | None = None) -> list[To
                      selectinload(Tour.bills), selectinload(Tour.series), selectinload(Tour.client)))
     if tour_ids is not None:
         stmt = stmt.where(Tour.id.in_(tour_ids))
-    else:  # what is still alive: upcoming, running, or ended in the last 90 days
-        stmt = stmt.where(Tour.end_date >= today - timedelta(days=90))
+    else:  # what is still alive: upcoming, running, or ended in the last 90 days (drafts: on their own page only)
+        stmt = stmt.where(Tour.end_date >= today - timedelta(days=90), Tour.status != "draft")
     return list(db.scalars(stmt))
 
 
@@ -70,7 +70,7 @@ def _double_bookings(db: Session, ws_id: str, tours: list[Tour]) -> dict[str, li
     """Guides, drivers and vehicles assigned to two tours on the same days."""
     rows = db.execute(select(StaffAssignment, Tour).join(Tour)
                       .join(Vendor, Vendor.id == StaffAssignment.vendor_id)
-                      .where(Tour.workspace_id == ws_id, Tour.status != "cancelled", StaffAssignment.role.in_(BOOKED_ROLES),
+                      .where(Tour.workspace_id == ws_id, Tour.status.in_(LIVE_STATUSES), StaffAssignment.role.in_(BOOKED_ROLES),
                              Vendor.type.in_(PERSON_TYPES), Vendor.placeholder.is_(False))
                       .options(selectinload(StaffAssignment.vendor))).all()
     by_vendor: dict[str, list[tuple[StaffAssignment, Tour, date, date]]] = defaultdict(list)
@@ -161,7 +161,7 @@ def tour_alerts(db: Session, ctx: WorkspaceCtx, tours: list[Tour]) -> list[Alert
         out.extend(booked.get(t.id, []))
         if waiting_reports.get(t.id):
             add("guide_reports", "warning", "costs", n=waiting_reports[t.id])
-        live = t.status != "cancelled"
+        live = t.status in LIVE_STATUSES
         upcoming = live and t.end_date >= today
         days_to_start = (t.start_date - today).days
         if upcoming:

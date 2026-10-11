@@ -26,7 +26,7 @@ from sqlalchemy.orm import Session, selectinload
 from .. import bookings as bk, finance
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_jobs, require_role
-from ..models import (Membership, StaffAssignment, Task, TaskAssignment, TaskEvent, TaskStage, Tour, TourBooking, TourDay, User,
+from ..models import (LIVE_STATUSES, Membership, StaffAssignment, Task, TaskAssignment, TaskEvent, TaskStage, Tour, TourBooking, TourDay, User,
                       Vendor, utcnow)
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["tasks"])
@@ -132,7 +132,7 @@ def all_tasks(db: Session, ctx: WorkspaceCtx, include_done: bool = False) -> lis
     items: list[TaskItem] = []
 
     # --- bookings of tours not over yet --------------------------------------------------------
-    tours = db.scalars(select(Tour).where(Tour.workspace_id == ws.id, Tour.end_date >= today, Tour.status != "cancelled",
+    tours = db.scalars(select(Tour).where(Tour.workspace_id == ws.id, Tour.end_date >= today, Tour.status.in_(LIVE_STATUSES),
                                           Tour.closed_at.is_(None))
                        .options(selectinload(Tour.days).selectinload(TourDay.hotel), selectinload(Tour.staff).selectinload(StaffAssignment.vendor),
                                 selectinload(Tour.participants), selectinload(Tour.series))).all()

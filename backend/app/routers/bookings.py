@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from .. import bookings as bk
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
-from ..models import Membership, TourBooking, User, utcnow
+from ..models import LIVE_STATUSES, Membership, TourBooking, User, utcnow
 from .tours import _load
 
 router = APIRouter(prefix="/api/workspaces/{workspace_id}", tags=["bookings"])
@@ -167,7 +167,7 @@ def _series_tours(db: Session, ctx: WorkspaceCtx, series_id: str):
     if not s:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Route not found")
     return [_load(db, ctx, tid) for tid in db.scalars(
-        select(Tour.id).where(Tour.series_id == s.id, Tour.status != "cancelled", Tour.closed_at.is_(None),
+        select(Tour.id).where(Tour.series_id == s.id, Tour.status.in_(LIVE_STATUSES), Tour.closed_at.is_(None),
                               Tour.end_date >= date.today()).order_by(Tour.start_date))]
 
 

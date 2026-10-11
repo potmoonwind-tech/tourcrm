@@ -27,7 +27,7 @@ export function CodeChip({ code, color, className }: { code: string; color: Seri
   )
 }
 
-const STATUS_TONE: Record<TourStatus, Tone> = { confirmed: 'green', inquiry: 'orange', cancelled: 'grey' }
+const STATUS_TONE: Record<TourStatus, Tone> = { confirmed: 'green', inquiry: 'orange', draft: 'light', cancelled: 'grey' }
 const PHASE_STYLE: Record<Phase, string> = {
   upcoming: 'bg-sky-100 text-sky-800',
   running: 'bg-brand-600 text-white',
@@ -43,7 +43,7 @@ export function StatusPill({ status, className }: { status: TourStatus; classNam
 }
 
 const LIFE_TONE: Record<TourPhase, Tone> = {
-  inquiry: 'light', confirmed: 'blue', operating: 'purple', settling: 'orange', closed: 'green', cancelled: 'grey',
+  draft: 'light', inquiry: 'light', confirmed: 'blue', operating: 'purple', settling: 'orange', closed: 'green', cancelled: 'grey',
 }
 
 /** Where a tour is in its life (same words as the lifecycle bar on the tour page). */
