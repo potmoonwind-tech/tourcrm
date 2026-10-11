@@ -293,7 +293,15 @@ function Board({ rows, flagsOf, now, onOpen }: { rows: Row[]; flagsOf: (r: Row) 
         <div className="grid grid-cols-[15rem_minmax(0,1fr)] border-b border-slate-200 text-[11px] text-slate-500">
           <span className="px-3 py-1.5">{t('boardGroupNow')}</span>
           <span className="relative h-7">
-            {hours.map((h, i) => i % 2 === 0 && <span key={h} className="absolute top-1.5 -translate-x-1/2 tabular-nums" style={{ left: pct(h) }}>{String(h / 60).padStart(2, '0')}</span>)}
+            {hours.map((h, i) => i % 2 === 0 && (now == null || Math.abs(h - now) > 45) && <span key={h} className="absolute top-1.5 -translate-x-1/2 tabular-nums" style={{ left: pct(h) }}>{String(h / 60).padStart(2, '0')}</span>)}
+            {/* The time now, on the red line (before / after the day: at its edge), so no one needs a clock. */}
+            {now != null && (
+              <span className={cn('absolute top-1 z-10 rounded-full bg-red-500 px-1.5 text-[11px] font-semibold leading-5 tabular-nums text-white',
+                now < start ? 'left-0' : now > end ? 'right-0' : '-translate-x-1/2')}
+                style={now >= start && now <= end ? { left: pct(now) } : undefined}>
+                {now < start && '← '}{hm(now)}{now > end && ' →'}
+              </span>
+            )}
           </span>
         </div>
         {rows.map((r) => {
@@ -311,19 +319,22 @@ function Board({ rows, flagsOf, now, onOpen }: { rows: Row[]; flagsOf: (r: Row) 
               </button>
               <div className="relative h-14">
                 {hours.map((h) => <span key={h} className="absolute inset-y-0 border-l border-slate-100" style={{ left: pct(h) }} />)}
-                {blocksOf(r).map((b, i) => (
+                {blocksOf(r).map((b, i) => {
+                  const live = now != null && b.from <= now && now < b.to
+                  return (
                   <button key={i} type="button" onClick={() => onOpen(r.tour.id)} title={`${hm(b.from)}–${hm(b.to)} · ${b.road ? b.label : b.step.text || b.label}`}
                     style={{ left: pct(b.from), width: `calc(${pct(b.to)} - ${pct(b.from)} - 2px)` }}
                     className={cn('@container absolute top-3.5 flex h-7 items-center overflow-hidden rounded-md text-[11px] font-medium',
                       b.missing ? 'border-[1.5px] border-dashed border-amber-500 bg-amber-50 text-amber-800' : BLOCK_TONE[b.road ? 'road' : b.kind] ?? 'bg-slate-100 text-slate-700',
-                      now != null && b.to <= now && 'opacity-50')}>
+                      now != null && b.to <= now && 'opacity-50', live && 'z-[1] ring-2 ring-red-500 ring-offset-1')}>
                     {/* Always the icon (a short breakfast is a clear cup, not "B…"); the words only where they fit. */}
                     <span className="flex w-full min-w-0 items-center justify-center gap-1 px-1 @[56px]:justify-start @[56px]:px-1.5">
                       <span className="shrink-0 opacity-80">{b.road ? <Bus size={13} /> : STEP_ICON[b.kind] ?? <MapPin size={13} />}</span>
                       <span className="hidden truncate @[56px]:inline">{b.missing ? `${t(b.step.meal as TKey)} ?` : b.road ? b.label.replace(/^→\s*/, '') : b.label}</span>
                     </span>
                   </button>
-                ))}
+                  )
+                })}
                 {now != null && now >= start && now <= end && <span className="pointer-events-none absolute inset-y-0 w-0.5 bg-red-500" style={{ left: pct(now) }} />}
               </div>
             </div>
