@@ -508,9 +508,9 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
                     onSamePlace={(place) => set(x.id, { place })} />}
                   {gap >= 60 && (
                     <li className="flex gap-3">
-                      <span className="w-20 shrink-0" />
+                      <span className="w-28 shrink-0" />
                       <span className="flex w-8 shrink-0 justify-center" aria-hidden><span className="border-l-2 border-dotted border-slate-300" /></span>
-                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 py-1.5">
+                      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 py-1">
                         <span className="text-xs text-slate-400"><span className="tabular-nums">{hm(arrive!)}</span> · {t('progFree', { time: dur(gap) })}</span>
                         {!disabled && (['visit', 'free', 'other'] as const).map((k) => addChip(k, () => insertAt(i, k)))}
                       </span>
@@ -581,7 +581,7 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   return (
     <Tooltip label={t('progTimePickTip')}>
       <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}
-        className="h-7 w-16 shrink-0 cursor-pointer appearance-none rounded-md bg-transparent px-1 text-right text-[15px] font-medium tabular-nums text-slate-800 hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 [&>option]:bg-white [&>option]:text-slate-800">
+        className="h-7 w-14 shrink-0 cursor-pointer appearance-none rounded-md bg-transparent px-1 text-right text-[15px] font-medium tabular-nums text-slate-800 hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 [&>option]:bg-white [&>option]:text-slate-800">
         <option value="">--:--</option>
         {value && !QUARTERS.includes(value) && <option value={value}>{value}</option>}
         {QUARTERS.map((q) => <option key={q} value={q}>{q}</option>)}
@@ -617,7 +617,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
   return (
     <li ref={setNodeRef} id={`step-${x.id}`} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex scroll-mt-48 gap-3', isDragging && 'relative z-10')}>
       {/* The time column: when it starts, and how long. */}
-      <div className="flex w-20 shrink-0 flex-col items-end pt-1.5">
+      <div className="flex w-28 shrink-0 items-center justify-end gap-0.5 pt-1">
         {disabled ? <span className="text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
           : <TimeSelect value={x.time} label={t('progStartOf', { name })}
             onChange={(v) => onSet(x.time && x.end && v ? { time: v, fixed: true, end: shift(v, minutesBetween(x.time, x.end)) } : { time: v, fixed: !!v })} />}
@@ -1024,9 +1024,9 @@ function DriveRow({ leg, depart, samePlace, onSamePlace }: {
   const to = leg.to.split(',')[0]
   return (
     <li className="flex gap-3">
-      <span className="w-20 shrink-0" />
+      <span className="w-28 shrink-0" />
       <span className="flex w-8 shrink-0 justify-center" aria-hidden><span className="border-l-2 border-dashed border-slate-300" /></span>
-      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 py-2 text-sm text-slate-600">
+      <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-0.5 py-1 text-sm text-slate-600">
         <Car size={15} aria-hidden className="shrink-0 text-slate-500" />
         {leg.skipped === 'asking' ? <span className="text-slate-500">{t('progRoadAsking')}</span>
           : leg.skipped ? <span className="text-amber-800">{t(leg.skipped === 'pending' ? 'progDrivePending' : 'progDriveUnknown')}</span>
