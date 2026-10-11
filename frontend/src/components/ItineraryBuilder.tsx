@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, BedDouble, CalendarDays, ChevronDown, Table2, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ListChecks } from 'lucide-react'
+import { AlertTriangle, BedDouble, CalendarDays, ChevronDown, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ListChecks } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useStickyHeight } from '../lib/sticky'
@@ -91,10 +91,11 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   const [dragging, setDragging] = useState<Item | null>(null)
   const [picked, setPicked] = useState<Item | null>(null)   // tap-to-place
   // The whole trip as rows (the quick way), or each day in full; remembered per browser.
-  const [view, setViewState] = useState<'overview' | 'days' | 'check'>(() => {
-    try { const v = localStorage.getItem('itineraryView'); return v === 'days' || v === 'check' ? v : 'overview' } catch { return 'overview' }
+  const [view, setViewState] = useState<'days' | 'check'>(() => {
+    // Two views: the days to build, the whole tour to see and fix (the old "overview" opens the days).
+    try { return localStorage.getItem('itineraryView') === 'check' ? 'check' : 'days' } catch { return 'days' }
   })
-  const setView = (v: 'overview' | 'days' | 'check') => { setViewState(v); try { localStorage.setItem('itineraryView', v) } catch { /* private window */ } }
+  const setView = (v: 'days' | 'check') => { setViewState(v); try { localStorage.setItem('itineraryView', v) } catch { /* private window */ } }
   // The list on the left (the days, saved days): always open when a tour opens; folding it lasts for this visit.
   const [listOpen, setListOpen] = useState(true)
   const [listTab, setListTab] = useState<Tab>('days')
@@ -285,16 +286,15 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               it moves up when the "save changes" bar is there. */}
           <div className={cn('fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit [[role=dialog]_&]:bottom-20 max-w-[calc(100%-2rem)] items-center gap-x-3 rounded-full border py-1 pl-4 pr-1 text-sm shadow-lg backdrop-blur',
             pending ? 'border-brand-200 bg-brand-50/95' : 'border-slate-200 bg-white/95', 'pl-1.5')}>
-            {/* How to look at the days (Days / Check / Overview): one small button. */}
+            {/* How to look at the tour (its days / the whole tour): one small button. */}
           <Menu label={t('itineraryView')} triggerClassName="flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-slate-700 hover:bg-slate-100"
-            trigger={<>{view === 'check' ? <ListChecks size={16} aria-hidden /> : view === 'overview' ? <Table2 size={16} aria-hidden /> : <CalendarDays size={16} aria-hidden />}
+            trigger={<>{view === 'check' ? <ListChecks size={16} aria-hidden /> : <CalendarDays size={16} aria-hidden />}
               <span className="sr-only">{t('itineraryView')}: </span>
-              <span className="text-xs font-medium max-xl:sr-only">{t(view === 'check' ? 'viewCheck' : view === 'overview' ? 'viewOverview' : 'viewDays')}</span>
+              <span className="text-xs font-medium max-xl:sr-only">{t(view === 'check' ? 'viewCheck' : 'viewDays')}</span>
               <ChevronDown size={13} aria-hidden className="text-slate-400" /></>}
             items={[
               { label: `${t('viewDays')}${view === 'days' ? ' ✓' : ''}`, icon: <CalendarDays size={16} />, onClick: () => setView('days') },
               { label: `${t('viewCheck')}${view === 'check' ? ' ✓' : ''}`, icon: <ListChecks size={16} />, onClick: () => setView('check') },
-              { label: `${t('viewOverview')}${view === 'overview' ? ' ✓' : ''}`, icon: <Table2 size={16} />, onClick: () => setView('overview') },
             ]} />
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
@@ -313,12 +313,8 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           </div>
           {view === 'check' && (
             // Every day on one screen: what is done, what is missing, days side by side.
-            <DayGrid days={days} dates={dates} byId={byId} menus={services.data ?? []} alerts={alerts} crew={crew} onOpen={openDay} />
-          )}
-          {view === 'overview' && (
-            <Overview days={days} dates={dates} vendors={vs} menus={services.data ?? []} disabled={disabled} alerts={alerts}
-              onSet={set} onSetMany={(patches) => onChange(days.map((d, j) => (patches[j] ? { ...d, ...patches[j] } : d)))} onOpen={openDay}
-              onNewVendor={canCreate ? (type, then) => setNewVendor({ type, then }) : undefined} />
+            <DayGrid days={days} dates={dates} byId={byId} menus={services.data ?? []} alerts={alerts} crew={crew} onOpen={openDay}
+              vendors={vs} disabled={disabled} onSet={set} />
           )}
           {view === 'days' && <SortableContext items={keys.current} strategy={verticalListSortingStrategy}>
             {days.map((d, i) => (
@@ -358,132 +354,6 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
         onCreated={(sv) => newService.then?.(sv)} />}
       </div>
     </DndContext>
-  )
-}
-
-/**
- * The whole trip as rows — date, town, hotel, lunch, dinner, places, km — each picked right here. A stay
- * of several nights in one hotel is one cell across those nights; changing it changes the whole stay.
- * A day's details (menus, programme, driver and guide) open with its number.
- */
-function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetMany, onOpen, onNewVendor }: {
-  days: DayFields[]; dates?: string[]; vendors: Vendor[]; menus: ServiceBrief[]; disabled?: boolean; alerts: TourAlert[]
-  onSet: (i: number, p: Partial<DayFields>) => void; onSetMany: (patches: Record<number, Partial<DayFields>>) => void
-  onOpen: (i: number) => void
-  onNewVendor?: (type: VendorType, then: (v: Vendor) => void) => void
-}) {
-  const { t, lang } = useI18n()
-  const dateStyle = useDateStyle()
-  const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
-  // Every hotel can serve a meal; one with no meal price yet says so (its price is added in the catalogue).
-  const mealNote = (v: Vendor) => (v.type === 'hotel' && !serving.has(v.id) ? ` · ${t('noMealPrice')}` : '')
-  const extrasOf = (d: DayFields) => [...new Set(d.extras.map((x) => menus.find((s) => s.id === x.service_id)?.vendor.name).filter(Boolean))].join(', ')
-  // Stays: runs of nights in the same hotel (the last day has no night).
-  const stays: { from: number; to: number }[] = []
-  days.forEach((d, i) => {
-    if (i === days.length - 1) return
-    const prev = stays[stays.length - 1]
-    if (prev && prev.to === i - 1 && d.hotel_id && days[i - 1].hotel_id === d.hotel_id) prev.to = i
-    else stays.push({ from: i, to: i })
-  })
-  const stayAt = new Map(stays.map((s) => [s.from, s]))
-  const covered = new Set(stays.flatMap((s) => Array.from({ length: s.to - s.from }, (_, k) => s.from + k + 1)))
-  const meal = (i: number, which: 'lunch' | 'dinner') => {
-    const d = days[i]
-    const mode = which === 'lunch' ? d.lunch_mode : d.dinner_mode
-    if (mode === 'own') return <span className="flex h-8 items-center px-1.5 text-xs text-slate-500">{t('mealOwn')}</span>
-    const id = which === 'lunch' ? d.lunch_id : d.dinner_id
-    return (
-      <VendorSelect quiet todo={!id} placeholder={t('chooseShort')} disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} note={mealNote} value={id}
-        cities={which === 'lunch' ? [...(d.stops ?? []), d.city] : [d.city, ...(d.stops ?? [])]}
-        onChange={(v) => onSet(i, which === 'lunch' ? { lunch_id: v, lunch_menu_id: null } : { dinner_id: v, dinner_menu_id: null })}
-        onAddNew={onNewVendor && (() => onNewVendor('restaurant', (v) => onSet(i, which === 'lunch' ? { lunch_id: v.id, lunch_menu_id: null } : { dinner_id: v.id, dinner_menu_id: null })))} />
-    )
-  }
-  return (
-    // Fits the page (fixed column shares, nothing scrolls sideways); every cell reads as text and shows its
-    // frame on hover; what's still to choose says so in amber.
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-      <table className="w-full min-w-[720px] table-fixed text-sm">
-        <caption className="sr-only">{t('viewOverview')}</caption>
-        <colgroup>
-          <col className="w-40" /><col className="w-[13%]" /><col className="w-[22%]" /><col /><col /><col className="w-[13%]" /><col className="w-14" />
-        </colgroup>
-        <thead className="border-b border-slate-200 text-left text-xs font-medium text-slate-500">
-          <tr>
-            <th scope="col" className="px-3 py-2">{t('day')}</th>
-            <th scope="col" className="px-2 py-2">{t('city')}</th>
-            <th scope="col" className="px-2 py-2">{t('hotel')}</th>
-            <th scope="col" className="px-2 py-2">{t('lunch')}</th>
-            <th scope="col" className="px-2 py-2">{t('dinner')}</th>
-            <th scope="col" className="px-2 py-2">{t('dayServices')}</th>
-            <th scope="col" className="px-3 py-2 text-right">km</th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-slate-100">
-          {days.map((d, i) => {
-            const stay = stayAt.get(i)
-            const last = i === days.length - 1
-            const warn = alerts.filter((a) => a.day === i + 1)
-            return (
-              <tr key={i} className="align-top hover:bg-slate-50/60">
-                <th scope="row" className="px-3 py-1.5 text-left font-normal">
-                  <div className="flex items-center gap-1.5">
-                  <button type="button" onClick={() => onOpen(i)} title={t('openDay', { n: i + 1 })}
-                    className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md text-left text-xs tabular-nums text-slate-600 hover:text-brand-700">
-                    <span className={cn('flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white', warn.length ? 'bg-amber-500' : 'bg-slate-700')}>{i + 1}</span>
-                    {dates?.[i] && dayDate(dates[i], lang, dateStyle)}
-                  </button>
-                  {/* The day's warnings, folded: "⚠ 2" (the text on hover; a click opens the day). Rows stay even. */}
-                  {warn.length > 0 && (
-                    <button type="button" onClick={() => onOpen(i)} title={warn.map((a) => t(`alert_${a.code}` as TKey, a.params)).join('\n')}
-                      className="flex shrink-0 items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[11px] font-semibold text-amber-800 hover:bg-amber-100">
-                      <AlertTriangle size={11} aria-hidden />{warn.length}
-                    </button>
-                  )}
-                  </div>
-                </th>
-                <td className="px-1.5 py-1.5">
-                  <PlaceInput disabled={disabled} value={d.city} onChange={(city) => onSet(i, { city })} placeholder={t('cityNight')}
-                    className="h-8 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1.5 font-medium text-slate-900 placeholder:font-normal placeholder:text-amber-700 hover:border-slate-300 hover:bg-white focus:border-brand-600 focus:bg-white focus:outline-none"
-                    aria-label={`${t('day')} ${i + 1} · ${t('city')}`} />
-                </td>
-                {last ? (
-                  <td className="px-3 py-1.5"><span className="flex h-8 items-center text-xs text-slate-400">{t('departureDay')}</span></td>
-                ) : covered.has(i) ? null : (
-                  <td className={cn('px-1.5 py-1.5', stay && stay.to > stay.from && 'border-l-2 border-l-brand-200')} rowSpan={stay ? stay.to - stay.from + 1 : 1}>
-                    <VendorSelect quiet todo={!d.hotel_id} placeholder={t('chooseShort')} disabled={disabled} vendors={vendors} types={['hotel']} value={d.hotel_id} cities={[d.city]}
-                      onChange={(v) => {
-                        // The whole stay moves to the new hotel.
-                        const patches: Record<number, Partial<DayFields>> = {}
-                        for (let j = stay!.from; j <= stay!.to; j++) patches[j] = { hotel_id: v }
-                        onSetMany(patches)
-                      }}
-                      onAddNew={onNewVendor && (() => onNewVendor('hotel', (v) => onSet(i, { hotel_id: v.id })))} />
-                    {stay && stay.to > stay.from && (
-                      <p className="px-1.5 text-xs text-slate-500">{t('stayNights', { n: stay.to - stay.from + 1, from: stay.from + 1, to: stay.to + 1 })}</p>
-                    )}
-                    {!disabled && d.hotel_id && stay && stay.to + 1 < days.length - 1 && !days[stay.to + 1].hotel_id && (
-                      <button type="button" onClick={() => onSet(stay.to + 1, { hotel_id: d.hotel_id, city: days[stay.to + 1].city || d.city })}
-                        className="px-1.5 text-xs font-medium text-brand-700 hover:underline">{t('stayOneMoreNight')}</button>
-                    )}
-                  </td>
-                )}
-                <td className="px-1.5 py-1.5">{meal(i, 'lunch')}</td>
-                <td className="px-1.5 py-1.5">{meal(i, 'dinner')}</td>
-                <td className="px-1.5 py-1.5">
-                  <button type="button" onClick={() => onOpen(i)} title={extrasOf(d) || undefined}
-                    className="flex h-8 w-full items-center truncate rounded-md px-1.5 text-left text-xs text-slate-600 hover:bg-white hover:text-brand-700">
-                    <span className="truncate">{extrasOf(d) || <span className="text-slate-400">+ {t('placeAdd')}</span>}</span>
-                  </button>
-                </td>
-                <td className="px-3 py-1.5 text-right"><span className="flex h-8 items-center justify-end tabular-nums text-slate-600">{i > 0 ? d.km ?? '—' : ''}</span></td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
-    </div>
   )
 }
 

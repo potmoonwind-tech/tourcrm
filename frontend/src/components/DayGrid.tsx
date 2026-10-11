@@ -12,14 +12,18 @@ import { useI18n } from '../lib/i18n'
 import { useDateStyle } from '../lib/session'
 import { cn, townKey } from '../lib/utils'
 import type { Crew } from './MealPlan'
+import { VendorSelect } from './VendorSelect'
 
 type State = 'ok' | 'todo' | 'soft' | 'none'      // done · missing · worth a look · not needed
-interface Line { icon: ReactNode; label: string; text: string; state: State; sub?: string; wrap?: boolean; kind?: Kind }
+interface Line { icon: ReactNode; label: string; text: string; state: State; sub?: string; wrap?: boolean; kind?: Kind
+  edit?: 'hotel' | 'lunch' | 'dinner' }     // chosen right on the card
 type Kind = 'hotel' | 'meal' | 'menu' | 'team'
 
-export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
+export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen, vendors, disabled, onSet }: {
   days: DayFields[]; dates?: string[]; byId: Map<string, Vendor>; menus: ServiceBrief[]; alerts: TourAlert[]
   crew?: Crew; onOpen: (i: number) => void
+  vendors?: Vendor[]; disabled?: boolean
+  onSet?: (i: number, patch: Partial<DayFields>) => void   // the hotel, lunch and dinner are chosen right on the card
 }) {
   const { t, lang } = useI18n()
   const dateStyle = useDateStyle()
@@ -35,8 +39,8 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
     const out: Line[] = []
     // The night
     out.push(last ? { icon: <BedDouble size={13} />, label: t('hotel'), text: t('gridNoNight'), state: 'none' }
-      : d.hotel_id ? { icon: <BedDouble size={13} />, label: t('hotel'), text: name(d.hotel_id), state: 'ok' }
-        : { icon: <BedDouble size={13} />, label: t('hotel'), text: t('gridMissing'), state: 'todo', kind: 'hotel' })
+      : d.hotel_id ? { icon: <BedDouble size={13} />, label: t('hotel'), text: name(d.hotel_id), state: 'ok', edit: 'hotel' }
+        : { icon: <BedDouble size={13} />, label: t('hotel'), text: t('gridMissing'), state: 'todo', kind: 'hotel', edit: 'hotel' })
     // Breakfast
     const bm = d.breakfast_mode ?? 'hotel'
     out.push(i === 0 && bm === 'hotel' ? { icon: <Coffee size={13} />, label: t('breakfast'), text: '—', state: 'none' }
@@ -49,12 +53,12 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
       const mode = (meal === 'lunch' ? d.lunch_mode : d.dinner_mode) ?? 'included'
       const id = meal === 'lunch' ? d.lunch_id : d.dinner_id
       if (mode === 'own') { out.push({ icon: <Utensils size={13} />, label: t(meal), text: `${t('mealOwn')}${d.meal_tbd?.[meal] ? ` · ${d.meal_tbd[meal]}` : ''}`, state: 'none' }); continue }
-      if (!id && d.meal_tbd?.[meal]) { out.push({ icon: <Utensils size={13} />, label: t(meal), text: t('mealTbdShort', { town: d.meal_tbd[meal]! }), state: 'soft' }); continue }
-      if (!id) { out.push({ icon: <Utensils size={13} />, label: t(meal), text: t('gridMissing'), state: 'todo', kind: 'meal' }); continue }
+      if (!id && d.meal_tbd?.[meal]) { out.push({ icon: <Utensils size={13} />, label: t(meal), text: t('mealTbdShort', { town: d.meal_tbd[meal]! }), state: 'soft', edit: meal }); continue }
+      if (!id) { out.push({ icon: <Utensils size={13} />, label: t(meal), text: t('gridMissing'), state: 'todo', kind: 'meal', edit: meal }); continue }
       const menu = menuOf(d, meal)
       const atRestaurant = byId.get(id)?.type === 'restaurant'
       out.push({ icon: <Utensils size={13} />, label: t(meal), text: name(id), sub: menu || (atRestaurant ? t('menuChoose') : undefined),
-        state: menu || !atRestaurant ? 'ok' : 'todo', kind: menu || !atRestaurant ? undefined : 'menu' })
+        state: menu || !atRestaurant ? 'ok' : 'todo', kind: menu || !atRestaurant ? undefined : 'menu', edit: meal })
     }
     // What they do: the places with activities and the free visits of the day's timeline - as "what they do" shows it.
     const paid = d.extras.map((x) => menus.find((s) => s.id === x.service_id)?.vendor.name)
@@ -118,10 +122,10 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
 
       <div className="grid gap-2.5 [grid-template-columns:repeat(auto-fill,minmax(15rem,1fr))]">
         {shown.map(({ d, i, ls, todo, soft, dayAlerts }) => (
-          <button key={i} type="button" onClick={() => onOpen(i)}
-            className={cn('flex flex-col overflow-hidden rounded-xl border bg-white text-left transition hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300',
+          <div key={i} className={cn('flex flex-col rounded-xl border bg-white text-left transition hover:shadow-md',
               todo ? 'border-amber-300' : 'border-slate-200')}>
-            <span className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
+            <button type="button" onClick={() => onOpen(i)} title={t('openDay', { n: i + 1 })}
+              className="flex items-center gap-2 rounded-t-xl border-b border-slate-100 px-3 py-2 text-left hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-300">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-white">{i + 1}</span>
               <span className="min-w-0 flex-1">
                 {/* "Tbilisi [🚗 3 h 40 · 219 km ›] Kutaisi": the road between the towns. */}
@@ -145,7 +149,7 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
                 todo ? 'bg-amber-200 text-amber-900' : 'bg-emerald-200 text-emerald-900')}>
                 {todo ? t('gridMissingN', { n: todo }) : <><Check size={12} aria-hidden />{t('gridReadyShort')}</>}
               </span>
-            </span>
+            </button>
             {/* Three columns for the whole card: the label column as wide as its longest label (Georgian
                 labels are longer), so nothing runs into the value and the rows stay aligned. */}
             <ul className="grid flex-1 grid-cols-[auto_max-content_minmax(0,1fr)] content-start gap-x-1.5 px-3 py-1 text-xs">
@@ -154,10 +158,16 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
                   <span className={cn('py-1 pt-[0.3rem]', k > 0 && 'border-t border-slate-100',
                     l.state === 'ok' ? 'text-emerald-600' : l.state === 'todo' ? 'text-amber-600' : l.state === 'soft' ? 'text-sky-600' : 'text-slate-300')}>{l.icon}</span>
                   <span className={cn('whitespace-nowrap py-1 text-slate-500', k > 0 && 'border-t border-slate-100')}>{l.label}</span>
+                  {l.edit && onSet && vendors && !disabled ? (
+                    <span className={cn('min-w-0 py-0.5', k > 0 && 'border-t border-slate-100')}>
+                      <CardPick day={d} i={i} what={l.edit} vendors={vendors} menus={menus} onSet={onSet} />
+                    </span>
+                  ) : (
                   <span className={cn('min-w-0 py-1', k > 0 && 'border-t border-slate-100')} title={l.sub ? `${l.text} · ${l.sub}` : l.text}>
                     <span className={cn('block', l.wrap ? 'line-clamp-2' : 'truncate', l.state === 'todo' ? 'font-semibold text-amber-800' : l.state === 'none' ? 'text-slate-400' : 'text-slate-800')}>{l.text}</span>
                     {l.sub && <span className={cn('block truncate text-[11px]', l.state === 'soft' ? 'text-sky-700' : 'text-slate-500')}>{l.sub}</span>}
                   </span>
+                  )}
                 </li>
               ))}
             </ul>
@@ -167,7 +177,7 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
                 {d.notes && <span className="block truncate italic text-slate-500">{d.notes}</span>}
               </span>
             )}
-          </button>
+          </div>
         ))}
       </div>
     </div>
@@ -179,6 +189,39 @@ function Legend({ state, label }: { state: State; label: string }) {
     <span className="flex items-center gap-1">
       {state === 'ok' ? <Check size={12} className="text-emerald-600" /> : <CircleDashed size={12} className={state === 'todo' ? 'text-amber-600' : 'text-sky-600'} />}
       {label}
+    </span>
+  )
+}
+
+/** A card's hotel / lunch / dinner, chosen in place: the supplier (quiet picker), and for a restaurant its menu. */
+function CardPick({ day: d, i, what, vendors, menus, onSet }: {
+  day: DayFields; i: number; what: 'hotel' | 'lunch' | 'dinner'; vendors: Vendor[]; menus: ServiceBrief[]
+  onSet: (i: number, patch: Partial<DayFields>) => void
+}) {
+  const { t } = useI18n()
+  if (what === 'hotel') {
+    return <VendorSelect quiet todo={!d.hotel_id} placeholder={t('chooseShort')} vendors={vendors} types={['hotel']} value={d.hotel_id}
+      cities={[d.city]} className="-ml-1.5 h-7 text-xs" onChange={(v) => onSet(i, { hotel_id: v })} />
+  }
+  const id = what === 'lunch' ? d.lunch_id : d.dinner_id
+  const menuId = what === 'lunch' ? d.lunch_menu_id : d.dinner_menu_id
+  const isRestaurant = vendors.find((v) => v.id === id)?.type === 'restaurant'
+  // The restaurant's own menus (its set menus and priced meals, not its usual lunch/dinner price).
+  const options = id ? menus.filter((m) => m.vendor.id === id && m.category === 'meal' && !['breakfast', 'lunch', 'dinner'].includes(m.code ?? '')) : []
+  return (
+    <span className="block">
+      <VendorSelect quiet todo={!id} placeholder={t('chooseShort')} vendors={vendors} types={['restaurant', 'hotel']} value={id ?? null}
+        cities={[...(d.stops ?? []), d.city]} className="-ml-1.5 h-7 text-xs"
+        onChange={(v) => onSet(i, what === 'lunch' ? { lunch_id: v, lunch_menu_id: null } : { dinner_id: v, dinner_menu_id: null })} />
+      {isRestaurant && !d.meal_dishes?.[what] && (
+        <select value={menuId ?? ''} aria-label={t('menu')}
+          onChange={(e) => onSet(i, what === 'lunch' ? { lunch_menu_id: e.target.value || null } : { dinner_menu_id: e.target.value || null })}
+          className={cn('-ml-0.5 h-6 max-w-full cursor-pointer appearance-none truncate rounded-md border-0 bg-transparent bg-none px-1 text-[11px] hover:bg-slate-100 focus:outline-none focus:ring-2 focus:ring-brand-100',
+            menuId ? 'text-slate-600' : 'font-semibold text-amber-700')}>
+          <option value="">{options.length ? t('menuChoose') : t('menuNoneYet')}</option>
+          {options.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+        </select>
+      )}
     </span>
   )
 }

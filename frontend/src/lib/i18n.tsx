@@ -2859,7 +2859,7 @@ const en = {
   mbAddTo: "Add {name} to a menu",
   mbNewLunchShort: "+ New lunch menu",
   mbNewDinnerShort: "+ New dinner menu",
-  viewCheck: "Check",
+  viewCheck: "Whole tour",
   gridOwnMenu: "own dishes",
   gridNoNight: "last day, no night",
   gridMissing: "not chosen",
@@ -3074,6 +3074,7 @@ const en = {
   placeSameAsMap: "Same as on the map",
   placeForClientsLine: "For clients - {names}",
   chooseShort: "Choose…",
+  menuNoneYet: "No menus yet",
 }
 
 type Dict = typeof en
@@ -5929,7 +5930,7 @@ const ka: Dict = {
   mbAddTo: "{name} მენიუში დამატება",
   mbNewLunchShort: "+ ახალი სადილის მენიუ",
   mbNewDinnerShort: "+ ახალი ვახშმის მენიუ",
-  viewCheck: "შემოწმება",
+  viewCheck: "მთლიანი ტური",
   gridOwnMenu: "საკუთარი კერძები",
   gridNoNight: "ბოლო დღე, ღამე არ არის",
   gridMissing: "არ არის არჩეული",
@@ -6144,6 +6145,7 @@ const ka: Dict = {
   placeSameAsMap: "იგივეა, რაც რუკაზე",
   placeForClientsLine: "კლიენტებისთვის - {names}",
   chooseShort: "აირჩიეთ…",
+  menuNoneYet: "მენიუ ჯერ არ არის",
 }
 
 export type Lang = 'en' | 'ka'
