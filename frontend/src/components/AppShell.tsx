@@ -11,6 +11,7 @@ import { setViewAs, useMe, useViewAs, useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
 import { LangToggle } from './ui'
 import { Activity } from './Alerts'
+import { OnRoad } from './OnRoad'
 import { useTaskSummary } from '../lib/data'
 import { SearchButton } from './Search'
 import { sectionOf, type Section } from './SectionNav'
@@ -93,6 +94,7 @@ export function AppShell() {
         </div>
         <div className="flex shrink-0 items-center gap-0.5">
           {office && <SearchButton shortcut={false} className="md:hidden" />}
+          {office && <OnRoad />}
           {office && <Activity />}
           <UserMenu />
         </div>

@@ -34,7 +34,11 @@ export function DayViewPage() {
   const view: View = raw === 'list' || raw === 'map' ? raw : 'board'      // (an old "by city" link opens the board)
   const go = (d: string, v: View = view) => setParams({ ...(d === today() ? {} : { date: d }), ...(v === 'board' ? {} : { view: v }) }, { replace: true })
   const [onlyFlagged, setOnlyFlagged] = useState(false)
-  const [open, setOpen] = useState<string | null>(null)       // a group's whole day, in the side panel
+  // a group's whole day, in the side panel (?open=<tour id> from "On the road" in the top bar)
+  const asked = params.get('open')
+  const [open, setOpen] = useState<string | null>(asked)
+  const [seen, setSeen] = useState(asked)
+  if (asked !== seen) { setSeen(asked); if (asked) setOpen(asked) }   // asked again while already here
   const now = useNow()
 
   const rows = useQuery({

@@ -221,12 +221,23 @@ def list_tours(date_from: date | None = None, date_to: date | None = None,
 class TimelineDay(BaseModel):
     date: date
     city: str
+    hotel: str = ""                    # where the group sleeps that night (the wide week view shows it)
     todo: bool = False                 # something missing that day: the night's hotel, a meal's place
+
+
+class TimelineStaff(BaseModel):
+    """Who works on the tour, and when (the timeline grouped by guides and drivers)."""
+    vendor_id: str
+    name: str
+    role: str
+    start: date
+    end: date
 
 
 class TimelineRow(BaseModel):
     tour: TourSummary
     days: list[TimelineDay]
+    staff: list[TimelineStaff] = []
 
 
 @router.get("/timeline", response_model=list[TimelineRow])
@@ -234,7 +245,7 @@ def timeline(date_from: date, date_to: date, ctx: WorkspaceCtx = Depends(read), 
     """The tours in [date_from, date_to] with where each sleeps day by day, and the days with something missing:
     the timeline shows the towns on each bar."""
     tours = db.scalars(select(Tour).where(Tour.workspace_id == ctx.workspace.id, Tour.end_date >= date_from, Tour.start_date <= date_to)
-                       .options(*_summary_opts, selectinload(Tour.days)).order_by(Tour.start_date, Tour.code)).all()
+                       .options(*_summary_opts, selectinload(Tour.days).selectinload(TourDay.hotel)).order_by(Tour.start_date, Tour.code)).all()
     counts = participant_counts(db, [t.id for t in tours])
     out = []
     for t in tours:
@@ -245,8 +256,13 @@ def timeline(date_from: date, date_to: date, ctx: WorkspaceCtx = Depends(read), 
             tbd = d.meal_tbd or {}
             todo = (not last and not d.hotel_id) or any(
                 (getattr(d, f"{m}_mode") or "included") != "own" and not getattr(d, f"{m}_id") and not tbd.get(m) for m in ("lunch", "dinner"))
-            rows.append(TimelineDay(date=d.date, city=d.city or "", todo=bool(todo)))
-        out.append(TimelineRow(tour=summary(t, counts.get(t.id, 0)), days=rows))
+            rows.append(TimelineDay(date=d.date, city=d.city or "", hotel=d.hotel.name if d.hotel else "", todo=bool(todo)))
+        n = len(days)
+        staff = [TimelineStaff(vendor_id=a.vendor_id, name=a.vendor.name, role=a.role,
+                               start=t.start_date + timedelta(days=max(a.start_day, 1) - 1),
+                               end=t.start_date + timedelta(days=min(a.end_day or n, n) - 1))
+                 for a in t.staff if a.role in ("guide", "driver", "transport", "tour_leader", "assistant") and a.vendor]
+        out.append(TimelineRow(tour=summary(t, counts.get(t.id, 0)), days=rows, staff=staff))
     return out
 
 

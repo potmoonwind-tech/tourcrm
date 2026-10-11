@@ -24,3 +24,13 @@ def test_timeline_has_the_towns_by_day(make_client):
     rows = c.get(f"{base}/timeline", params={"date_from": "2026-11-01", "date_to": "2026-11-30"}).json()
     assert [d["city"] for d in rows[0]["days"]] == ["Tbilisi", "Kazbegi", "Tbilisi"]
     assert rows[0]["days"][0]["todo"] is True       # no hotel, no meals yet
+
+
+def test_timeline_has_the_staff_by_dates(make_client):
+    c, base, _ = agency(make_client)
+    guide = c.post(f"{base}/vendors", json={"name": "Nino", "type": "guide"}).json()
+    tour = c.post(f"{base}/tours", json={"start_date": "2026-11-03", "end_date": "2026-11-06", "pax": 10}).json()
+    c.post(f"{base}/tours/{tour['id']}/staff", json={"vendor_id": guide["id"], "role": "guide", "start_day": 2})
+    rows = c.get(f"{base}/timeline", params={"date_from": "2026-11-01", "date_to": "2026-11-30"}).json()
+    assert [(s["name"], s["role"], s["start"], s["end"]) for s in rows[0]["staff"]] == [("Nino", "guide", "2026-11-04", "2026-11-06")]
+    assert rows[0]["days"][0]["hotel"] == ""
