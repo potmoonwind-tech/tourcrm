@@ -252,20 +252,12 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd}
       onDragCancel={() => { setDragging(null); setCarrying(null) }}>
       {/* The sticky bars stack from the page's tab bar; in a drawer there's none, so they start at its top. */}
-      <div className="contents" style={top ? ({ '--tabs-h': top } as CSSProperties) : undefined}>
+      {/* (When the top row is folded away, nothing sits between the tabs and the day headers.) */}
+      <div className={cn('contents', view !== 'days' && '[--bar-h:0px]', view === 'days' && listOpen && !disabled && 'lg:[--bar-h:0px]')}
+        style={top ? ({ '--tabs-h': top } as CSSProperties) : undefined}>
         {/* The builder's toolbar, kept in view: how to look at the days, and the days themselves. */}
-        <div ref={toolbar} data-builder-toolbar className={cn('sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8', flush && '-mt-6', top && 'mx-0 px-0 md:mx-0 md:px-0')}>
-          {/* How to look at the days: one small button (the current view's icon) - the days get the room. */}
-          <Menu label={t('itineraryView')} triggerClassName="flex h-8 shrink-0 items-center gap-0.5 rounded-md px-1.5 text-slate-700 hover:bg-slate-100"
-            trigger={<>{view === 'check' ? <ListChecks size={16} aria-hidden /> : view === 'overview' ? <Table2 size={16} aria-hidden /> : <CalendarDays size={16} aria-hidden />}
-              <span className="sr-only">{t('itineraryView')}: {t(view === 'check' ? 'viewCheck' : view === 'overview' ? 'viewOverview' : 'viewDays')}</span>
-              <ChevronDown size={13} aria-hidden className="text-slate-400" /></>}
-            items={[
-              { label: `${t('viewDays')}${view === 'days' ? ' ✓' : ''}`, icon: <CalendarDays size={16} />, onClick: () => setView('days') },
-              { label: `${t('viewCheck')}${view === 'check' ? ' ✓' : ''}`, icon: <ListChecks size={16} />, onClick: () => setView('check') },
-              { label: `${t('viewOverview')}${view === 'overview' ? ' ✓' : ''}`, icon: <Table2 size={16} />, onClick: () => setView('overview') },
-            ]} />
-          <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
+        <div ref={toolbar} data-builder-toolbar className={cn('sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8', flush && '-mt-6', top && 'mx-0 px-0 md:mx-0 md:px-0',
+          view !== 'days' && 'hidden', view === 'days' && listOpen && !disabled && 'lg:hidden')}>
           {/* The days: in the list on the left when it's open (wide screens), else this strip. */}
           {view === 'days' ? <>
             <div className={cn('flex min-w-0 flex-1', listOpen && !disabled && 'lg:hidden')}><DayStrip days={days} dates={dates} at={activeDay} onAt={setActiveDay} /></div>
@@ -293,7 +285,18 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           {/* Where the tour stands and the builder's tools, floating at the bottom (names on hover);
               it moves up when the "save changes" bar is there. */}
           <div className={cn('fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit [[role=dialog]_&]:bottom-20 max-w-[calc(100%-2rem)] items-center gap-x-3 rounded-full border py-1 pl-4 pr-1 text-sm shadow-lg backdrop-blur',
-            pending ? 'border-brand-200 bg-brand-50/95' : 'border-slate-200 bg-white/95')}>
+            pending ? 'border-brand-200 bg-brand-50/95' : 'border-slate-200 bg-white/95', 'pl-1.5')}>
+            {/* How to look at the days (Days / Check / Overview): one small button. */}
+          <Menu label={t('itineraryView')} triggerClassName="flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-slate-700 hover:bg-slate-100"
+            trigger={<>{view === 'check' ? <ListChecks size={16} aria-hidden /> : view === 'overview' ? <Table2 size={16} aria-hidden /> : <CalendarDays size={16} aria-hidden />}
+              <span className="sr-only">{t('itineraryView')}: {t(view === 'check' ? 'viewCheck' : view === 'overview' ? 'viewOverview' : 'viewDays')}</span>
+              <ChevronDown size={13} aria-hidden className="text-slate-400" /></>}
+            items={[
+              { label: `${t('viewDays')}${view === 'days' ? ' ✓' : ''}`, icon: <CalendarDays size={16} />, onClick: () => setView('days') },
+              { label: `${t('viewCheck')}${view === 'check' ? ' ✓' : ''}`, icon: <ListChecks size={16} />, onClick: () => setView('check') },
+              { label: `${t('viewOverview')}${view === 'overview' ? ' ✓' : ''}`, icon: <Table2 size={16} />, onClick: () => setView('overview') },
+            ]} />
+            <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
             <span className="max-md:hidden"><BuildSteps days={days} restaurants={restaurants} /></span>
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
@@ -481,8 +484,10 @@ function DayStrip({ days, dates, at, onAt: setAt }: { days: DayFields[]; dates?:
   const strip = useRef<HTMLElement>(null)
   useEffect(() => {
     const check = () => {
-      const bar = strip.current?.closest('[data-builder-toolbar]')
-      const line = (bar?.getBoundingClientRect().bottom ?? 0) + 140
+      // under the toolbar - or, when it's folded away (the days are in the list), under the page's tabs
+      const bar = strip.current?.closest('[data-builder-toolbar]')?.getBoundingClientRect()
+      const tabs = document.querySelector('[role=tablist]')?.getBoundingClientRect()
+      const line = (bar?.height ? bar.bottom : tabs?.bottom ?? 0) + 140
       let at = 0
       for (let i = 0; i < days.length; i++) {
         const el = document.getElementById(`day-card-${i}`)
