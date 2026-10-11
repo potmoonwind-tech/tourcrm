@@ -290,7 +290,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           <Menu label={t('itineraryView')} triggerClassName="flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-slate-700 hover:bg-slate-100"
             trigger={<>{view === 'check' ? <LayoutGrid size={16} aria-hidden /> : <CalendarDays size={16} aria-hidden />}
               <span className="sr-only">{t('itineraryView')}: </span>
-              <span className="text-xs font-medium max-xl:sr-only">{t(view === 'check' ? 'viewCheck' : 'viewDays')}</span>
+              <span className="text-xs font-medium">{t(view === 'check' ? 'viewCheck' : 'viewDays')}</span>
               <ChevronDown size={13} aria-hidden className="text-slate-400" /></>}
             items={[
               { label: `${t('viewDays')}${view === 'days' ? ' ✓' : ''}`, icon: <CalendarDays size={16} />, onClick: () => setView('days') },
