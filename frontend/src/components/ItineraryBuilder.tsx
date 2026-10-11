@@ -300,17 +300,15 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
             <span className="max-md:hidden"><BuildSteps days={days} restaurants={restaurants} /></span>
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
-            {pending ?? <span className="flex shrink-0 items-center">
-              {([
-                [t('recalcTimes'), <Clock size={16} />, () => tools.current.recalc?.(), disabled, false],
-                [t('programmeDownload'), <Download size={16} />, () => onDownload?.(), !onDownload, false],
-                [full ? t('simpleView') : t('showEverything'), <ListChecks size={16} />, () => { setView('days'); setFull(!full) }, false, full],
-                [t('mapOpen'), <MapIcon size={16} />, () => tools.current.openMap?.(), !canMap, false],
-                [t('suggestKm'), <MapPinned size={16} />, () => tools.current.suggestKm?.(), disabled || !days.some((d) => d.city.trim()), false],
-              ] as [string, ReactNode, () => void, boolean | undefined, boolean][]).filter((x) => !x[3]).map(([label, icon, run, , on]) => (
-                <IconButton key={label} size="sm" label={label} onClick={run} aria-pressed={on || undefined}
-                  className={cn('rounded-full', on && 'bg-brand-50 text-brand-700')}>{icon}</IconButton>
-              ))}
+            {pending ?? <span className="flex shrink-0 items-center gap-0.5">
+              <IconButton size="sm" label={full ? t('simpleView') : t('showEverything')} onClick={() => { setView('days'); setFull(!full) }}
+                aria-pressed={full || undefined} className={cn('rounded-full', full && 'bg-brand-50 text-brand-700')}><ListChecks size={16} /></IconButton>
+              <Menu kind="icon" label={t('moreActions')} items={[
+                { label: t('recalcTimes'), icon: <Clock size={16} />, onClick: () => tools.current.recalc?.(), hidden: disabled },
+                { label: t('mapOpen'), icon: <MapIcon size={16} />, onClick: () => tools.current.openMap?.(), hidden: !canMap },
+                { label: t('suggestKm'), icon: <MapPinned size={16} />, onClick: () => tools.current.suggestKm?.(), hidden: disabled || !days.some((d) => d.city.trim()) },
+                { label: t('programmeDownload'), icon: <Download size={16} />, onClick: () => onDownload?.(), hidden: !onDownload },
+              ]} />
             </span>}
           </div>
           {view === 'check' && (
@@ -754,7 +752,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
   onSet: (p: Partial<DayFields>) => void; onPlace: (slot: Slot, item: Item) => void
   onDuplicate: () => void; onInsert: () => void; onRemove: () => void; onHotelNext: () => void
 }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const factor = useWorkspace()?.drive_factor ?? 1.25
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
   const hotel = day.hotel_id ? byId.get(day.hotel_id) : undefined
@@ -870,24 +868,22 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
             className="-ml-1 cursor-grab touch-none rounded-md p-0.5 text-slate-400 opacity-0 hover:bg-slate-100 focus:opacity-100 active:cursor-grabbing group-hover/head:opacity-100"><GripVertical size={16} /></button>
         )}
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
-          <span className="flex shrink-0 items-baseline gap-1 text-xs">
-            <span className={cn('rounded-full px-2 py-0.5 font-bold tracking-wide', active ? 'bg-brand-600 text-white' : 'bg-slate-800 text-white')}>
-              {t('dayN', { n: index + 1 })}
-            </span>
-            <span className="text-slate-500">{t('dayOfN', { n: total })}</span>
-            {date && <span className="text-slate-300" aria-hidden>·</span>}
-            {date && <DateTile date={date} n={index + 1} active={active} />}
+          {/* Which day and when, in one quiet bubble ("3/8 · Wed 4 Nov"): the places are the title. */}
+          <span title={`${t('dayN', { n: index + 1 })} ${t('dayOfN', { n: total })}`}
+            className={cn('shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs tabular-nums',
+              active ? 'bg-brand-100 font-semibold text-brand-800' : 'bg-slate-100 font-medium text-slate-600')}>
+            {index + 1}/{total}{date && ` · ${weekday(date, lang)} ${Number(date.slice(8))} ${fmt(date, lang, { month: 'short' })}`}
           </span>
           {/* From where (last night's town) to tonight's: the day's title. */}
           <span className="flex min-w-0 items-center gap-1">
             {index > 0 && prevCity?.trim() && townKey(prevCity) !== townKey(day.city) && (
-              <span className="flex max-w-[11rem] items-center gap-1 text-base font-semibold text-slate-500" title={t('fromLastNight')}>
+              <span className="flex max-w-[12rem] items-center gap-1 text-lg font-semibold text-slate-500" title={t('fromLastNight')}>
                 <span className="truncate">{prevCity.trim()}</span><ArrowRight size={15} aria-hidden className="shrink-0" />
               </span>
             )}
             <PlaceInput disabled={disabled} value={day.city} onChange={(city) => onSet({ city })} placeholder={t('cityNight')}
               title={t('cityNightHelp')} aria-label={t('city')} size={Math.max(6, day.city.length + 1)}
-              className="h-8 w-auto max-w-56 min-w-0 rounded-md border border-transparent bg-transparent px-1 text-base font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-600 focus:bg-white focus:outline-none" />
+              className="h-8 w-auto max-w-56 min-w-0 rounded-md border border-transparent bg-transparent px-1 text-lg font-semibold text-slate-900 placeholder:font-normal placeholder:text-slate-400 hover:border-slate-300 focus:border-brand-600 focus:bg-white focus:outline-none" />
           </span>
           {/* The day's way and flights, quietly - on the same line. */}
           <span className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
@@ -1755,11 +1751,3 @@ function OwnMealWhere({ value, disabled, onChange }: { value: string; disabled?:
 }
 
 /** The day's date as a calendar leaf: weekday, day, month - or just "Day N" on a route (no dates). */
-function DateTile({ date, n, active }: { date?: string; n: number; active: boolean }) {
-  const { lang } = useI18n()
-  return (
-    <span className={cn('shrink-0 whitespace-nowrap text-xs tabular-nums', active ? 'font-semibold text-brand-700' : 'font-medium text-slate-600')}>
-      {date ? `${weekday(date, lang)} ${Number(date.slice(8))} ${fmt(date, lang, { month: 'short' })}` : n}
-    </span>
-  )
-}
