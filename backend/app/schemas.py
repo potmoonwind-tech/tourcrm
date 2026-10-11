@@ -47,6 +47,7 @@ class UserOut(_Out):
     theme: str = "blue"
     easy_view: bool = False
     text_size: str = "normal"
+    date_style: str = "dmy"
 
 
 Theme = Literal["blue", "green", "violet"]
@@ -57,6 +58,7 @@ class MeUpdate(BaseModel):
     theme: Theme | None = None
     easy_view: bool | None = None
     text_size: Literal["normal", "large", "larger"] | None = None
+    date_style: Literal["dmy", "mdy", "text"] | None = None
 
 
 # --- workspaces --------------------------------------------------------------

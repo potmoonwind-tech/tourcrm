@@ -18,7 +18,7 @@ import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, typ
 import { useStickyHeight } from '../lib/sticky'
 import { api, type BreakfastMode, type DayExtra, type DayTemplate, type ScheduleItem, type StaffAssignment, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
-import { fmt, weekday } from '../lib/dates'
+import { fmt, weekday, dayDate } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
 import { cn, slotId, townKey } from '../lib/utils'
 import { DayServices } from './DayServices'
@@ -30,7 +30,7 @@ import { QuickServiceDialog, QuickVendorDialog } from './QuickAdd'
 import { Button, field, IconButton, Input, SegmentedControl, Select } from './ui'
 import { PlaceInput, type PlaceSuggestion } from './PlaceInput'
 import { TripMap, type MapStop } from './TripMap'
-import { useWorkspace } from '../lib/session'
+import { useWorkspace, useDateStyle } from '../lib/session'
 
 type Slot = 'hotel' | 'breakfast' | 'lunch' | 'dinner' | 'extras'
 type Item = { kind: 'vendor'; vendor: Vendor } | { kind: 'service'; service: ServiceBrief }
@@ -289,7 +289,8 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             {/* How to look at the days (Days / Check / Overview): one small button. */}
           <Menu label={t('itineraryView')} triggerClassName="flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-slate-700 hover:bg-slate-100"
             trigger={<>{view === 'check' ? <ListChecks size={16} aria-hidden /> : view === 'overview' ? <Table2 size={16} aria-hidden /> : <CalendarDays size={16} aria-hidden />}
-              <span className="sr-only">{t('itineraryView')}: {t(view === 'check' ? 'viewCheck' : view === 'overview' ? 'viewOverview' : 'viewDays')}</span>
+              <span className="sr-only">{t('itineraryView')}: </span>
+              <span className="text-xs font-medium max-xl:sr-only">{t(view === 'check' ? 'viewCheck' : view === 'overview' ? 'viewOverview' : 'viewDays')}</span>
               <ChevronDown size={13} aria-hidden className="text-slate-400" /></>}
             items={[
               { label: `${t('viewDays')}${view === 'days' ? ' ✓' : ''}`, icon: <CalendarDays size={16} />, onClick: () => setView('days') },
@@ -298,7 +299,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             ]} />
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
-            <span className="max-md:hidden"><BuildSteps days={days} restaurants={restaurants} /></span>
+            <span className="max-md:hidden"><BuildSteps days={days} restaurants={restaurants} onGo={openDay} /></span>
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
             {pending ?? <span className="flex shrink-0 items-center gap-0.5">
               <IconButton size="sm" label={full ? t('simpleView') : t('showEverything')} onClick={() => { setView('days'); setFull(!full) }}
@@ -643,6 +644,7 @@ function Palette({ vendors, services, picked, onPick, onAdd, onClose, tab, onTab
 /** A day in the list: number (amber while something's missing), date, town; click = go there, grip = move it. */
 function PaletteDay({ id, day: d, index: i, date, last, active }: { id: string; day: DayFields; index: number; date?: string; last: boolean; active: boolean }) {
   const { t, lang } = useI18n()
+  const dateStyle = useDateStyle()
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id })
   const missing = (!last && !d.hotel_id) || (!d.lunch_id && d.lunch_mode !== 'own') || (!d.dinner_id && d.dinner_mode !== 'own')
   return (
@@ -654,7 +656,7 @@ function PaletteDay({ id, day: d, index: i, date, last, active }: { id: string; 
           active ? 'bg-brand-600' : missing ? 'bg-amber-500' : 'bg-slate-800')}>{i + 1}</span>
         <span className="min-w-0 flex-1">
           <span className="block truncate font-medium text-slate-800">{d.city || '—'}</span>
-          {date && <span className="block text-[11px] leading-tight text-slate-500">{weekday(date, lang)} · {fmt(date, lang)}</span>}
+          {date && <span className="block text-[11px] leading-tight text-slate-500">{dayDate(date, lang, dateStyle)}</span>}
         </span>
       </button>
       <span {...listeners} {...attributes} aria-label={t('dragToReorder')} title={t('dragToReorder')}
@@ -753,6 +755,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
   onDuplicate: () => void; onInsert: () => void; onRemove: () => void; onHotelNext: () => void
 }) {
   const { t, lang } = useI18n()
+  const dateStyle = useDateStyle()
   const factor = useWorkspace()?.drive_factor ?? 1.25
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
   const hotel = day.hotel_id ? byId.get(day.hotel_id) : undefined
@@ -870,9 +873,10 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
           {/* Which day and when, in one quiet bubble ("3/8 · Wed 4 Nov"): the places are the title. */}
           <span title={`${t('dayN', { n: index + 1 })} ${t('dayOfN', { n: total })}`}
-            className={cn('shrink-0 whitespace-nowrap rounded-full px-2 py-0.5 text-xs tabular-nums',
+            className={cn('flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full py-0.5 pl-0.5 pr-2 text-xs tabular-nums',
               active ? 'bg-brand-100 font-semibold text-brand-800' : 'bg-slate-100 font-medium text-slate-600')}>
-            {index + 1}/{total}{date && ` · ${weekday(date, lang)} ${Number(date.slice(8))} ${fmt(date, lang, { month: 'short' })}`}
+            <span className={cn('flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white', active ? 'bg-brand-600' : 'bg-slate-700')}>{index + 1}</span>
+            <span>/{total}{date && ` · ${dayDate(date, lang, dateStyle)}`}</span>
           </span>
           {/* From where (last night's town) to tonight's: the day's title. */}
           <span className="flex min-w-0 items-center gap-1">
@@ -1153,27 +1157,37 @@ const mealDone = (d: DayFields, m: 'lunch' | 'dinner', restaurants?: Set<string>
 }
 
 /** Where the build stands, as plain text: route, hotels, meals, activities (optional). */
-function BuildSteps({ days, restaurants }: { days: DayFields[]; restaurants: Set<string> }) {
+function BuildSteps({ days, restaurants, onGo }: { days: DayFields[]; restaurants: Set<string>; onGo?: (day: number) => void }) {
   const { t } = useI18n()
   if (!days.length) return null
+  const last = days.length - 1
   const nights = days.slice(0, -1)
-  const steps: [string, number, number, boolean, ReactNode][] = [
-    [t('stepRoute'), days.filter((d) => d.city.trim()).length, days.length, false, <MapPinned size={15} />],
-    [t('stepHotels'), nights.filter((d) => d.hotel_id).length, nights.length, false, <BedDouble size={15} />],
-    [t('stepMeals'), days.reduce((n, d) => n + (mealDone(d, 'lunch', restaurants) ? 1 : 0) + (mealDone(d, 'dinner', restaurants) ? 1 : 0), 0), days.length * 2, false, <Utensils size={15} />],
-    [t('stepActivities'), days.filter((d) => d.extras.length).length, days.length, true, <Ticket size={15} />],
+  // Each step: done of how many, and the first day it's missing on (a click goes there).
+  const steps: [string, number, number, boolean, ReactNode, number][] = [
+    [t('stepRoute'), days.filter((d) => d.city.trim()).length, days.length, false, <MapPinned size={15} />, days.findIndex((d) => !d.city.trim())],
+    [t('stepHotels'), nights.filter((d) => d.hotel_id).length, nights.length, false, <BedDouble size={15} />, days.findIndex((d, i) => i < last && !d.hotel_id)],
+    [t('stepMeals'), days.reduce((n, d) => n + (mealDone(d, 'lunch', restaurants) ? 1 : 0) + (mealDone(d, 'dinner', restaurants) ? 1 : 0), 0), days.length * 2, false, <Utensils size={15} />,
+      days.findIndex((d) => !mealDone(d, 'lunch', restaurants) || !mealDone(d, 'dinner', restaurants))],
+    [t('stepActivities'), days.filter((d) => d.extras.length).length, days.length, true, <Ticket size={15} />, -1],
   ]
   return (
-    <ul className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm" aria-label={t('buildProgress')}>
-      {steps.map(([label, n, total, optional, icon]) => {
+    <ul className="flex items-center gap-x-1" aria-label={t('buildProgress')}>
+      {steps.map(([label, n, total, optional, icon, first]) => {
         const done = n >= total
         if (optional && !n) return null
+        const go = !done && first >= 0 && onGo
+        const tip = done ? `${label}: ${t('stepAllDone')}` : optional ? `${label}: ${t('stepOptionalCount', { n, total })}`
+          : `${label}: ${t('stepToDo', { n: total - n, total })}${first >= 0 ? ` · ${t('stepFirstOn', { n: first + 1 })}` : ''}`
+        // "🍴 Meals 5/22" - the word on wide screens; amber while something's left, green when done.
         return (
-          <li key={label} className="flex items-center gap-1" title={`${label}: ${n}/${total}`}>
-            <span className={done ? 'text-emerald-600' : optional ? 'text-slate-400' : 'text-amber-600'} aria-hidden>{icon}</span>
-            <span className="sr-only">{label}</span>
-            {done ? <Check size={13} className="text-emerald-600" aria-label={t('done')} />
-              : <span className={cn('tabular-nums text-xs', optional ? 'text-slate-500' : 'font-medium text-amber-800')}>{n}/{total}</span>}
+          <li key={label}>
+            <button type="button" title={tip} aria-label={tip} disabled={!go} onClick={() => go && onGo!(first)}
+              className={cn('flex items-center gap-1 rounded-full px-1.5 py-0.5 text-xs', go ? 'cursor-pointer hover:bg-amber-50' : 'cursor-default')}>
+              <span className={done ? 'text-emerald-600' : optional ? 'text-slate-400' : 'text-amber-600'} aria-hidden>{icon}</span>
+              <span className={cn('max-xl:hidden', done ? 'text-slate-600' : optional ? 'text-slate-500' : 'text-slate-700')}>{label}</span>
+              {done ? <Check size={13} className="text-emerald-600" aria-hidden />
+                : <span className={cn('tabular-nums', optional ? 'text-slate-500' : 'font-semibold text-amber-800')}>{n}/{total}</span>}
+            </button>
           </li>
         )
       })}

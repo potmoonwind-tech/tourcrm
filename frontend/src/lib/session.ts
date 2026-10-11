@@ -47,3 +47,8 @@ export function useRefreshMe() {
   const qc = useQueryClient()
   return () => qc.invalidateQueries({ queryKey: ['me'] })
 }
+
+/** The person's date format for tour days ("dmy" by default). */
+export function useDateStyle() {
+  return useMe().data?.user.date_style ?? 'dmy'
+}

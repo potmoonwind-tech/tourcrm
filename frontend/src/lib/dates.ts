@@ -71,3 +71,12 @@ export function birthdayOn(birth: string | null | undefined, start: string, end:
   }
   return null
 }
+
+/** A tour day's date in the person's format (Settings → Appearance): "Sat 7/11/26", "Sat 11/7/26" or "Sat 7 Nov". */
+export function dayDate(s: string, lang: string, style: 'dmy' | 'mdy' | 'text' = 'dmy') {
+  const wd = weekday(s, lang)
+  if (style === 'text') return `${wd} ${fmt(s, lang)}`
+  const [y, m, d] = s.slice(0, 10).split('-').map(Number)
+  const yy = String(y % 100).padStart(2, '0')
+  return `${wd} ${style === 'mdy' ? `${m}/${d}` : `${d}/${m}`}/${yy}`
+}

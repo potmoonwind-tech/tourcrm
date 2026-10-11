@@ -3033,6 +3033,12 @@ const en = {
   gridCount_alerts: "{n} alert(s)",
   gridOnlyMissing: "Only days with something missing",
   progArrives: "arrives {time}",
+  dateStyle: "Date format",
+  dateStyleHelp: "How a tour day's date reads (with the weekday).",
+  stepAllDone: "all done",
+  stepOptionalCount: "{n} of {total} days (optional)",
+  stepToDo: "{n} of {total} still to choose",
+  stepFirstOn: "click to go to day {n}",
 }
 
 type Dict = typeof en
@@ -6062,6 +6068,12 @@ const ka: Dict = {
   gridCount_alerts: "{n} გაფრთხილება",
   gridOnlyMissing: "მხოლოდ დღეები, სადაც რამე აკლია",
   progArrives: "ჩადის {time}",
+  dateStyle: "თარიღის ფორმატი",
+  dateStyleHelp: "როგორ იწერება ტურის დღის თარიღი (კვირის დღით).",
+  stepAllDone: "ყველაფერი მზადაა",
+  stepOptionalCount: "{n} / {total} დღე (არასავალდებულო)",
+  stepToDo: "{n} / {total} ჯერ ასარჩევია",
+  stepFirstOn: "დააჭირეთ დღე {n}-ზე გადასასვლელად",
 }
 
 export type Lang = 'en' | 'ka'

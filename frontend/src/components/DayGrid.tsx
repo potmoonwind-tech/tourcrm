@@ -7,8 +7,9 @@
 import { AlertTriangle, BedDouble, Check, CircleDashed, Coffee, Ticket, User, Utensils } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { DayFields, ServiceBrief, TourAlert, Vendor } from '../lib/api'
-import { fmt, weekday } from '../lib/dates'
+import { dayDate } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
+import { useDateStyle } from '../lib/session'
 import { cn, townKey } from '../lib/utils'
 import type { Crew } from './MealPlan'
 
@@ -21,6 +22,7 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
   crew?: Crew; onOpen: (i: number) => void
 }) {
   const { t, lang } = useI18n()
+  const dateStyle = useDateStyle()
   const name = (id: string | null | undefined) => (id ? byId.get(id)?.name ?? '?' : '')
   const menuOf = (d: DayFields, meal: 'lunch' | 'dinner') => {
     const id = meal === 'lunch' ? d.lunch_menu_id : d.dinner_menu_id
@@ -131,7 +133,7 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
                   </> : <span className="truncate">{route(i)[0] || '—'}</span>}
                 </span>
                 <span className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-slate-500">
-                  {dates?.[i] && <span>{weekday(dates[i], lang)} · {fmt(dates[i], lang)}</span>}
+                  {dates?.[i] && <span>{dayDate(dates[i], lang, dateStyle)}</span>}
                   {!!d.km && i > 0 && (() => {
                     const drive = (d.drive_minutes ?? []).reduce((x, m) => x + m, 0) * 1.25
                     return <span>· {d.km} km{drive > 0 && <span className={drive > 9 * 60 ? 'font-semibold text-amber-700' : ''}> · {Math.floor(drive / 60)} h {String(Math.round(drive % 60)).padStart(2, '0')}</span>}</span>

@@ -617,12 +617,12 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
   return (
     <li ref={setNodeRef} id={`step-${x.id}`} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex scroll-mt-48 gap-3', isDragging && 'relative z-10')}>
       {/* The time column: when it starts, and how long. */}
-      <div className="flex h-9 w-28 shrink-0 items-center justify-end gap-0.5 self-start pt-0.5">
-        {disabled ? <span className="text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
+      <div className="flex h-9 w-28 shrink-0 items-center justify-start gap-1 self-start pt-0.5">
+        {disabled ? <span className="w-14 px-1 text-right text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
           : <TimeSelect value={x.time} label={t('progStartOf', { name })}
             onChange={(v) => onSet(x.time && x.end && v ? { time: v, fixed: true, end: shift(v, minutesBetween(x.time, x.end)) } : { time: v, fixed: !!v })} />}
         {x.kind !== 'flight' && (disabled
-          ? x.time && length > 0 && <span className="block pr-1 text-xs tabular-nums text-slate-500">{dur(length)}</span>
+          ? x.time && length > 0 && <span className="block w-12 px-1 text-left text-xs tabular-nums text-slate-500">{dur(length)}</span>
           : <DurationPick start={x.time} end={x.end} name={name} usual={length} usualFrom={x.end ? undefined : sight?.name}
             onChange={(e) => onSet({ end: e })} />)}
       </div>
@@ -1001,7 +1001,7 @@ function DurationPick({ start, end, name, usual, usualFrom, onChange }: {
     <Tooltip label={!start ? t('progDurationNeedsStart') : usualFrom ? t('progDurationSight', { place: usualFrom }) : t('progDurationTip')}>
       <select value={current === null ? '' : String(current)} disabled={!start} aria-label={t('progDurationOf', { name })}
         onChange={(e) => onChange(e.target.value === '' ? '' : shift(start, Number(e.target.value)))}
-        className={cn('h-5 cursor-pointer appearance-none rounded-md border-0 bg-transparent bg-none px-1 text-right text-xs tabular-nums underline decoration-slate-300 decoration-dotted underline-offset-4 hover:bg-slate-100 hover:decoration-brand-400',
+        className={cn('h-5 cursor-pointer appearance-none rounded-md border-0 bg-transparent bg-none w-12 px-1 text-left text-xs tabular-nums underline decoration-slate-300 decoration-dotted underline-offset-4 hover:bg-slate-100 hover:decoration-brand-400',
           'hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-50',
           // The open list is the browser's own: always white, whatever the field looks like.
           '[&>option]:bg-white [&>option]:text-slate-800',
@@ -1026,9 +1026,9 @@ function DriveRow({ leg, depart, samePlace, onSamePlace }: {
   return (
     <li className="flex gap-3">
       {/* the same sizes and places as a step's time and length (not underlined: it follows from the day) */}
-      <span className="flex h-9 w-28 shrink-0 items-center justify-end gap-0.5 pt-0.5 tabular-nums">
-        {depart !== null && <span className="w-14 px-1 text-right text-[15px] font-medium text-slate-800">{hm(depart)}</span>}
-        {leg.minutes != null && <span className="px-1 text-right text-xs text-slate-600">{dur(leg.minutes)}</span>}
+      <span className="flex h-9 w-28 shrink-0 items-center justify-start gap-1 pt-0.5 tabular-nums">
+        {depart !== null && <span className="w-14 px-1 text-right text-[15px] font-medium text-slate-400">{hm(depart)}</span>}
+        {leg.minutes != null && <span className="w-12 px-1 text-left text-xs text-slate-400">{dur(leg.minutes)}</span>}
       </span>
       <span className="relative flex w-8 shrink-0 justify-center" aria-hidden>
         <span className="absolute inset-y-0 border-l-2 border-dashed border-slate-300" />

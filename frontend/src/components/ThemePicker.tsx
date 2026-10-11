@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Check } from 'lucide-react'
-import { api, type Me } from '../lib/api'
+import { api, type Me, type DateStyle } from '../lib/api'
 import { useI18n, type TKey } from '../lib/i18n'
 import { useMe } from '../lib/session'
 import { applyTheme, applyView, SWATCH, THEMES, type TextSize, type Theme } from '../lib/theme'
@@ -62,7 +62,7 @@ export function AppearanceCard() {
   const size = (me.data?.user.text_size ?? 'normal') as TextSize
   // Each change goes into the account at once (so two quick changes don't undo each other), then is saved.
   const save = useMutation({
-    mutationFn: (p: { easy_view?: boolean; text_size?: TextSize }) => api<Me>('/auth/me', { method: 'PATCH', body: p }),
+    mutationFn: (p: { easy_view?: boolean; text_size?: TextSize; date_style?: DateStyle }) => api<Me>('/auth/me', { method: 'PATCH', body: p }),
     onMutate: (p) => {
       const before = qc.getQueryData<Me>(['me'])
       if (before) qc.setQueryData<Me>(['me'], { ...before, user: { ...before.user, ...p } })
@@ -85,6 +85,10 @@ export function AppearanceCard() {
           options={[['normal', <span key="n" className="text-sm">Aa · {t('textNormal')}</span>],
             ['large', <span key="l" className="text-base">Aa · {t('textLarge')}</span>],
             ['larger', <span key="x" className="text-lg">Aa · {t('textLarger')}</span>]]} />
+      </Row>
+      <Row label={t('dateStyle')} help={t('dateStyleHelp')}>
+        <SegmentedControl label={t('dateStyle')} value={me.data?.user.date_style ?? 'dmy'} onChange={(v) => save.mutate({ date_style: v })}
+          options={[['dmy', '7/11/26'], ['mdy', '11/7/26'], ['text', '7 Nov']]} />
       </Row>
       <Row label={t('easyView')} help={t('easyViewHelp')}>
         <button type="button" role="switch" aria-checked={easy} aria-label={t('easyView')} onClick={() => save.mutate({ easy_view: !easy })}
