@@ -3039,6 +3039,7 @@ const en = {
   stepOptionalCount: "{n} of {total} days (optional)",
   stepToDo: "{n} of {total} still to choose",
   stepFirstOn: "click to go to day {n}",
+  stepReady: "Ready",
 }
 
 type Dict = typeof en
@@ -6074,6 +6075,7 @@ const ka: Dict = {
   stepOptionalCount: "{n} / {total} დღე (არასავალდებულო)",
   stepToDo: "{n} / {total} ჯერ ასარჩევია",
   stepFirstOn: "დააჭირეთ დღე {n}-ზე გადასასვლელად",
+  stepReady: "მზადაა",
 }
 
 export type Lang = 'en' | 'ka'

@@ -1169,9 +1169,12 @@ function BuildSteps({ days, restaurants, onGo }: { days: DayFields[]; restaurant
   ]
   return (
     <ul className="flex items-center gap-x-1" aria-label={t('buildProgress')}>
+      {steps.every(([, n, total, optional]) => optional || n >= total) && (
+        <li className="flex items-center gap-1 px-1.5 text-xs font-medium text-emerald-700"><Check size={14} aria-hidden />{t('stepReady')}</li>
+      )}
       {steps.map(([label, n, total, optional, icon, first]) => {
         const done = n >= total
-        if (optional && !n) return null
+        if (optional || done) return null
         const go = !done && first >= 0 && onGo
         const tip = done ? `${label}: ${t('stepAllDone')}` : optional ? `${label}: ${t('stepOptionalCount', { n, total })}`
           : `${label}: ${t('stepToDo', { n: total - n, total })}${first >= 0 ? ` · ${t('stepFirstOn', { n: first + 1 })}` : ''}`
@@ -1412,9 +1415,9 @@ function DistanceBar({ days, disabled, onChange, byId, back = 0, tools }: {
   return (
     <div className="relative flex shrink-0 items-center gap-2 text-sm">
       <span className="flex items-center gap-1.5 whitespace-nowrap font-medium"
-        title={[back > 0 && t('kmWithBack', { km: back.toLocaleString('en-US') }), total > 0 && t('fuelEstimate', { l: fuel.toLocaleString('en-US'), per: ws.fuel_l_per_100km ?? 30 }),
+        title={[t('totalKm', { km: (total + back).toLocaleString('en-US') }), back > 0 && t('kmWithBack', { km: back.toLocaleString('en-US') }), total > 0 && t('fuelEstimate', { l: fuel.toLocaleString('en-US'), per: ws.fuel_l_per_100km ?? 30 }),
           driving > 0 && t('drivingTotal', { h: hours(driving), pct: Math.round((factor - 1) * 100) })].filter(Boolean).join('\n') || undefined}>
-        <Car size={16} className="text-slate-500" />{t('totalKm', { km: (total + back).toLocaleString('en-US') })}
+        <Car size={16} className="text-slate-500" />{(total + back).toLocaleString('en-US')} km
       </span>
       {suggest.isPending && <span className="whitespace-nowrap text-xs text-slate-500">{t('askingMap')}</span>}
       {problems > 0 && (
