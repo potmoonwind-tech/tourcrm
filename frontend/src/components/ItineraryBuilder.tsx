@@ -1622,8 +1622,8 @@ function BreakfastModePick({ value, disabled, onChange }: { value: BreakfastMode
   return (
     <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as BreakfastMode)} aria-label={t('breakfastWhere')}
       title={t('breakfastWhere')}
-      className={cn('h-6 cursor-pointer rounded-full border border-slate-200 bg-white py-0 pl-2 pr-6 text-xs [field-sizing:content] [&>option]:bg-white [&>option]:text-slate-800 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-200',
-        value === 'hotel' || value === 'included' ? 'text-emerald-700' : value === 'tourists' ? 'text-amber-700' : 'text-slate-500')}>
+      className={cn('h-5 cursor-pointer rounded-full border-0 py-0 pl-2 pr-5 text-[11px] font-semibold [field-sizing:content] [background-position:right_5px_center] [background-size:10px] [&>option]:bg-white [&>option]:font-normal [&>option]:text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200',
+        value === 'hotel' || value === 'included' ? 'bg-emerald-50 text-emerald-800' : value === 'tourists' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600')}>
       <option value="hotel">{t('breakfastAtHotel')}</option>
       <option value="included">{t('breakfastElsewhere')}</option>
       <option value="tourists">{t('mealTourists')}</option>
@@ -1638,8 +1638,8 @@ function MealModePick({ value, disabled, onChange }: { value: MealMode; disabled
   return (
     <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as MealMode)} aria-label={t('mealWhoPays')}
       title={t('mealWhoPays')}
-      className={cn('h-6 cursor-pointer rounded-full border border-slate-200 bg-white py-0 pl-2 pr-6 text-xs [field-sizing:content] [&>option]:bg-white [&>option]:text-slate-800 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-200',
-        value === 'included' ? 'text-emerald-700' : value === 'tourists' ? 'text-amber-700' : 'text-slate-500')}>
+      className={cn('h-5 cursor-pointer rounded-full border-0 py-0 pl-2 pr-5 text-[11px] font-semibold [field-sizing:content] [background-position:right_5px_center] [background-size:10px] [&>option]:bg-white [&>option]:font-normal [&>option]:text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200',
+        value === 'included' ? 'bg-emerald-50 text-emerald-800' : value === 'tourists' ? 'bg-amber-50 text-amber-800' : 'bg-slate-100 text-slate-600')}>
       <option value="included">{t('mealIncluded')}</option>
       <option value="tourists">{t('mealTourists')}</option>
       <option value="own">{t('mealOwn')}</option>
