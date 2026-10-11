@@ -5,7 +5,6 @@
  * the slot ("tap to place"), so nothing depends on dragging.
  */
 import { DayGrid } from './DayGrid'
-import { RoadChip } from './RoadChip'
 import { MealPlan, type Crew } from './MealPlan'
 import {
   closestCenter, DndContext, DragOverlay, KeyboardSensor, pointerWithin, PointerSensor, rectIntersection, TouchSensor,
@@ -880,10 +879,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
             {index > 0 && prevCity?.trim() && townKey(prevCity) !== townKey(day.city) && (
               <span className="flex min-w-0 items-center gap-1.5 text-lg font-semibold text-slate-500" title={t('fromLastNight')}>
                 <span className="max-w-[12rem] truncate">{prevCity.trim()}</span>
-                {(() => {
-                  const drive = (day.drive_minutes ?? []).reduce((x, m) => x + m, 0) * factor
-                  return day.km || drive ? <RoadChip km={day.km} minutes={drive} /> : <ArrowRight size={15} aria-hidden className="shrink-0" />
-                })()}
+                <ArrowRight size={15} aria-hidden className="shrink-0" />
               </span>
             )}
             <PlaceInput disabled={disabled} value={day.city} onChange={(city) => onSet({ city })} placeholder={t('cityNight')}
