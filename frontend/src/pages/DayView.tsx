@@ -293,7 +293,7 @@ function Board({ rows, flagsOf, now, onOpen }: { rows: Row[]; flagsOf: (r: Row) 
         <div className="grid grid-cols-[15rem_minmax(0,1fr)] border-b border-slate-200 text-[11px] text-slate-500">
           <span className="px-3 py-1.5">{t('boardGroupNow')}</span>
           <span className="relative h-7">
-            {hours.map((h, i) => i % 2 === 0 && (now == null || Math.abs(h - now) > 45) && <span key={h} className="absolute top-1.5 -translate-x-1/2 tabular-nums" style={{ left: pct(h) }}>{String(h / 60).padStart(2, '0')}</span>)}
+            {hours.map((h, i) => i % 2 === 0 && (now == null || (Math.abs(h - now) > 45 && !(now < start && h - start < 120) && !(now > end && end - h < 120))) && <span key={h} className="absolute top-1.5 -translate-x-1/2 tabular-nums" style={{ left: pct(h) }}>{String(h / 60).padStart(2, '0')}</span>)}
             {/* The time now, on the red line (before / after the day: at its edge), so no one needs a clock. */}
             {now != null && (
               <span className={cn('absolute top-1 z-10 rounded-full bg-red-500 px-1.5 text-[11px] font-semibold leading-5 tabular-nums text-white',
