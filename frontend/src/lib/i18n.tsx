@@ -3104,6 +3104,13 @@ const en = {
   todayNoMeal: "{meal}: no place yet",
   todayNow: "now",
   todayNext: "next",
+  tlInquiry: "Inquiry (not confirmed)",
+  tlMissing: "Something missing that day",
+  tlShowFinished: "Show finished and cancelled ({n})",
+  tlHideFinished: "Hide finished and cancelled",
+  tlNow: "Now: {city}",
+  tlStarts: "Starts {date}",
+  tlEnded: "Ended",
 }
 
 type Dict = typeof en
@@ -6204,6 +6211,13 @@ const ka: Dict = {
   todayNoMeal: "{meal}: ადგილი ჯერ არ არის",
   todayNow: "ახლა",
   todayNext: "შემდეგ",
+  tlInquiry: "მოთხოვნა (დაუდასტურებელი)",
+  tlMissing: "ამ დღეს რაღაც აკლია",
+  tlShowFinished: "დასრულებული და გაუქმებული ({n})",
+  tlHideFinished: "დასრულებულის დამალვა",
+  tlNow: "ახლა: {city}",
+  tlStarts: "იწყება {date}",
+  tlEnded: "დასრულდა",
 }
 
 export type Lang = 'en' | 'ka'

@@ -15,3 +15,12 @@ def test_today_has_the_programme_and_bookings(make_client):
     r = rows[0]
     assert r["programme"] is not None and any("Old Town Hotel" in s["text"] for s in r["programme"]["steps"])
     assert isinstance(r["bookings"], dict)
+
+
+def test_timeline_has_the_towns_by_day(make_client):
+    c, base, _ = agency(make_client)
+    tour = c.post(f"{base}/tours", json={"start_date": "2026-11-03", "end_date": "2026-11-05", "pax": 10}).json()
+    c.put(f"{base}/tours/{tour['id']}/itinerary", json={"days": [{"city": "Tbilisi"}, {"city": "Kazbegi"}, {"city": "Tbilisi"}]})
+    rows = c.get(f"{base}/timeline", params={"date_from": "2026-11-01", "date_to": "2026-11-30"}).json()
+    assert [d["city"] for d in rows[0]["days"]] == ["Tbilisi", "Kazbegi", "Tbilisi"]
+    assert rows[0]["days"][0]["todo"] is True       # no hotel, no meals yet

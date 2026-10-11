@@ -218,6 +218,38 @@ def list_tours(date_from: date | None = None, date_to: date | None = None,
     return [summary(t, counts.get(t.id, 0)) for t in tours]
 
 
+class TimelineDay(BaseModel):
+    date: date
+    city: str
+    todo: bool = False                 # something missing that day: the night's hotel, a meal's place
+
+
+class TimelineRow(BaseModel):
+    tour: TourSummary
+    days: list[TimelineDay]
+
+
+@router.get("/timeline", response_model=list[TimelineRow])
+def timeline(date_from: date, date_to: date, ctx: WorkspaceCtx = Depends(read), db: Session = Depends(get_db)):
+    """The tours in [date_from, date_to] with where each sleeps day by day, and the days with something missing:
+    the timeline shows the towns on each bar."""
+    tours = db.scalars(select(Tour).where(Tour.workspace_id == ctx.workspace.id, Tour.end_date >= date_from, Tour.start_date <= date_to)
+                       .options(*_summary_opts, selectinload(Tour.days)).order_by(Tour.start_date, Tour.code)).all()
+    counts = participant_counts(db, [t.id for t in tours])
+    out = []
+    for t in tours:
+        days = sorted(t.days, key=lambda d: d.day_number)
+        rows = []
+        for i, d in enumerate(days):
+            last = i == len(days) - 1
+            tbd = d.meal_tbd or {}
+            todo = (not last and not d.hotel_id) or any(
+                (getattr(d, f"{m}_mode") or "included") != "own" and not getattr(d, f"{m}_id") and not tbd.get(m) for m in ("lunch", "dinner"))
+            rows.append(TimelineDay(date=d.date, city=d.city or "", todo=bool(todo)))
+        out.append(TimelineRow(tour=summary(t, counts.get(t.id, 0)), days=rows))
+    return out
+
+
 class Departure(BaseModel):
     code: str | None = Field(default=None, max_length=40)      # the group's code, e.g. ZK-1025
     start_date: date                                           # when our part starts
