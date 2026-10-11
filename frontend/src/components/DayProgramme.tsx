@@ -581,7 +581,7 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   return (
     <Tooltip label={t('progTimePickTip')}>
       <select value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}
-        className="h-7 w-14 shrink-0 cursor-pointer appearance-none rounded-md bg-transparent px-1 text-right text-[15px] font-medium tabular-nums text-slate-800 hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 [&>option]:bg-white [&>option]:text-slate-800">
+        className="h-7 w-14 shrink-0 cursor-pointer appearance-none rounded-md bg-transparent px-1 text-right text-[15px] font-medium tabular-nums text-slate-800 underline decoration-slate-300 decoration-dotted decoration-2 underline-offset-4 hover:bg-slate-100 hover:decoration-brand-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 [&>option]:bg-white [&>option]:text-slate-800">
         <option value="">--:--</option>
         {value && !QUARTERS.includes(value) && <option value={value}>{value}</option>}
         {QUARTERS.map((q) => <option key={q} value={q}>{q}</option>)}
@@ -1001,7 +1001,7 @@ function DurationPick({ start, end, name, usual, usualFrom, onChange }: {
     <Tooltip label={!start ? t('progDurationNeedsStart') : usualFrom ? t('progDurationSight', { place: usualFrom }) : t('progDurationTip')}>
       <select value={current === null ? '' : String(current)} disabled={!start} aria-label={t('progDurationOf', { name })}
         onChange={(e) => onChange(e.target.value === '' ? '' : shift(start, Number(e.target.value)))}
-        className={cn('h-5 cursor-pointer appearance-none rounded-md border-0 bg-transparent bg-none px-1 text-right text-xs tabular-nums',
+        className={cn('h-5 cursor-pointer appearance-none rounded-md border-0 bg-transparent bg-none px-1 text-right text-xs tabular-nums underline decoration-slate-300 decoration-dotted underline-offset-4 hover:bg-slate-100 hover:decoration-brand-400',
           'hover:bg-slate-100 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:cursor-not-allowed disabled:opacity-50',
           // The open list is the browser's own: always white, whatever the field looks like.
           '[&>option]:bg-white [&>option]:text-slate-800',

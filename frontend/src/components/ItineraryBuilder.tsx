@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, BedDouble, CalendarDays, Table2, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ListChecks } from 'lucide-react'
+import { AlertTriangle, BedDouble, CalendarDays, ChevronDown, Table2, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ListChecks } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useStickyHeight } from '../lib/sticky'
@@ -255,12 +255,17 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
       <div className="contents" style={top ? ({ '--tabs-h': top } as CSSProperties) : undefined}>
         {/* The builder's toolbar, kept in view: how to look at the days, and the days themselves. */}
         <div ref={toolbar} data-builder-toolbar className={cn('sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8', flush && '-mt-6', top && 'mx-0 px-0 md:mx-0 md:px-0')}>
-          <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView} className="shrink-0"
-            options={[
-              ['check', <span key="c" className="flex items-center gap-1.5" title={t('viewCheck')}><ListChecks size={15} aria-hidden /><span className={cn(view !== 'check' && 'sr-only')}>{t('viewCheck')}</span></span>],
-              ['overview', <span key="o" className="flex items-center gap-1.5" title={t('viewOverview')}><Table2 size={15} aria-hidden /><span className={cn(view !== 'overview' && 'sr-only')}>{t('viewOverview')}</span></span>],
-              ['days', <span key="d" className="flex items-center gap-1.5" title={t('viewDays')}><CalendarDays size={15} aria-hidden /><span className={cn(view !== 'days' && 'sr-only')}>{t('viewDays')}</span></span>],
+          {/* How to look at the days: one small button (the current view's icon) - the days get the room. */}
+          <Menu label={t('itineraryView')} triggerClassName="flex h-8 shrink-0 items-center gap-0.5 rounded-md px-1.5 text-slate-700 hover:bg-slate-100"
+            trigger={<>{view === 'check' ? <ListChecks size={16} aria-hidden /> : view === 'overview' ? <Table2 size={16} aria-hidden /> : <CalendarDays size={16} aria-hidden />}
+              <span className="sr-only">{t('itineraryView')}: {t(view === 'check' ? 'viewCheck' : view === 'overview' ? 'viewOverview' : 'viewDays')}</span>
+              <ChevronDown size={13} aria-hidden className="text-slate-400" /></>}
+            items={[
+              { label: `${t('viewDays')}${view === 'days' ? ' ✓' : ''}`, icon: <CalendarDays size={16} />, onClick: () => setView('days') },
+              { label: `${t('viewCheck')}${view === 'check' ? ' ✓' : ''}`, icon: <ListChecks size={16} />, onClick: () => setView('check') },
+              { label: `${t('viewOverview')}${view === 'overview' ? ' ✓' : ''}`, icon: <Table2 size={16} />, onClick: () => setView('overview') },
             ]} />
+          <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
           {/* The days: in the list on the left when it's open (wide screens), else this strip. */}
           {view === 'days' ? <>
             <div className={cn('flex min-w-0 flex-1', listOpen && !disabled && 'lg:hidden')}><DayStrip days={days} dates={dates} at={activeDay} onAt={setActiveDay} /></div>
