@@ -4,13 +4,14 @@
  * A card's top line says how complete the day is; missing things are amber, problems red. Tap a card to open
  * that day.
  */
-import { AlertTriangle, BedDouble, Car, Check, CircleDashed, Coffee, Ticket, User, Utensils } from 'lucide-react'
+import { AlertTriangle, BedDouble, Check, CircleDashed, Coffee, Ticket, User, Utensils } from 'lucide-react'
 import { useState, type ReactNode } from 'react'
 import type { DayFields, ServiceBrief, TourAlert, Vendor } from '../lib/api'
 import { fmt, weekday } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
 import { cn, townKey } from '../lib/utils'
 import type { Crew } from './MealPlan'
+import { RoadChip } from './RoadChip'
 
 type State = 'ok' | 'todo' | 'soft' | 'none'      // done · missing · worth a look · not needed
 interface Line { icon: ReactNode; label: string; text: string; state: State; sub?: string; wrap?: boolean; kind?: Kind }
@@ -122,13 +123,18 @@ export function DayGrid({ days, dates, byId, menus, alerts, crew, onOpen }: {
             <span className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-bold text-white">{i + 1}</span>
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-semibold text-slate-900">{route(i).join(' → ') || '—'}</span>
+                {/* "Tbilisi [🚗 3 h 40 · 219 km ›] Kutaisi": the road between the towns. */}
+                <span className="flex min-w-0 items-center gap-1 text-sm font-semibold text-slate-900">
+                  {route(i).length > 1 ? <>
+                    <span className="truncate text-slate-500">{route(i)[0]}</span>
+                    {d.km || (d.drive_minutes ?? []).some((m) => m > 0)
+                      ? <RoadChip km={d.km} minutes={(d.drive_minutes ?? []).reduce((x, m) => x + m, 0) * 1.25} />
+                      : <span className="text-slate-400" aria-hidden>→</span>}
+                    <span className="truncate">{route(i)[1]}</span>
+                  </> : <span className="truncate">{route(i)[0] || '—'}</span>}
+                </span>
                 <span className="flex flex-wrap items-center gap-x-1.5 text-[11px] text-slate-500">
                   {dates?.[i] && <span>{weekday(dates[i], lang)} · {fmt(dates[i], lang)}</span>}
-                  {!!d.km && i > 0 && (() => {
-                    const drive = (d.drive_minutes ?? []).reduce((x, m) => x + m, 0) * 1.25
-                    return <span className="flex items-center gap-0.5"><Car size={11} aria-hidden />{d.km} km{drive > 0 && <span className={drive > 9 * 60 ? 'font-semibold text-amber-700' : ''}> · {Math.floor(drive / 60)} h {String(Math.round(drive % 60)).padStart(2, '0')}</span>}</span>
-                  })()}
                 </span>
               </span>
               {soft > 0 && <span className="shrink-0 rounded-full bg-sky-100 px-1.5 py-0.5 text-[11px] font-semibold text-sky-800" title={t('gridLegendLook')}>{soft}</span>}

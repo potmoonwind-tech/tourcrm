@@ -5,6 +5,7 @@
  * the slot ("tap to place"), so nothing depends on dragging.
  */
 import { DayGrid } from './DayGrid'
+import { RoadChip } from './RoadChip'
 import { MealPlan, type Crew } from './MealPlan'
 import {
   closestCenter, DndContext, DragOverlay, KeyboardSensor, pointerWithin, PointerSensor, rectIntersection, TouchSensor,
@@ -877,8 +878,12 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
           {/* From where (last night's town) to tonight's: the day's title. */}
           <span className="flex min-w-0 items-center gap-1">
             {index > 0 && prevCity?.trim() && townKey(prevCity) !== townKey(day.city) && (
-              <span className="flex max-w-[12rem] items-center gap-1 text-lg font-semibold text-slate-500" title={t('fromLastNight')}>
-                <span className="truncate">{prevCity.trim()}</span><ArrowRight size={15} aria-hidden className="shrink-0" />
+              <span className="flex min-w-0 items-center gap-1.5 text-lg font-semibold text-slate-500" title={t('fromLastNight')}>
+                <span className="max-w-[12rem] truncate">{prevCity.trim()}</span>
+                {(() => {
+                  const drive = (day.drive_minutes ?? []).reduce((x, m) => x + m, 0) * factor
+                  return day.km || drive ? <RoadChip km={day.km} minutes={drive} /> : <ArrowRight size={15} aria-hidden className="shrink-0" />
+                })()}
               </span>
             )}
             <PlaceInput disabled={disabled} value={day.city} onChange={(city) => onSet({ city })} placeholder={t('cityNight')}
@@ -914,15 +919,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
                   aria-label={t('kmDriven')} />
                 km
               </label>
-            ) : index > 0 && !!day.km && (() => {
-              const drive = (day.drive_minutes ?? []).reduce((x, m) => x + m, 0) * factor
-              return (
-                <span className="flex items-center gap-1 text-xs tabular-nums text-slate-500" title={drive ? t('driveDayTip', { h: hours(drive) }) : undefined}>
-                  <Car size={13} aria-hidden className="shrink-0 text-slate-400" />{day.km} km
-                  {drive > 0 && <span className={drive > 9 * 60 ? 'font-medium text-amber-700' : ''}>· {hours(drive)}</span>}
-                </span>
-              )
-            })()}
+            ) : null}
           </span>
         </div>
         <div className="flex shrink-0 items-center gap-1">
@@ -1751,3 +1748,4 @@ function OwnMealWhere({ value, disabled, onChange }: { value: string; disabled?:
 }
 
 /** The day's date as a calendar leaf: weekday, day, month - or just "Day N" on a route (no dates). */
+
