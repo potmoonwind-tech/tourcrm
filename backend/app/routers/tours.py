@@ -9,7 +9,8 @@ from sqlalchemy.orm import Session, selectinload
 from .. import changes
 from ..db import get_db
 from ..deps import WorkspaceCtx, require_role
-from ..models import Client, Participant, Series, SeriesDay, StaffAssignment, Tour, TourDay, Vendor
+from .. import programme as programme_mod
+from ..models import Client, Participant, Series, SeriesDay, StaffAssignment, Tour, TourBooking, TourDay, Vendor
 from ..schemas import (
     BusReturn, DayFields, DayViewRow, StaffOut, TourCreate, TourDayOut, TourDayUpdate, TourOut, TourStatus, TourSummary, TourUpdate, VendorRef,
 )
@@ -403,10 +404,33 @@ def update_day(tour_id: str, day_id: str, body: TourDayUpdate, ctx: WorkspaceCtx
 
 # --- day view ----------------------------------------------------------------------
 
-@router.get("/day/{day}", response_model=list[DayViewRow])
-def day_view(day: date, include_cancelled: bool = False, ctx: WorkspaceCtx = Depends(read),
+class TodayRow(DayViewRow):
+    """A group's day for the operator's "Today": its programme hour by hour (as the guide's page shows it:
+    times, drives, places with their phones) and how each of its suppliers is booked."""
+    programme: "programme_mod.PDay | None" = None
+    bookings: dict[str, str] = {}          # vendor id → to_book | requested | confirmed | problem | cancelled
+
+
+def _today_programme(db: Session, ws, t: Tour, day_number: int, lang: str = "en"):
+    """The one day of the group's programme (the whole tour is the context: last night's hotel, the road)."""
+    days = sorted(t.days, key=lambda d: d.day_number)
+    idx = next((i for i, d in enumerate(days) if d.day_number == day_number), None)
+    if idx is None:
+        return None
+    body = programme_mod.ProgrammeIn(title=t.code, start_date=t.start_date, lang=lang if lang in ("en", "ka") else "en",
+                                     translate=False, days=[DayFields.model_validate(d, from_attributes=True) for d in days],
+                                     only_days=[idx + 1], tour_id=t.id)
+    try:
+        got = programme_mod.build(db, ws, body, fill=True).days
+    except Exception:          # noqa: BLE001 - the day still shows its places without the hours
+        return None
+    return got[0] if got else None
+
+
+@router.get("/day/{day}", response_model=list[TodayRow])
+def day_view(day: date, include_cancelled: bool = False, lang: str = "en", light: bool = False, ctx: WorkspaceCtx = Depends(read),
              db: Session = Depends(get_db)):
-    """Every group on the road on a given date: where they sleep, eat, cross."""
+    """Every group on the road on a given date: where they sleep, eat, cross - hour by hour, and what's booked."""
     stmt = (select(TourDay).join(Tour)
             .where(Tour.workspace_id == ctx.workspace.id, TourDay.date == day)
             .options(selectinload(TourDay.tour).options(*_summary_opts),
@@ -420,10 +444,18 @@ def day_view(day: date, include_cancelled: bool = False, ctx: WorkspaceCtx = Dep
     nights = {n.tour_id: n.hotel for n in db.scalars(
         select(TourDay).where(TourDay.tour_id.in_([d.tour_id for d in days]), TourDay.date == day - timedelta(days=1))
         .options(selectinload(TourDay.hotel)))} if days else {}
+    booked: dict[str, dict[str, str]] = {}
+    for b in db.scalars(select(TourBooking).where(TourBooking.tour_id.in_([d.tour_id for d in days]))) if days else []:
+        booked.setdefault(b.tour_id, {})[b.vendor_id] = b.status
     return [
-        DayViewRow(tour=summary(d.tour, counts.get(d.tour_id, 0)), day=TourDayOut.model_validate(d),
-                   staff_today=[StaffOut.model_validate(a) for a in d.tour.staff if a.covers(d.day_number)],
-                   is_first_day=d.date == d.tour.start_date, is_last_day=d.date == d.tour.end_date,
-                   prev_hotel=VendorRef.model_validate(nights[d.tour_id]) if nights.get(d.tour_id) else None)
+        TodayRow(tour=summary(d.tour, counts.get(d.tour_id, 0)), day=TourDayOut.model_validate(d),
+                 staff_today=[StaffOut.model_validate(a) for a in d.tour.staff if a.covers(d.day_number)],
+                 is_first_day=d.date == d.tour.start_date, is_last_day=d.date == d.tour.end_date,
+                 prev_hotel=VendorRef.model_validate(nights[d.tour_id]) if nights.get(d.tour_id) else None,
+                 programme=None if light else _today_programme(db, ctx.workspace, d.tour, d.day_number, lang),
+                 bookings=booked.get(d.tour_id, {}))
         for d in days
     ]
+
+
+TodayRow.model_rebuild()

@@ -3096,6 +3096,14 @@ const en = {
   fillGaps: "Fill the gaps from the catalogue",
   fillGapsDone: "Filled {n} - check and save",
   fillGapsNone: "Nothing to fill from the catalogue for these towns",
+  todayGroups: "{n} group(s) on the road",
+  todayPeople: "{n} tourists",
+  todayNeedAttention: "{n} need attention",
+  todayAllGood: "All in order",
+  todayNoHotel: "No hotel tonight",
+  todayNoMeal: "{meal}: no place yet",
+  todayNow: "now",
+  todayNext: "next",
 }
 
 type Dict = typeof en
@@ -6188,6 +6196,14 @@ const ka: Dict = {
   fillGaps: "ხარვეზების შევსება კატალოგიდან",
   fillGapsDone: "შეივსო {n} - შეამოწმეთ და შეინახეთ",
   fillGapsNone: "ამ ქალაქებისთვის კატალოგიდან შესავსები არაფერია",
+  todayGroups: "{n} ჯგუფი გზაში",
+  todayPeople: "{n} ტურისტი",
+  todayNeedAttention: "{n} ყურადღებას საჭიროებს",
+  todayAllGood: "ყველაფერი რიგზეა",
+  todayNoHotel: "ამაღამ სასტუმრო არ არის",
+  todayNoMeal: "{meal}: ადგილი ჯერ არ არის",
+  todayNow: "ახლა",
+  todayNext: "შემდეგ",
 }
 
 export type Lang = 'en' | 'ka'

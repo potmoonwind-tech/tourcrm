@@ -93,7 +93,8 @@ const Empty = ({ children }: { children: ReactNode }) => <p className="px-5 py-6
 function useToday() {
   const ws = useWorkspace()!
   const now = today()
-  return useQuery({ queryKey: ['day', ws.id, now], queryFn: () => api<DayViewRow[]>(wsPath(ws.id, `/day/${now}`)) })
+  // light: without each group's hour-by-hour programme (Home only needs where they are)
+  return useQuery({ queryKey: ['day-light', ws.id, now], queryFn: () => api<DayViewRow[]>(wsPath(ws.id, `/day/${now}?light=1`)) })
 }
 function useSoon() {
   const ws = useWorkspace()!
