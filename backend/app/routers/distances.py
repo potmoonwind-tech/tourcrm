@@ -157,6 +157,7 @@ def place_hours(body: HoursIn, ctx: WorkspaceCtx = Depends(office), db: Session 
 
 class MapIn(BaseModel):
     places: list[str] = Field(max_length=80)
+    roads: bool = True               # False: just the places (the groups map), no road shapes
 
 
 class MapPoint(BaseModel):
@@ -184,6 +185,6 @@ class MapOut(BaseModel):
 def trip_map(body: MapIn, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)):
     """The places of a trip or a day on the map, with the roads between them (shapes kept once asked)."""
     ratelimit.hit("map", ctx.workspace.id, limit=60, per_seconds=600)
-    out = geo.path_map(db, [p[:300] for p in body.places], ctx.workspace.countries or None, ctx.workspace.id)
+    out = geo.path_map(db, [p[:300] for p in body.places], ctx.workspace.countries or None, ctx.workspace.id, roads=body.roads)
     db.commit()
     return out

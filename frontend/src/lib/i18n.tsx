@@ -3116,6 +3116,14 @@ const en = {
   rbnLegendOpen: "Not confirmed yet",
   rbnLegendProblem: "A problem",
   rbnLegendInquiry: "Inquiries only",
+  todayView_board: "Board",
+  todayView_list: "List",
+  todayView_map: "Map",
+  boardGroupNow: "Group · now",
+  boardDriving: "On the road to {to} · arrives {time}",
+  boardNext: "Next: {what} at {time}",
+  boardDone: "Day done · {place}",
+  todayMapHelp: "Where each group is now (→ = on the road there). Click a group for its day.",
 }
 
 type Dict = typeof en
@@ -6228,6 +6236,14 @@ const ka: Dict = {
   rbnLegendOpen: "ჯერ დაუდასტურებელი",
   rbnLegendProblem: "პრობლემა",
   rbnLegendInquiry: "მხოლოდ მოთხოვნები",
+  todayView_board: "დაფა",
+  todayView_list: "სია",
+  todayView_map: "რუკა",
+  boardGroupNow: "ჯგუფი · ახლა",
+  boardDriving: "გზაში {to}-ისკენ · ჩადის {time}",
+  boardNext: "შემდეგ: {what} {time}-ზე",
+  boardDone: "დღე დასრულდა · {place}",
+  todayMapHelp: "სად არის ახლა თითოეული ჯგუფი (→ = გზაშია). დააჭირეთ ჯგუფს მისი დღისთვის.",
 }
 
 export type Lang = 'en' | 'ka'

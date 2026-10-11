@@ -236,3 +236,9 @@ body {
   background-position: right 8px center;
   background-size: 16px;
 }
+
+/* "Today" map: a town's label with the groups there (click a group: its day). */
+.tm-groups { display: inline-flex; flex-direction: column; gap: 2px; transform: translate(-50%, -100%); padding: 4px 6px; border-radius: 8px;
+  background: #fff; box-shadow: var(--shadow-md); font-size: 11px; white-space: nowrap; color: var(--color-slate-800); }
+.tm-groups b { font-weight: 600; }
+.tm-groups span { cursor: pointer; padding: 1px 4px; border-radius: 4px; background: var(--color-brand-50); color: var(--color-brand-800); font-family: ui-monospace, monospace; }

@@ -612,10 +612,11 @@ MAX_SHAPES = 40      # new roads asked per map (a 10-day tour has ~30 legs; the 
 
 
 def path_map(db: Session, names: list[str], countries: list[str] | None = None, workspace_id: str | None = None,
-             timeout: float = 10.0) -> dict:
+             timeout: float = 10.0, roads: bool = True) -> dict:
     """A path for a map: each place with where it is (or why not), and the road between each place found
     and the next one found, as encoded polylines."""
     names = [(n or "").strip() for n in names]
+    want_roads = roads                 # False: only where each place is (pins of unrelated groups)
     budget = _Budget(MAX_NEW_LOOKUPS)
     shapes = _Budget(MAX_SHAPES)
     with httpx.Client(timeout=timeout, headers=HEADERS) as client:
@@ -628,7 +629,7 @@ def path_map(db: Session, names: list[str], countries: list[str] | None = None, 
                            "missing": None if g else ("far" if i in far else "pending" if key(n) in budget.pending else "not_found")})
             if g is None:
                 continue
-            if prev is not None and (prev[1].lat, prev[1].lon) != (g.lat, g.lon):
+            if want_roads and prev is not None and (prev[1].lat, prev[1].lon) != (g.lat, g.lon):
                 roads.append({"from": prev[0], "to": i, "polyline": road_shape(db, client, prev[1], g, shapes)})
             prev = (i, g)
     return {"points": points, "roads": roads}
