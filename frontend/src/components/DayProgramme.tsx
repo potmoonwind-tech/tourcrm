@@ -617,7 +617,7 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
   return (
     <li ref={setNodeRef} id={`step-${x.id}`} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex scroll-mt-48 gap-3', isDragging && 'relative z-10')}>
       {/* The time column: when it starts, and how long. */}
-      <div className="flex w-28 shrink-0 items-center justify-end gap-0.5 pt-1">
+      <div className="flex h-9 w-28 shrink-0 items-center justify-end gap-0.5 self-start pt-0.5">
         {disabled ? <span className="text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
           : <TimeSelect value={x.time} label={t('progStartOf', { name })}
             onChange={(v) => onSet(x.time && x.end && v ? { time: v, fixed: true, end: shift(v, minutesBetween(x.time, x.end)) } : { time: v, fixed: !!v })} />}
@@ -663,9 +663,9 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
                       {slotTitle(x, t)}<ChevronUp size={14} aria-hidden className="text-slate-400" />
                     </button>
                   ) : <span className="text-sm font-medium text-slate-800">{slotTitle(x, t)}</span>}
-                  {slot.state === 'todo' && <span className="text-[11px] font-semibold text-amber-700">{t('slotTodo')}</span>}
+                  {slot.aside}
                   {slot.grip}
-                  {slot.aside && <span className="ml-auto">{slot.aside}</span>}
+                  {slot.state === 'todo' && <span className="ml-auto rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">{t('slotTodo')}</span>}
                 </div>
                 <div className="animate-reveal mt-1">{slot.node}</div>
               </div>

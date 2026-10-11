@@ -1615,8 +1615,8 @@ function BreakfastModePick({ value, disabled, onChange }: { value: BreakfastMode
   return (
     <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as BreakfastMode)} aria-label={t('breakfastWhere')}
       title={t('breakfastWhere')}
-      className={cn('rounded-md border-0 bg-transparent py-0 pl-1 pr-5 text-[11px] font-medium focus:ring-1 focus:ring-brand-500',
-        value === 'hotel' ? 'text-slate-500' : value === 'tourists' ? 'text-amber-700' : value === 'own' ? 'text-slate-400' : 'text-brand-700')}>
+      className={cn('h-7 cursor-pointer rounded-full border py-0 pl-2.5 pr-7 text-xs font-medium [&>option]:bg-white [&>option]:text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200',
+        value === 'hotel' || value === 'included' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : value === 'tourists' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-600')}>
       <option value="hotel">{t('breakfastAtHotel')}</option>
       <option value="included">{t('breakfastElsewhere')}</option>
       <option value="tourists">{t('mealTourists')}</option>
@@ -1631,8 +1631,8 @@ function MealModePick({ value, disabled, onChange }: { value: MealMode; disabled
   return (
     <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as MealMode)} aria-label={t('mealWhoPays')}
       title={t('mealWhoPays')}
-      className={cn('rounded-md border-0 bg-transparent py-0 pl-1 pr-5 text-[11px] font-medium focus:ring-1 focus:ring-brand-500',
-        value === 'included' ? 'text-slate-500' : value === 'tourists' ? 'text-amber-700' : 'text-slate-400')}>
+      className={cn('h-7 cursor-pointer rounded-full border py-0 pl-2.5 pr-7 text-xs font-medium [&>option]:bg-white [&>option]:text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200',
+        value === 'included' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : value === 'tourists' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-600')}>
       <option value="included">{t('mealIncluded')}</option>
       <option value="tourists">{t('mealTourists')}</option>
       <option value="own">{t('mealOwn')}</option>
