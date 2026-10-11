@@ -12,7 +12,7 @@ import {
 } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, BedDouble, CalendarDays, ChevronDown, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ListChecks } from 'lucide-react'
+import { AlertTriangle, BedDouble, CalendarDays, ChevronDown, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ChevronsUpDown, LayoutGrid } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useStickyHeight } from '../lib/sticky'
@@ -288,21 +288,24 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             pending ? 'border-brand-200 bg-brand-50/95' : 'border-slate-200 bg-white/95', 'pl-1.5')}>
             {/* How to look at the tour (its days / the whole tour): one small button. */}
           <Menu label={t('itineraryView')} triggerClassName="flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-slate-700 hover:bg-slate-100"
-            trigger={<>{view === 'check' ? <ListChecks size={16} aria-hidden /> : <CalendarDays size={16} aria-hidden />}
+            trigger={<>{view === 'check' ? <LayoutGrid size={16} aria-hidden /> : <CalendarDays size={16} aria-hidden />}
               <span className="sr-only">{t('itineraryView')}: </span>
               <span className="text-xs font-medium max-xl:sr-only">{t(view === 'check' ? 'viewCheck' : 'viewDays')}</span>
               <ChevronDown size={13} aria-hidden className="text-slate-400" /></>}
             items={[
               { label: `${t('viewDays')}${view === 'days' ? ' ✓' : ''}`, icon: <CalendarDays size={16} />, onClick: () => setView('days') },
-              { label: `${t('viewCheck')}${view === 'check' ? ' ✓' : ''}`, icon: <ListChecks size={16} />, onClick: () => setView('check') },
+              { label: `${t('viewCheck')}${view === 'check' ? ' ✓' : ''}`, icon: <LayoutGrid size={16} />, onClick: () => setView('check') },
             ]} />
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
             <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
             <span className="max-md:hidden"><BuildSteps days={days} restaurants={restaurants} onGo={openDay} /></span>
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
             {pending ?? <span className="flex shrink-0 items-center gap-0.5">
-              <IconButton size="sm" label={full ? t('simpleView') : t('showEverything')} onClick={() => { setView('days'); setFull(!full) }}
-                aria-pressed={full || undefined} className={cn('rounded-full', full && 'bg-brand-50 text-brand-700')}><ListChecks size={16} /></IconButton>
+              {/* Every row of every day open - only in Days (the whole tour has no rows to open). */}
+              {view === 'days' && (
+                <IconButton size="sm" label={full ? t('simpleView') : t('showEverything')} onClick={() => setFull(!full)}
+                  aria-pressed={full || undefined} className={cn('rounded-full', full && 'bg-brand-50 text-brand-700')}><ChevronsUpDown size={16} /></IconButton>
+              )}
               <Menu kind="icon" label={t('moreActions')} items={[
                 { label: t('recalcTimes'), icon: <Clock size={16} />, onClick: () => tools.current.recalc?.(), hidden: disabled },
                 { label: t('mapOpen'), icon: <MapIcon size={16} />, onClick: () => tools.current.openMap?.(), hidden: !canMap },
