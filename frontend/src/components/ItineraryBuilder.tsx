@@ -757,7 +757,8 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
   const { t, lang } = useI18n()
   const dateStyle = useDateStyle()
   const factor = useWorkspace()?.drive_factor ?? 1.25
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
+  // Days are moved in the list on the left; the card only follows (and takes a saved day dropped on it).
+  const { setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled })
   const hotel = day.hotel_id ? byId.get(day.hotel_id) : undefined
   // Dishes served twice today (lunch and dinner) are shown in red - the chosen menu's, or the usual one's.
   const dishesOf = (menuId: string | null | undefined, vendorId: string | null | undefined, meal: 'lunch' | 'dinner') =>
@@ -871,17 +872,7 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
           <span title={`${t('dayN', { n: index + 1 })} ${t('dayOfN', { n: total })}`}
             className={cn('flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full py-0.5 pl-0.5 pr-2 text-xs tabular-nums',
               active ? 'bg-brand-100 font-semibold text-brand-800' : 'bg-slate-100 font-medium text-slate-600')}>
-            {/* The day's number; on hover it becomes the handle to move the day (nothing shifts). */}
-            {disabled ? (
-              <span className={cn('flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white', active ? 'bg-brand-600' : 'bg-slate-700')}>{index + 1}</span>
-            ) : (
-              <button type="button" {...attributes} {...listeners} aria-label={`${t('dayN', { n: index + 1 })} · ${t('dragToReorder')}`} title={t('dragToReorder')}
-                className={cn('flex h-5 min-w-5 cursor-grab touch-none items-center justify-center rounded-full px-1 text-[11px] font-bold text-white active:cursor-grabbing',
-                  active ? 'bg-brand-600' : 'bg-slate-700')}>
-                <span className="group-hover/head:hidden">{index + 1}</span>
-                <GripVertical size={12} aria-hidden className="hidden group-hover/head:block" />
-              </button>
-            )}
+            <span className={cn('flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white', active ? 'bg-brand-600' : 'bg-slate-700')}>{index + 1}</span>
             <span>/{total}{date && ` · ${dayDate(date, lang, dateStyle)}`}</span>
           </span>
           {/* From where (last night's town) to tonight's: the day's title. */}
