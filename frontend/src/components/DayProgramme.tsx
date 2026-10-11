@@ -9,7 +9,7 @@
 import { closestCenter, DndContext, KeyboardSensor, PointerSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core'
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable'
 import { CSS } from '@dnd-kit/utilities'
-import { AlertTriangle, ArrowDownUp, BedDouble, Car, Coffee, Map as MapIcon, Pin, GripVertical, Landmark, MapPin, Plane, Smile, StickyNote, Truck, Utensils, X, ChevronDown, ChevronUp } from 'lucide-react'
+import { AlertTriangle, ArrowDownUp, BedDouble, Car, Coffee, Map as MapIcon, GripVertical, Landmark, MapPin, Plane, Smile, StickyNote, Truck, Utensils, X, ChevronDown, ChevronUp } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
 import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { api, type DayExtra, type DayFields, type ScheduleItem, type ScheduleKind, type ServiceBrief, type TourDay, type Vendor } from '../lib/api'
@@ -290,8 +290,9 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
   const { legs, complete } = legsFor(path, fresh ? road.data!.legs : undefined, road.isFetching)
   const { before: rawBefore, after } = drivesFrom(path, legs, factor)
   const before = mealsTakeTheRoad(raw, rawBefore, day, byId)
-  // The times keep themselves right: each step starts when the one before ends, plus the drive. Times
-  // typed by hand (pinned) and flights stay; lunch and dinner wait for their usual time.
+  // The times keep themselves right: each step starts when the one before ends, plus the drive. The day's
+  // start (its first time) and each step's length are what one sets; flights keep their times; lunch and
+  // dinner wait for their usual hour.
   const usual = (x: ScheduleItem) => stepUsual(x, day, byId, services)
   const laid = (xs: ScheduleItem[]) => flow(xs, 0, before, 'full', xs.find((x) => x.time)?.time, usual)
   const items = laid(raw)
@@ -302,7 +303,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
   useEffect(() => { if (drift) onChange(drift) }, [drift ? sig(drift) : ''])   // eslint-disable-line react-hooks/exhaustive-deps
   const set = (id: string, patch: Partial<ScheduleItem>) => save(laid(items.map((x) => (x.id === id ? { ...x, ...patch } : x))))
   // A drag puts the step where it was dropped: it takes that spot's time (when the step before it ends)
-  // and follows the day from there — a pinned time or a meal's usual hour doesn't pull it back. The road
+  // and follows the day from there — a meal's usual hour doesn't pull it back. The road
   // for the new order is asked, and the times refine when it answers.
   const onDragEnd = (e: DragEndEvent) => {
     const a = items.findIndex((x) => x.id === e.active.id)
@@ -314,7 +315,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
       const prev = next.slice(0, b).reverse().find((x) => x.time)
       const spot = prev ? hm(Math.min(toMin(prev.time) + lengthOf(prev, usual), LATEST))
         : next.slice(1).find((x) => x.time)?.time ?? moved.time      // to the top: the day's first time
-      next[b] = { ...moved, time: spot, fixed: false, end: moved.end && moved.time ? shift(spot, minutesBetween(moved.time, moved.end)) : moved.end }
+      next[b] = { ...moved, time: spot, end: moved.end && moved.time ? shift(spot, minutesBetween(moved.time, moved.end)) : moved.end }
     }
     save(laid(next))
   }
@@ -336,7 +337,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
     const id = slotId()
     onSetDay!({
       extras: [...day.extras, { id, service_id: serviceId, quantity: null, notes: '' }],
-      schedule: laid(items.map((y) => (y.id === stepId ? { ...y, ref: `extra:${id}`, title: '', place: '', fixed: y.fixed } : y))),
+      schedule: laid(items.map((y) => (y.id === stepId ? { ...y, ref: `extra:${id}`, title: '', place: '' } : y))),
     })
   }
   // Removing an activity's step takes it off the day too (with the place's other activities it stood for).
@@ -431,8 +432,13 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
       }
     }
   }
-  // "Move to": the step follows the day again (not pinned) from that time.
-  const fixTime = (x: ScheduleItem, time: string) => set(x.id, { time, fixed: false, end: x.end ? shift(time, minutesBetween(x.time, x.end)) : '' })
+  // "Move to 10:00": free time before the step, as long as needed - it starts then and the day follows.
+  const fixTime = (x: ScheduleItem, time: string) => {
+    const wait = x.time ? minutesBetween(x.time, time) : 0
+    if (wait <= 0) return
+    const at = items.findIndex((y) => y.id === x.id)
+    save(laid([...items.slice(0, at), { id: newId(), kind: 'free', time: x.time, end: shift(x.time, wait), title: '', ref: null, place: '', notes: '' }, ...items.slice(at)]))
+  }
   // When each drive leaves: the end of the timed step before it (its usual length when no end is set).
   const departs = new Map<string, number | null>()
   let lastEnd: number | null = null
@@ -521,6 +527,7 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
                     </li>
                   )}
                   <Step x={x} label={label(x)} picker={disabled ? undefined : mealPicker(x)} disabled={disabled} issue={issues.get(x.id)} onFix={(time) => fixTime(x, time)}
+                    starts={x.id === items.find((y) => y.time && y.kind !== 'flight')?.id}
                     slot={slots?.[(x.ref ?? '') as keyof SlotRows]}
                     open={expandAll || openRow === x.id} onToggle={() => setOpenRow(openRow === x.id ? null : x.id)}
                     length={lengthOf(x, usual)} sights={sights} sight={sightOf(x, byId)} end={i === items.length - 1 && !after.length}
@@ -594,13 +601,14 @@ function TimeSelect({ value, onChange, label }: { value: string; onChange: (v: s
   )
 }
 
-function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, end, cat, onSet, onRemove, onLink, slot, open, onToggle }: {
+function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight, end, starts, cat, onSet, onRemove, onLink, slot, open, onToggle }: {
   slot?: SlotRow     // the builder's row for the hotel / breakfast / lunch / dinner: chosen right here
   open?: boolean; onToggle?: () => void   // a builder row: folded to one line, or open to edit
   cat?: ActivityCat | null   // a visit at a catalogue place: its kind (museum, cable car...) as the bubble
   x: ScheduleItem; label: { text: string; missing: boolean }; picker?: ReactNode; disabled?: boolean; issue?: StepIssue; onFix: (time: string) => void
   length: number; sights: PlaceSuggestion[]; sight?: Vendor
   end?: boolean   // the day's last step: the line stops here
+  starts?: boolean   // the day's first step: its time is the day's start (the only time set by hand)
   onSet: (p: Partial<ScheduleItem>) => void; onRemove: () => void
   onLink?: (serviceId: string) => void   // a catalogue activity picked: it becomes the day's service
 }) {
@@ -622,9 +630,11 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
     <li ref={setNodeRef} id={`step-${x.id}`} style={{ transform: CSS.Transform.toString(transform), transition }} className={cn('group flex scroll-mt-48 gap-3', isDragging && 'relative z-10')}>
       {/* The time column: when it starts, and how long. */}
       <div className="flex h-9 w-28 shrink-0 items-center justify-start gap-1 self-start pt-0.5">
-        {disabled ? <span className="w-14 px-1 text-right text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span>
-          : <TimeSelect value={x.time} label={t('progStartOf', { name })}
-            onChange={(v) => onSet(x.time && x.end && v ? { time: v, fixed: true, end: shift(v, minutesBetween(x.time, x.end)) } : { time: v, fixed: !!v })} />}
+        {/* The day's start and flights are set by hand; every other time follows the road and the lengths. */}
+        {disabled || !(starts || x.kind === 'flight')
+          ? <Tooltip label={disabled ? '' : t('progFollowsTip')}><span className="w-14 px-1 text-right text-[15px] font-medium tabular-nums text-slate-800">{x.time || '—'}</span></Tooltip>
+          : <TimeSelect value={x.time} label={starts ? t('progDayStart') : t('progStartOf', { name })}
+            onChange={(v) => onSet(x.time && x.end && v ? { time: v, end: shift(v, minutesBetween(x.time, x.end)) } : { time: v })} />}
         {x.kind !== 'flight' && (disabled
           ? x.time && length > 0 && <span className="block w-12 px-1 text-left text-xs tabular-nums text-slate-500">{dur(length)}</span>
           : <DurationPick start={x.time} end={x.end} name={name} usual={length} usualFrom={x.end ? undefined : sight?.name}
@@ -708,27 +718,16 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
               </span></span>
             )}
           </div>
-          {/* Narrow screens: a pinned time shows its pin; the rest is in "⋯". */}
-          {!disabled && x.fixed && x.kind !== 'flight' && (
-            <span className="lg:hidden">
-              <Tooltip label={t('progPinnedTip')}>
-                <button type="button" aria-pressed onClick={() => onSet({ fixed: false })} aria-label={t('progUnpin', { name })}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-brand-700 hover:bg-brand-50">
-                  <Pin size={14} aria-hidden className="fill-current" />
-                </button>
-              </Tooltip>
-            </span>
-          )}
+          {/* Narrow screens: note and remove in "⋯". */}
           {!disabled && (
             <span className="lg:hidden">
               <Menu kind="icon" label={t('progStepMenu', { name })} items={[
                 { label: t('progAddNote'), icon: <StickyNote size={16} />, onClick: () => setNoting(true), hidden: !!x.notes },
-                { label: t(x.fixed ? 'progUnpin' : 'progPin', { name }), icon: <Pin size={16} />, onClick: () => onSet({ fixed: !x.fixed }), hidden: x.kind === 'flight' || !x.time },
                 { label: t('progRemove', { name }), icon: <X size={16} />, onClick: onRemove, danger: true },
               ]} />
             </span>
           )}
-          {/* Wide screens: there is room - note, pin and remove right on the step. */}
+          {/* Wide screens: there is room - note and remove right on the step. */}
           {!disabled && (
             <span className="hidden shrink-0 items-center gap-0.5 lg:flex">
               {!x.notes && (
@@ -736,15 +735,6 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
                   <button type="button" onClick={() => setNoting(true)} aria-label={t('progNoteOf', { name })}
                     className="flex h-7 w-7 items-center justify-center rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-700">
                     <StickyNote size={15} aria-hidden />
-                  </button>
-                </Tooltip>
-              )}
-              {x.kind !== 'flight' && x.time && (
-                <Tooltip label={x.fixed ? t('progPinnedTip') : t('progFollowsTip')}>
-                  <button type="button" aria-pressed={!!x.fixed} onClick={() => onSet({ fixed: !x.fixed })} aria-label={t(x.fixed ? 'progUnpin' : 'progPin', { name })}
-                    className={cn('flex h-7 w-7 items-center justify-center rounded-full',
-                      x.fixed ? 'text-brand-700 hover:bg-brand-50' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-700')}>
-                    <Pin size={15} aria-hidden className={x.fixed ? 'fill-current' : ''} />
                   </button>
                 </Tooltip>
               )}
@@ -788,14 +778,14 @@ const hm = (n: number) => {
 }
 /**
  * A saved day programme laid out again, as opening it would: the road for its order asked from the map
- * (starting at last night's hotel), each step after the one before plus the drive. Pinned times stay —
- * unless `release`, then they follow the day too (flights always keep theirs). null: nothing to change.
+ * (starting at last night's hotel), each step after the one before plus the drive (flights keep their
+ * times). null: nothing to change.
  */
 export async function relayDay(wsId: string, day: DayFields, index: number, last: boolean, byId: Map<string, Vendor>,
-  from: string | undefined, fromHotel: string | null | undefined, factor: number, release: boolean, services: ServiceBrief[] = []): Promise<ScheduleItem[] | null> {
+  from: string | undefined, fromHotel: string | null | undefined, factor: number, services: ServiceBrief[] = []): Promise<ScheduleItem[] | null> {
   const saved = day.schedule ?? []
   if (!saved.length) return null                     // never arranged: always worked out fresh
-  const items = release ? saved.map((x) => (x.kind === 'flight' || !x.fixed ? x : { ...x, fixed: false })) : saved
+  const items = saved
   const start = index > 0 ? byId.get(fromHotel ?? '')?.address || from : from
   const path = pathOf(items, day, byId, start, last)
   let answer: MapLeg[] | undefined
@@ -807,7 +797,7 @@ export async function relayDay(wsId: string, day: DayFields, index: number, last
   const { legs } = legsFor(path, answer, false)
   const before = mealsTakeTheRoad(items, drivesFrom(path, legs, factor).before, day, byId)
   const out = flow(items, 0, before, 'full', items.find((x) => x.time)?.time, (x) => stepUsual(x, day, byId, services))
-  const sig = (xs: ScheduleItem[]) => xs.map((x) => `${x.time}-${x.end}-${x.fixed ? 1 : 0}`).join(',')
+  const sig = (xs: ScheduleItem[]) => xs.map((x) => `${x.time}-${x.end}`).join(',')
   return sig(out) === sig(saved) ? null : out
 }
 
@@ -980,12 +970,6 @@ export function flow(items: ScheduleItem[], start: number, before: Map<string, D
     const own = items[i].time
     const len = lengthOf(items[i], usual)
     if (x.kind === 'flight') { if (own) at = toMin(own); continue }
-    if (items[i].fixed && own) {            // typed by hand: stays, and the day goes on from it
-      const t = toMin(own)
-      if (items[i].end && len > 0) x.end = t + len <= LATEST ? hm(t + len) : ''
-      at = t + len
-      continue
-    }
     let t0: number | null
     if (i === start && mode === 'edit') t0 = own ? toMin(own) : at
     else if (at === null) t0 = i === start && anchor ? toMin(anchor) : own ? toMin(own) : null

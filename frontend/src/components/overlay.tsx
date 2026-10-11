@@ -54,7 +54,9 @@ export function Drawer({ title, subtitle, onClose, children, footer, size = 'lg'
 }) {
   const { t } = useI18n()
   useEscape(onClose)
-  return (
+  // On the page itself (a portal): opened from a bar with a blur or a transform, a fixed panel would
+  // otherwise be cut to that bar's box.
+  return createPortal(
     <div className="fixed inset-0 z-50 flex justify-end">
       <div className="animate-fade absolute inset-0 bg-slate-900/30" onMouseDown={onClose} />
       <aside role="dialog" aria-modal="true" onKeyDown={keepOpenOnEnter}
@@ -71,7 +73,8 @@ export function Drawer({ title, subtitle, onClose, children, footer, size = 'lg'
         <div className="min-h-0 flex-1 overflow-y-auto px-5 sm:px-6"><div className="py-5">{children}</div></div>
         {footer && <footer className="flex flex-wrap items-center gap-2 border-t border-slate-200 bg-white px-5 py-3 sm:px-6">{footer}</footer>}
       </aside>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -82,7 +85,8 @@ export function Dialog({ title, onClose, children, wide, footer, top, size }: {
 }) {
   const { t } = useI18n()
   useEscape(onClose)
-  return (
+  // On the page itself (a portal), like the drawer: never cut by the bar it was opened from.
+  return createPortal(
     <div className={cn('fixed inset-0 flex items-end justify-center sm:items-center sm:p-4', top ? 'z-[60]' : 'z-50')}>
       <div className="animate-fade absolute inset-0 bg-slate-900/40" onMouseDown={onClose} />
       <div role="dialog" aria-modal="true"
@@ -95,7 +99,8 @@ export function Dialog({ title, onClose, children, wide, footer, top, size }: {
         <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-6">{children}</div>
         {footer && <footer className="flex flex-wrap justify-end gap-2 border-t border-slate-200 px-6 py-3">{footer}</footer>}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -168,7 +173,9 @@ export function ToastHost() {
   const list = useSyncExternalStore((l) => { toastListeners.add(l); return () => toastListeners.delete(l) }, () => toasts)
   if (!list.length) return null
   return (
-    <div role="status" aria-live="polite" className="pointer-events-none fixed inset-x-0 bottom-4 z-[70] flex flex-col items-center gap-2 px-4 md:right-6 md:left-auto md:items-end">
+    // Above a bar floating at the bottom (the builder's tools publish its height as --float-bar).
+    <div role="status" aria-live="polite" style={{ bottom: 'calc(var(--float-bar, 0px) + 1rem)' }}
+      className="pointer-events-none fixed inset-x-0 z-[70] flex flex-col items-center gap-2 px-4 md:right-6 md:left-auto md:items-end">
       {list.map((x) => (
         <div key={x.id} className={cn('animate-rise flex items-center gap-2 rounded-lg px-4 py-2.5 text-sm font-medium text-white shadow-lg',
           x.tone === 'ok' ? 'bg-slate-800' : 'bg-red-600', x.action && 'pointer-events-auto py-1.5 pr-1.5')}>

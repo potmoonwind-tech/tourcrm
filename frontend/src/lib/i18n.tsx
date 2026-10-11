@@ -1108,7 +1108,7 @@ const en = {
   progTimePickTip: 'Pick the start (a time you pick is pinned 📌 and stays). Usually you don’t need to: times follow the day by themselves.',
   progAutoTimesTip: 'Times keep themselves right: each step starts when the one before ends, plus the drive. Lunch not before 13:00, dinner not before 19:30. A time you type is pinned (📌) and stays; unpin it to let it follow again.',
   progPinnedTip: 'Pinned: this time stays when the day changes. Click to let it follow the day again.',
-  progFollowsTip: 'This time follows the day (the step before + the drive). Click to pin it.',
+  progFollowsTip: "Worked out from the start of the day, each step's length and the road",
   progPin: 'Pin the time of {name}',
   progUnpin: 'Let the time of {name} follow the day',
   progWait: 'The bus arrives {at}, then waits {wait}',
@@ -3017,7 +3017,7 @@ const en = {
   progAddFlight: "Flight",
   staffNightsShort: "Staff sleep",
   chooseMenu: "choose a menu",
-  recalcTimesAuto: "The times already follow each day by themselves (nothing was set by hand).",
+  recalcTimesAuto: "The times already follow each day by themselves: the start of the day, each step's length and the road.",
   palette_days: "Days",
   savedDaysHere: "Saved days:",
   somethingMissing: "Something still missing",
@@ -3170,6 +3170,7 @@ const en = {
   historyReturnHelp: "Put this part of the day back as it was before this change",
   undoStep: "Undo",
   redoStep: "Redo",
+  progDayStart: "Start of the day",
 }
 
 type Dict = typeof en
@@ -4278,7 +4279,7 @@ const ka: Dict = {
   progTimePickTip: 'აირჩიე დაწყების დრო (არჩეული დრო მიმაგრდება 📌 და რჩება). ჩვეულებრივ საჭირო არ არის: დროები თავისით მიჰყვება დღეს.',
   progAutoTimesTip: 'დროები თავისით სწორდება: ყოველი ნაბიჯი იწყება წინას დასრულებისას, პლუს გზა. სადილი არა უადრეს 13:00-ისა, ვახშამი არა უადრეს 19:30-ისა. ხელით ჩაწერილი დრო მიმაგრდება (📌) და რჩება; მოხსენი, რომ ისევ დღეს მიჰყვეს.',
   progPinnedTip: 'მიმაგრებული: დღის ცვლილებისას ეს დრო რჩება. დააჭირე, რომ ისევ დღეს მიჰყვეს.',
-  progFollowsTip: 'ეს დრო დღეს მიჰყვება (წინა ნაბიჯი + გზა). დააჭირე მისამაგრებლად.',
+  progFollowsTip: 'გამოითვლება დღის დაწყებიდან, ნაბიჯების ხანგრძლივობიდან და გზიდან',
   progPin: '{name}-ის დროის მიმაგრება',
   progUnpin: '{name}-ის დრო დღეს მიჰყვეს',
   progWait: 'ავტობუსი მოდის {at}-ზე, შემდეგ ელოდება {wait}',
@@ -6183,7 +6184,7 @@ const ka: Dict = {
   progAddFlight: "ფრენა",
   staffNightsShort: "პერსონალი ღამეს",
   chooseMenu: "აირჩიეთ მენიუ",
-  recalcTimesAuto: "დროები უკვე ავტომატურად ითვლება ყოველ დღეზე (ხელით არაფერი შეცვლილა).",
+  recalcTimesAuto: "დროები უკვე თავისით ითვლება: დღის დაწყებიდან, ნაბიჯების ხანგრძლივობიდან და გზიდან.",
   palette_days: "დღეები",
   savedDaysHere: "შენახული დღეები:",
   somethingMissing: "რაღაც ჯერ აკლია",
@@ -6336,6 +6337,7 @@ const ka: Dict = {
   historyReturnHelp: "დღის ეს ნაწილი დაბრუნდეს ისე, როგორც ამ ცვლილებამდე იყო",
   undoStep: "უკან",
   redoStep: "წინ",
+  progDayStart: "დღის დაწყება",
 }
 
 export type Lang = 'en' | 'ka'

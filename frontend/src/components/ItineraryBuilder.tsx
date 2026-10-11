@@ -14,7 +14,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, BedDouble, CalendarDays, ChevronDown, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ChevronsUpDown, LayoutGrid } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useStickyHeight } from '../lib/sticky'
 import { api, type BreakfastMode, type DayExtra, type DayTemplate, type ScheduleItem, type StaffAssignment, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
@@ -77,6 +77,12 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   disabled?: boolean
   alerts?: TourAlert[]        // shown on their day
 }) {
+  // The floating tools bar's height (plus its gap): notices appear above it, not under it.
+  const floatBar = useCallback((el: HTMLElement | null) => {
+    const root = document.documentElement.style
+    if (el) root.setProperty('--float-bar', `${Math.round(el.getBoundingClientRect().height) + 16}px`)
+    else root.removeProperty('--float-bar')
+  }, [])
   const { t } = useI18n()
   const ws = useWorkspace()!
   const canCreate = !disabled && can(ws, 'operations')
@@ -318,7 +324,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
           )}
           {/* Where the tour stands and the builder's tools, floating at the bottom (names on hover);
               it moves up when the "save changes" bar is there. */}
-          <div className={cn('fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit [[role=dialog]_&]:bottom-20 max-w-[calc(100%-2rem)] items-center gap-x-3 rounded-full border py-1 pl-4 pr-1 text-sm shadow-lg backdrop-blur',
+          <div ref={floatBar} className={cn('fixed inset-x-0 bottom-4 z-30 mx-auto flex w-fit [[role=dialog]_&]:bottom-20 max-w-[calc(100%-2rem)] items-center gap-x-3 rounded-full border py-1 pl-4 pr-1 text-sm shadow-lg backdrop-blur',
             pending ? 'border-brand-200 bg-brand-50/95' : 'border-slate-200 bg-white/95', 'pl-1.5')}>
             {/* How to look at the tour (its days / the whole tour): one small button. */}
           <Menu label={t('itineraryView')} triggerClassName="flex h-8 shrink-0 items-center gap-0.5 rounded-full px-2 text-slate-700 hover:bg-slate-100"
@@ -1163,10 +1169,8 @@ function RecalcTimes({ days, byId, onChange, tools }: { days: DayFields[]; byId:
   const services = useServiceList()
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
-  const [release, setRelease] = useState(false)
   const [busy, setBusy] = useState(false)
   const arranged = days.filter((d) => d.schedule?.length).length
-  const pinned = days.reduce((n, d) => n + (d.schedule ?? []).filter((x) => x.fixed && x.kind !== 'flight').length, 0)
   tools.current.recalc = () => (arranged ? setOpen(true) : toast('recalcTimesAuto'))
   if (!arranged) return null
   const run = async () => {
@@ -1174,7 +1178,7 @@ function RecalcTimes({ days, byId, onChange, tools }: { days: DayFields[]; byId:
     const factor = ws.drive_factor ?? 1.25
     const next = await Promise.all(days.map(async (d, i) => {
       const s = await relayDay(ws.id, d, i, i === days.length - 1, byId, i > 0 ? days[i - 1].city : undefined,
-        i > 0 ? days[i - 1].hotel_id : null, factor, release, services.data ?? [])
+        i > 0 ? days[i - 1].hotel_id : null, factor, services.data ?? [])
       return s ? { ...d, schedule: s } : d
     }))
     const changed = next.filter((d, i) => d !== days[i]).length
@@ -1191,13 +1195,6 @@ function RecalcTimes({ days, byId, onChange, tools }: { days: DayFields[]; byId:
       </>}>
         <div className="space-y-3 text-sm text-slate-700">
           <p>{t('recalcTimesBody', { n: arranged, of: days.length })}</p>
-          {pinned > 0 && (
-            <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-3">
-              <input type="checkbox" checked={release} onChange={(e) => setRelease(e.target.checked)} className="mt-0.5 h-4 w-4 accent-brand-600" />
-              <span><span className="font-medium text-slate-800">{t('recalcTimesRelease', { n: pinned })}</span>
-                <span className="block text-xs text-slate-500">{t('recalcTimesReleaseHelp')}</span></span>
-            </label>
-          )}
           <p className="text-xs text-slate-500">{t('recalcTimesSaveNote')}</p>
         </div>
       </Dialog>
