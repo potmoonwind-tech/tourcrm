@@ -27,7 +27,7 @@ interface HotelRooms { vendor: VendorRef; city: string; nights: Night[]; groups:
 interface RoomsData { date_from: string; date_to: string; hotels: HotelRooms[] }
 
 const SPAN = 28 // days visible
-const COL = 48 // px per night
+const COL = 64 // px per night (room count and the group's code)
 const LABEL = 200 // px, sticky hotel column
 const BOOKING_TONE: Record<BookingStatus, Tone> = { to_book: 'grey', requested: 'blue', confirmed: 'green', problem: 'red', cancelled: 'light' }
 const ORDER = ['DBL', 'TWN', 'SGL', 'TRP', 'QUAD']
@@ -64,7 +64,9 @@ export function RoomsByNightPage() {
   })
   const all = useMemo(() => q.data?.hotels ?? [], [q.data])
   const cities = useMemo(() => [...new Set(all.map((h) => h.city).filter(Boolean))].sort(), [all])
-  const hotels = city ? all.filter((h) => h.city === city) : all
+  // Only the hotels with a night in these weeks (no empty rows).
+  const hotels = (city ? all.filter((h) => h.city === city) : all)
+    .filter((h) => h.nights.some((n) => (n.rooms || n.maybe) && n.date >= from && n.date <= to))
 
   return (
     <>
@@ -118,15 +120,24 @@ export function RoomsByNightPage() {
                           const n = by[d]
                           const dow = new Date(parse(d)).getUTCDay()
                           if (!n) return <td key={d} className={cn('border-r border-slate-100', (dow === 0 || dow === 6) && 'bg-slate-50/70')} />
+                          // Who sleeps here that night, and how it's booked: all confirmed = green, a problem = red,
+                          // else (to book / asked) amber; inquiries only = grey.
+                          const here = h.groups.filter((g) => g.nights.includes(d))
+                          const sure = here.filter((g) => g.status !== 'inquiry')
+                          const state = !sure.length ? 'maybe' : sure.some((g) => g.booking === 'problem') ? 'problem'
+                            : sure.every((g) => g.booking === 'confirmed') ? 'ok' : 'open'
+                          const types = sumRooms(sure).text
+                          const staff = sure.reduce((x, g) => x + g.staff, 0)
+                          const tip = [types, staff ? t('rbnStaff', { n: staff }) : '', here.map((g) => `${g.code}: ${t(`bstatus_${g.booking}` as TKey)}`).join(' · ')].filter(Boolean).join('\n')
                           return (
                             <td key={d} className="border-r border-slate-100 p-0.5">
-                              <button type="button" onClick={() => setOpen({ hotel: h, date: d })}
+                              <button type="button" onClick={() => setOpen({ hotel: h, date: d })} title={tip}
                                 aria-label={t('rbnCell', { hotel: h.vendor.name, date: fmt(d, lang), n: n.rooms + n.maybe, g: n.groups })}
-                                className={cn('flex h-11 w-full flex-col items-center justify-center rounded-md leading-tight transition-colors hover:ring-2 hover:ring-brand-400',
-                                  n.rooms ? 'bg-brand-50 text-brand-900' : 'bg-slate-50 text-slate-600',
-                                  n.groups > 1 && 'bg-brand-100')}>
-                                <span className="font-semibold tabular-nums">{n.guessed && '~'}{n.rooms || (n.maybe ? '' : 0)}</span>
-                                {n.maybe > 0 && <span className="text-xs tabular-nums text-slate-600">+{n.maybe}</span>}
+                                className={cn('flex h-11 w-full flex-col items-center justify-center rounded-md border leading-tight transition-colors hover:ring-2 hover:ring-brand-400',
+                                  state === 'ok' ? 'border-emerald-200 bg-emerald-50 text-emerald-900' : state === 'problem' ? 'border-red-200 bg-red-50 text-red-800'
+                                    : state === 'open' ? 'border-amber-200 bg-amber-50 text-amber-900' : 'border-slate-200 bg-slate-50 text-slate-600')}>
+                                <span className="text-sm font-semibold tabular-nums">{n.guessed && !n.rooms ? '?' : <>{n.guessed && '~'}{n.rooms || (n.maybe ? '' : 0)}</>}{n.maybe > 0 && <span className="text-[11px] font-normal text-slate-500"> +{n.maybe}</span>}</span>
+                                <span className="max-w-full truncate px-0.5 font-mono text-[10px] opacity-80">{here.length === 1 ? here[0].code : t('rbnGroupsN', { n: here.length })}</span>
                               </button>
                             </td>
                           )
@@ -138,11 +149,15 @@ export function RoomsByNightPage() {
                 </tbody>
               </table>
             </div>
-            <ul className="mt-3 space-y-0.5 text-sm text-slate-600">
-              <li>{t('rbnLegendRooms')}</li>
-              <li>{t('rbnLegendGuess')}</li>
-              <li>{t('rbnLegendMaybe')}</li>
-            </ul>
+            {/* What the colours and marks mean. */}
+            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-600">
+              <span className="flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm border border-emerald-200 bg-emerald-50" />{t('rbnLegendOk')}</span>
+              <span className="flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm border border-amber-200 bg-amber-50" />{t('rbnLegendOpen')}</span>
+              <span className="flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm border border-red-200 bg-red-50" />{t('rbnLegendProblem')}</span>
+              <span className="flex items-center gap-1.5"><span className="h-3 w-4 rounded-sm border border-slate-200 bg-slate-50" />{t('rbnLegendInquiry')}</span>
+              <span>{t('rbnLegendGuess')}</span>
+              <span>{t('rbnLegendMaybe')}</span>
+            </div>
           </>
         )}
       </div>

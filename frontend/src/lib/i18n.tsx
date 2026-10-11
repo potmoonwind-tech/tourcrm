@@ -3111,6 +3111,11 @@ const en = {
   tlNow: "Now: {city}",
   tlStarts: "Starts {date}",
   tlEnded: "Ended",
+  rbnGroupsN: "{n} groups",
+  rbnLegendOk: "Booked (confirmed)",
+  rbnLegendOpen: "Not confirmed yet",
+  rbnLegendProblem: "A problem",
+  rbnLegendInquiry: "Inquiries only",
 }
 
 type Dict = typeof en
@@ -6218,6 +6223,11 @@ const ka: Dict = {
   tlNow: "ახლა: {city}",
   tlStarts: "იწყება {date}",
   tlEnded: "დასრულდა",
+  rbnGroupsN: "{n} ჯგუფი",
+  rbnLegendOk: "დაჯავშნილი (დადასტურებული)",
+  rbnLegendOpen: "ჯერ დაუდასტურებელი",
+  rbnLegendProblem: "პრობლემა",
+  rbnLegendInquiry: "მხოლოდ მოთხოვნები",
 }
 
 export type Lang = 'en' | 'ka'
