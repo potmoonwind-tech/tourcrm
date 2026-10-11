@@ -27,6 +27,7 @@ import { RoutesPage } from './pages/Routes'
 import { TimelinePage } from './pages/Timeline'
 import { RoomsByNightPage } from './pages/RoomsByNight'
 import { EmailSettingsPage } from './pages/EmailSettings'
+import { PlaceNamesPage } from './pages/PlaceNames'
 import { PricingPage } from './pages/Pricing'
 import { TourDetailPage } from './pages/TourDetail'
 import { ToursPage } from './pages/Tours'
@@ -134,6 +135,7 @@ export default function App() {
           <Route path="settings/import" element={<ImportPage />} />
           <Route path="settings/general" element={<GeneralSettingsPage />} />
           <Route path="settings/email" element={<EmailSettingsPage />} />
+          <Route path="settings/places" element={<PlaceNamesPage />} />
           <Route path="settings" element={<Navigate to="general" replace />} />
           <Route path="*" element={<ToAgencyHome />} />
         </Route>

@@ -529,7 +529,7 @@ def place_details(place_id: str, session: str | None = None, timeout: float = 6.
             data = _google_get(client, GOOGLE_PLACE.format(id=place_id),
                                {"languageCode": lang or "en", **({"sessionToken": session} if session else {})},
                                {"X-Goog-Api-Key": settings.google_maps_key,
-                                "X-Goog-FieldMask": "location,formattedAddress,addressComponents,types,regularOpeningHours"})
+                                "X-Goog-FieldMask": "location,formattedAddress,addressComponents,types,regularOpeningHours,displayName"})
     except (httpx.HTTPError, ValueError):
         return None
     loc = data.get("location") or {}
@@ -539,7 +539,8 @@ def place_details(place_id: str, session: str | None = None, timeout: float = 6.
     street = " ".join(x for x in (parts.get("route"), parts.get("street_number")) if x)
     town = parts.get("locality") or parts.get("postal_town") or parts.get("administrative_area_level_2") or ""
     return {"lat": float(loc["latitude"]), "lon": float(loc["longitude"]), "street": street[:150], "city": town[:100],
-            "detail": (data.get("formattedAddress") or "")[:200], "place_id": place_id, "hours": opening_hours(data.get("regularOpeningHours"))}
+            "detail": (data.get("formattedAddress") or "")[:200], "place_id": place_id, "hours": opening_hours(data.get("regularOpeningHours")),
+            "name": ((data.get("displayName") or {}).get("text") or "")[:200]}
 
 
 def opening_hours(raw: dict | None) -> dict | None:

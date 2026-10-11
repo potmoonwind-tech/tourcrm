@@ -215,14 +215,17 @@ def make_client(ws: Workspace):
 
 def translate(db: Session, ws: Workspace, texts: set[str], lang: str, warnings: list[str]) -> dict[str, str]:
     """Each text in `lang`: kept translations first, the rest asked of the AI in one go (and kept)."""
-    todo = sorted(t for t in texts if t and _needs(t, lang))
-    if not todo:
-        return {}
+    # A name the agency set itself (Settings → Place names) is used even when the text is already in that
+    # language ("Tbilisi" → "Tbilisi, the capital"); the AI is only asked for texts in another language.
+    every = sorted(t for t in texts if t and re.search(r"[^\W\d_]", t))
+    todo = [t for t in every if _needs(t, lang)]
     key = lambda t: hashlib.sha1(t.encode()).hexdigest()
     kept = {r.source_hash: r.result for r in db.scalars(select(TextTranslation).where(
         TextTranslation.workspace_id == ws.id, TextTranslation.lang == lang,
-        TextTranslation.source_hash.in_([key(t) for t in todo])))}
-    out = {t: kept[key(t)] for t in todo if key(t) in kept}
+        TextTranslation.source_hash.in_([key(t) for t in every])))} if every else {}
+    out = {t: kept[key(t)] for t in every if key(t) in kept}
+    if not todo:
+        return out
     ask = [t for t in todo if t not in out]
     if not ask:
         return out
