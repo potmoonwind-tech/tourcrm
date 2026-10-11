@@ -864,13 +864,14 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
           <button type="button" {...attributes} {...listeners} aria-label={t('dragToReorder')} title={t('dragToReorder')}
             className="-ml-1 cursor-grab touch-none rounded-md p-0.5 text-slate-400 opacity-0 hover:bg-slate-100 focus:opacity-100 active:cursor-grabbing group-hover/head:opacity-100"><GripVertical size={16} /></button>
         )}
-        <DateTile date={date} n={index + 1} active={active} />
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
           <span className="flex shrink-0 items-baseline gap-1 text-xs">
             <span className={cn('rounded-full px-2 py-0.5 font-bold tracking-wide', active ? 'bg-brand-600 text-white' : 'bg-slate-800 text-white')}>
               {t('dayN', { n: index + 1 })}
             </span>
             <span className="text-slate-500">{t('dayOfN', { n: total })}</span>
+            {date && <span className="text-slate-300" aria-hidden>·</span>}
+            {date && <DateTile date={date} n={index + 1} active={active} />}
           </span>
           {/* From where (last night's town) to tonight's: the day's title. */}
           <span className="flex min-w-0 items-center gap-1">
@@ -1620,8 +1621,8 @@ function BreakfastModePick({ value, disabled, onChange }: { value: BreakfastMode
   return (
     <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as BreakfastMode)} aria-label={t('breakfastWhere')}
       title={t('breakfastWhere')}
-      className={cn('h-7 cursor-pointer rounded-full border py-0 pl-2.5 pr-7 text-xs font-medium [&>option]:bg-white [&>option]:text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200',
-        value === 'hotel' || value === 'included' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : value === 'tourists' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-600')}>
+      className={cn('h-6 cursor-pointer rounded-full border border-slate-200 bg-white py-0 pl-2 pr-6 text-xs [field-sizing:content] [&>option]:bg-white [&>option]:text-slate-800 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-200',
+        value === 'hotel' || value === 'included' ? 'text-emerald-700' : value === 'tourists' ? 'text-amber-700' : 'text-slate-500')}>
       <option value="hotel">{t('breakfastAtHotel')}</option>
       <option value="included">{t('breakfastElsewhere')}</option>
       <option value="tourists">{t('mealTourists')}</option>
@@ -1636,8 +1637,8 @@ function MealModePick({ value, disabled, onChange }: { value: MealMode; disabled
   return (
     <select value={value} disabled={disabled} onChange={(e) => onChange(e.target.value as MealMode)} aria-label={t('mealWhoPays')}
       title={t('mealWhoPays')}
-      className={cn('h-7 cursor-pointer rounded-full border py-0 pl-2.5 pr-7 text-xs font-medium [&>option]:bg-white [&>option]:text-slate-800 focus:outline-none focus:ring-2 focus:ring-brand-200',
-        value === 'included' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : value === 'tourists' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-slate-200 bg-white text-slate-600')}>
+      className={cn('h-6 cursor-pointer rounded-full border border-slate-200 bg-white py-0 pl-2 pr-6 text-xs [field-sizing:content] [&>option]:bg-white [&>option]:text-slate-800 hover:border-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-200',
+        value === 'included' ? 'text-emerald-700' : value === 'tourists' ? 'text-amber-700' : 'text-slate-500')}>
       <option value="included">{t('mealIncluded')}</option>
       <option value="tourists">{t('mealTourists')}</option>
       <option value="own">{t('mealOwn')}</option>
@@ -1752,7 +1753,7 @@ function OwnMealWhere({ value, disabled, onChange }: { value: string; disabled?:
 function DateTile({ date, n, active }: { date?: string; n: number; active: boolean }) {
   const { lang } = useI18n()
   return (
-    <span className={cn('shrink-0 whitespace-nowrap text-sm tabular-nums', active ? 'font-semibold text-brand-700' : 'font-medium text-slate-600')}>
+    <span className={cn('shrink-0 whitespace-nowrap text-xs tabular-nums', active ? 'font-semibold text-brand-700' : 'font-medium text-slate-600')}>
       {date ? `${weekday(date, lang)} ${Number(date.slice(8))} ${fmt(date, lang, { month: 'short' })}` : n}
     </span>
   )

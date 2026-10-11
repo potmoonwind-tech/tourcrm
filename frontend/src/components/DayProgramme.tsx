@@ -659,10 +659,10 @@ function Step({ x, label, picker, disabled, issue, onFix, length, sights, sight,
               <div className="px-1">
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                   {slot.summary ? (
-                    <button type="button" onClick={onToggle} aria-expanded className="flex items-center gap-1 text-sm font-medium text-slate-800 hover:text-brand-700">
+                    <button type="button" onClick={onToggle} aria-expanded className="flex items-center gap-1 text-[15px] font-semibold text-slate-900 hover:text-brand-700">
                       {slotTitle(x, t)}<ChevronUp size={14} aria-hidden className="text-slate-400" />
                     </button>
-                  ) : <span className="text-sm font-medium text-slate-800">{slotTitle(x, t)}</span>}
+                  ) : <span className="text-[15px] font-semibold text-slate-900">{slotTitle(x, t)}</span>}
                   {slot.aside}
                   {slot.grip}
                   {slot.state === 'todo' && <span className="ml-auto rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-semibold text-amber-800">{t('slotTodo')}</span>}
