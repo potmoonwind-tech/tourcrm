@@ -596,7 +596,11 @@ def resolve(db: Session, client: httpx.Client, names: list[str], budget: _Budget
     found = [([p] if (p := pinned(db, workspace_id, n)) else candidates(db, client, n, budget, countries)) if n else []
              for n in names]
     chosen = choose(found)
-    far = far_stops(chosen)
+    # A town is where it is, however far off the day's way (lunch in Tbilisi on a Kutaisi day is a long
+    # drive, not a mistake): only places are searched again near their neighbours, never a town - else
+    # "Tbilisi" becomes a shop called Tbilisi in Kutaisi.
+    towns = {i for i, n in enumerate(names) if n and chosen[i] is not None and is_town(n, chosen[i])}
+    far = far_stops(chosen) - towns
     for i, n in enumerate(names):
         if not n or (chosen[i] is not None and i not in far):
             continue
@@ -605,7 +609,21 @@ def resolve(db: Session, client: httpx.Client, names: list[str], budget: _Budget
         if around and (hit := near(db, client, n, around, budget)) is not None:
             chosen[i] = hit
             far.discard(i)
-    return chosen, far_stops(chosen)
+    return chosen, far_stops(chosen) - towns
+
+
+_STREET = ("street", "avenue", "lane", "road", "square", "highway", "alley", "str.", "rruga", "ქუჩა", "გამზირი", "ჩიხი", "улица", "проспект")
+
+
+def is_town(name: str, g: "GeoPlace") -> bool:
+    """The map's place is the town of that name itself ("Tbilisi, Georgia", "Mestia, Mestia Municipality, …,
+    3200, Georgia"), not a shop, square or street named after it (no house number, no street in its address)."""
+    parts = [p.strip() for p in (g.name or "").split(",") if p.strip()]
+    if not parts or parts[0].lower() != " ".join(name.split()).lower():
+        return False
+    rest = parts[1:]           # the map always says where a town is (at least its country); a bare name says nothing
+    return bool(rest) and not any(any(ch.isdigit() for ch in p) and not p.isdigit() for p in rest) \
+        and not any(w in p.lower() for p in rest for w in _STREET)
 
 
 MAX_SHAPES = 40      # new roads asked per map (a 10-day tour has ~30 legs; the rest come next time)

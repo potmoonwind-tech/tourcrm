@@ -266,3 +266,15 @@ def test_map_of_a_path_has_places_and_roads(make_client, monkeypatch):
     # Roads skip the unknown place and the same place twice in a row.
     assert [(x["from"], x["to"]) for x in m["roads"]] == [(0, 1), (1, 3)] and m["roads"][0]["polyline"] == "_p~iF~ps|U"
     assert asked == [("tbilisi", "mtskheta"), ("mtskheta", "gudauri")]
+
+
+def test_a_town_off_the_way_stays_the_town():
+    """Lunch in Tbilisi on a Kutaisi day: a long drive, not a shop called "Tbilisi" next door."""
+    from app import geo
+    from app.models import GeoPlace
+    town = GeoPlace(key="tbilisi", name="Tbilisi, Georgia", lat=41.69, lon=44.80)
+    shop = GeoPlace(key="x", name="Tbilisi, 2/21, Lado Asatiani Street, Kutaisi, Imereti, 4600, Georgia", lat=42.26, lon=42.70)
+    assert geo.is_town("Tbilisi", town) and not geo.is_town("Tbilisi", shop)
+    assert geo.is_town("Mestia", GeoPlace(key="m", name="Mestia, Mestia Municipality, Samegrelo-Upper Svaneti, 3200, Georgia", lat=43, lon=42.7))
+    assert not geo.is_town("Kutaisi", GeoPlace(key="k", name="Kutaisi Square, Rustavi, Lower Kartli, Georgia", lat=41.5, lon=44.9))
+    assert not geo.is_town("Friendship monument", GeoPlace(key="f", name="Friendship monument", lat=41.3, lon=19.8))
