@@ -14,7 +14,7 @@ import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, v
 import { CSS } from '@dnd-kit/utilities'
 import { AlertTriangle, BedDouble, CalendarDays, Table2, Bookmark, Bus, Car, Clock, PanelLeft, CopyPlus, GripVertical, Hand, Map as MapIcon, MapPinned, Plane, Plus, Search, Ticket, Trash2, Utensils, X, ArrowRight, Check, ChevronRight, Download, ListChecks } from 'lucide-react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Fragment, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useStickyHeight } from '../lib/sticky'
 import { api, type BreakfastMode, type DayExtra, type DayTemplate, type ScheduleItem, type StaffAssignment, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
@@ -64,9 +64,10 @@ export const blankDay = (city = ''): DayFields =>
   ({ city, hotel_id: null, lunch_id: null, dinner_id: null, border_crossing: '', notes: '', extras: [], km: null, stops: [],
      lunch_mode: 'included', dinner_mode: 'included', flights: [], schedule: [] })
 
-export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, crew, onDownload, pending, flush }: {
+export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, crew, onDownload, pending, flush, top }: {
   days: DayFields[]; onChange: (days: DayFields[]) => void
   flush?: boolean             // right under the page's tabs: the toolbar joins them (no gap)
+  top?: string                // where its sticky bars start when not under a page's tab bar (a drawer: '0px')
   pending?: ReactNode         // unsaved changes: "Discard / Save", shown in the builder's bottom bar
   onDownload?: () => void     // "Download programme", in the builder's "⋯"
   crew?: Crew                 // a tour's group and staff: each meal's tables and plates
@@ -250,8 +251,10 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   return (
     <DndContext sensors={sensors} collisionDetection={collision} onDragStart={onDragStart} onDragEnd={onDragEnd}
       onDragCancel={() => { setDragging(null); setCarrying(null) }}>
+      {/* The sticky bars stack from the page's tab bar; in a drawer there's none, so they start at its top. */}
+      <div className="contents" style={top ? ({ '--tabs-h': top } as CSSProperties) : undefined}>
         {/* The builder's toolbar, kept in view: how to look at the days, and the days themselves. */}
-        <div ref={toolbar} data-builder-toolbar className={cn('sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8', flush && '-mt-6')}>
+        <div ref={toolbar} data-builder-toolbar className={cn('sticky top-[var(--tabs-h,42px)] z-20 -mx-4 mb-3 flex items-center gap-2 border-b border-slate-200 bg-white/95 px-4 py-1.5 backdrop-blur md:-mx-8 md:px-8', flush && '-mt-6', top && 'mx-0 px-0 md:mx-0 md:px-0')}>
           <SegmentedControl size="sm" label={t('itineraryView')} value={view} onChange={setView} className="shrink-0"
             options={[
               ['check', <span key="c" className="flex items-center gap-1.5" title={t('viewCheck')}><ListChecks size={15} aria-hidden /><span className={cn(view !== 'check' && 'sr-only')}>{t('viewCheck')}</span></span>],
@@ -347,6 +350,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
         onCreated={(v) => newVendor.then?.(v)} />}
       {newService && <QuickServiceDialog vendorId={newService.vendorId} menu={newService.menu} meal={newService.meal} onClose={() => setNewService(null)}
         onCreated={(sv) => newService.then?.(sv)} />}
+      </div>
     </DndContext>
   )
 }

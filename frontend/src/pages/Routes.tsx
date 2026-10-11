@@ -181,7 +181,7 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
             </div>
           </div>
           {exporting && <ProgrammeDialog title={f.name || f.code} days={f.days} onClose={() => setExporting(false)} />}
-          <ItineraryBuilder onDownload={() => setExporting(true)} days={f.days} disabled={!canEdit} onChange={(days) => setF({ ...f, days })}
+          <ItineraryBuilder top="0px" onDownload={() => setExporting(true)} days={f.days} disabled={!canEdit} onChange={(days) => setF({ ...f, days })}
             busReturn={f.bus_return} onBusReturn={(bus_return) => setF({ ...f, bus_return })} />
         </fieldset>
         {!canEdit && <ErrorText error={save.error || remove.error} />}
