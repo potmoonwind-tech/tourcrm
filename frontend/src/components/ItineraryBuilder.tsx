@@ -866,16 +866,22 @@ function DayCard({ id, index, day, date, last, total, active, onFocusDay, vendor
       {/* The day's head: which day, when, from where to where - pinned while working down the day. */}
       <header className={cn('group/head sticky top-[calc(var(--tabs-h,42px)+var(--bar-h,45px))] z-10 flex items-center gap-2.5 rounded-t-xl border-b px-3 py-1.5 backdrop-blur',
         active ? 'border-brand-200 bg-brand-50/95' : 'border-slate-100 bg-white/95')}>
-        {!disabled && (
-          <button type="button" {...attributes} {...listeners} aria-label={t('dragToReorder')} title={t('dragToReorder')}
-            className="-ml-1 cursor-grab touch-none rounded-md p-0.5 text-slate-400 opacity-0 hover:bg-slate-100 focus:opacity-100 active:cursor-grabbing group-hover/head:opacity-100"><GripVertical size={16} /></button>
-        )}
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-0.5">
           {/* Which day and when, in one quiet bubble ("3/8 · Wed 4 Nov"): the places are the title. */}
           <span title={`${t('dayN', { n: index + 1 })} ${t('dayOfN', { n: total })}`}
             className={cn('flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full py-0.5 pl-0.5 pr-2 text-xs tabular-nums',
               active ? 'bg-brand-100 font-semibold text-brand-800' : 'bg-slate-100 font-medium text-slate-600')}>
-            <span className={cn('flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white', active ? 'bg-brand-600' : 'bg-slate-700')}>{index + 1}</span>
+            {/* The day's number; on hover it becomes the handle to move the day (nothing shifts). */}
+            {disabled ? (
+              <span className={cn('flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white', active ? 'bg-brand-600' : 'bg-slate-700')}>{index + 1}</span>
+            ) : (
+              <button type="button" {...attributes} {...listeners} aria-label={`${t('dayN', { n: index + 1 })} · ${t('dragToReorder')}`} title={t('dragToReorder')}
+                className={cn('flex h-5 min-w-5 cursor-grab touch-none items-center justify-center rounded-full px-1 text-[11px] font-bold text-white active:cursor-grabbing',
+                  active ? 'bg-brand-600' : 'bg-slate-700')}>
+                <span className="group-hover/head:hidden">{index + 1}</span>
+                <GripVertical size={12} aria-hidden className="hidden group-hover/head:block" />
+              </button>
+            )}
             <span>/{total}{date && ` · ${dayDate(date, lang, dateStyle)}`}</span>
           </span>
           {/* From where (last night's town) to tonight's: the day's title. */}
