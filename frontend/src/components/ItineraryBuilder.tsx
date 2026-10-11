@@ -373,6 +373,7 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
   onNewVendor?: (type: VendorType, then: (v: Vendor) => void) => void
 }) {
   const { t, lang } = useI18n()
+  const dateStyle = useDateStyle()
   const serving = useMemo(() => new Set(menus.filter((s) => s.category === 'meal' || s.code === 'lunch' || s.code === 'dinner').map((s) => s.vendor.id)), [menus])
   // Every hotel can serve a meal; one with no meal price yet says so (its price is added in the catalogue).
   const mealNote = (v: Vendor) => (v.type === 'hotel' && !serving.has(v.id) ? ` · ${t('noMealPrice')}` : '')
@@ -390,28 +391,33 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
   const meal = (i: number, which: 'lunch' | 'dinner') => {
     const d = days[i]
     const mode = which === 'lunch' ? d.lunch_mode : d.dinner_mode
-    if (mode === 'own') return <span className="text-xs text-slate-500">{t('mealOwn')}</span>
+    if (mode === 'own') return <span className="flex h-8 items-center px-1.5 text-xs text-slate-500">{t('mealOwn')}</span>
     const id = which === 'lunch' ? d.lunch_id : d.dinner_id
     return (
-      <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} note={mealNote} value={id}
+      <VendorSelect quiet todo={!id} placeholder={t('chooseShort')} disabled={disabled} vendors={vendors} types={['restaurant', 'hotel']} note={mealNote} value={id}
         cities={which === 'lunch' ? [...(d.stops ?? []), d.city] : [d.city, ...(d.stops ?? [])]}
         onChange={(v) => onSet(i, which === 'lunch' ? { lunch_id: v, lunch_menu_id: null } : { dinner_id: v, dinner_menu_id: null })}
         onAddNew={onNewVendor && (() => onNewVendor('restaurant', (v) => onSet(i, which === 'lunch' ? { lunch_id: v.id, lunch_menu_id: null } : { dinner_id: v.id, dinner_menu_id: null })))} />
     )
   }
   return (
+    // Fits the page (fixed column shares, nothing scrolls sideways); every cell reads as text and shows its
+    // frame on hover; what's still to choose says so in amber.
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
-      <table className="w-full min-w-[920px] text-sm">
+      <table className="w-full min-w-[720px] table-fixed text-sm">
         <caption className="sr-only">{t('viewOverview')}</caption>
-        <thead className="border-b border-slate-200 bg-slate-50 text-left text-xs font-medium text-slate-500">
+        <colgroup>
+          <col className="w-28" /><col className="w-[13%]" /><col className="w-[22%]" /><col /><col /><col className="w-[13%]" /><col className="w-14" />
+        </colgroup>
+        <thead className="border-b border-slate-200 text-left text-xs font-medium text-slate-500">
           <tr>
-            <th scope="col" className="w-16 px-3 py-2">{t('day')}</th>
-            <th scope="col" className="w-40 px-2 py-2">{t('city')}</th>
+            <th scope="col" className="px-3 py-2">{t('day')}</th>
+            <th scope="col" className="px-2 py-2">{t('city')}</th>
             <th scope="col" className="px-2 py-2">{t('hotel')}</th>
             <th scope="col" className="px-2 py-2">{t('lunch')}</th>
             <th scope="col" className="px-2 py-2">{t('dinner')}</th>
             <th scope="col" className="px-2 py-2">{t('dayServices')}</th>
-            <th scope="col" className="w-16 px-3 py-2 text-right">km</th>
+            <th scope="col" className="px-3 py-2 text-right">km</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
@@ -420,50 +426,50 @@ function Overview({ days, dates, vendors, menus, disabled, alerts, onSet, onSetM
             const last = i === days.length - 1
             const warn = alerts.filter((a) => a.day === i + 1)
             return (
-              <tr key={i} className="align-top">
-                <th scope="row" className="px-3 py-2 text-left font-normal">
+              <tr key={i} className="align-top hover:bg-slate-50/60">
+                <th scope="row" className="px-3 py-1.5 text-left font-normal">
                   <button type="button" onClick={() => onOpen(i)} title={t('openDay', { n: i + 1 })}
-                    className="flex items-center gap-1.5 rounded-md text-left hover:text-brand-700">
-                    <span className={cn('flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white', warn.length ? 'bg-amber-500' : 'bg-slate-800')}>{i + 1}</span>
+                    className="flex h-8 items-center gap-1.5 whitespace-nowrap rounded-md text-left text-xs tabular-nums text-slate-600 hover:text-brand-700">
+                    <span className={cn('flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[11px] font-bold text-white', warn.length ? 'bg-amber-500' : 'bg-slate-700')}>{i + 1}</span>
+                    {dates?.[i] && dayDate(dates[i], lang, dateStyle)}
                   </button>
-                  {dates?.[i] && <span className="mt-0.5 block whitespace-nowrap text-xs text-slate-500">{fmt(dates[i], lang)}</span>}
                 </th>
-                <td className="min-w-[9rem] px-2 py-2">
+                <td className="px-1.5 py-1.5">
                   <PlaceInput disabled={disabled} value={d.city} onChange={(city) => onSet(i, { city })} placeholder={t('cityNight')}
-                    className={cn(field, 'h-9 font-medium')} aria-label={`${t('day')} ${i + 1} · ${t('city')}`} />
-                  {warn.map((a, k) => <p key={k} className="mt-1 flex items-start gap-1 text-xs text-amber-800"><AlertTriangle size={12} className="mt-0.5 shrink-0" />{t(`alert_${a.code}` as TKey, a.params)}</p>)}
+                    className="h-8 w-full min-w-0 rounded-md border border-transparent bg-transparent px-1.5 font-medium text-slate-900 placeholder:font-normal placeholder:text-amber-700 hover:border-slate-300 hover:bg-white focus:border-brand-600 focus:bg-white focus:outline-none"
+                    aria-label={`${t('day')} ${i + 1} · ${t('city')}`} />
+                  {warn.map((a, k) => <p key={k} className="mt-0.5 flex items-start gap-1 px-1.5 text-xs text-amber-800"><AlertTriangle size={12} className="mt-0.5 shrink-0" />{t(`alert_${a.code}` as TKey, a.params)}</p>)}
                 </td>
                 {last ? (
-                  <td className="px-2 py-2 text-xs text-slate-500">{t('departureDay')}</td>
+                  <td className="px-3 py-1.5"><span className="flex h-8 items-center text-xs text-slate-400">{t('departureDay')}</span></td>
                 ) : covered.has(i) ? null : (
-                  <td className="px-2 py-2" rowSpan={stay ? stay.to - stay.from + 1 : 1}>
-                    <div className={cn(stay && stay.to > stay.from && 'rounded-lg border border-brand-200 bg-brand-50/40 p-1.5')}>
-                      <VendorSelect className="h-9" disabled={disabled} vendors={vendors} types={['hotel']} value={d.hotel_id} cities={[d.city]}
-                        onChange={(v) => {
-                          // The whole stay moves to the new hotel.
-                          const patches: Record<number, Partial<DayFields>> = {}
-                          for (let j = stay!.from; j <= stay!.to; j++) patches[j] = { hotel_id: v }
-                          onSetMany(patches)
-                        }}
-                        onAddNew={onNewVendor && (() => onNewVendor('hotel', (v) => onSet(i, { hotel_id: v.id })))} />
-                      {stay && stay.to > stay.from && (
-                        <p className="mt-1 text-xs font-medium text-brand-800">{t('stayNights', { n: stay.to - stay.from + 1, from: stay.from + 1, to: stay.to + 1 })}</p>
-                      )}
-                      {!disabled && d.hotel_id && stay && stay.to + 1 < days.length - 1 && !days[stay.to + 1].hotel_id && (
-                        <button type="button" onClick={() => onSet(stay.to + 1, { hotel_id: d.hotel_id, city: days[stay.to + 1].city || d.city })}
-                          className="mt-1 text-xs font-medium text-brand-700 hover:underline">{t('stayOneMoreNight')}</button>
-                      )}
-                    </div>
+                  <td className={cn('px-1.5 py-1.5', stay && stay.to > stay.from && 'border-l-2 border-l-brand-200')} rowSpan={stay ? stay.to - stay.from + 1 : 1}>
+                    <VendorSelect quiet todo={!d.hotel_id} placeholder={t('chooseShort')} disabled={disabled} vendors={vendors} types={['hotel']} value={d.hotel_id} cities={[d.city]}
+                      onChange={(v) => {
+                        // The whole stay moves to the new hotel.
+                        const patches: Record<number, Partial<DayFields>> = {}
+                        for (let j = stay!.from; j <= stay!.to; j++) patches[j] = { hotel_id: v }
+                        onSetMany(patches)
+                      }}
+                      onAddNew={onNewVendor && (() => onNewVendor('hotel', (v) => onSet(i, { hotel_id: v.id })))} />
+                    {stay && stay.to > stay.from && (
+                      <p className="px-1.5 text-xs text-slate-500">{t('stayNights', { n: stay.to - stay.from + 1, from: stay.from + 1, to: stay.to + 1 })}</p>
+                    )}
+                    {!disabled && d.hotel_id && stay && stay.to + 1 < days.length - 1 && !days[stay.to + 1].hotel_id && (
+                      <button type="button" onClick={() => onSet(stay.to + 1, { hotel_id: d.hotel_id, city: days[stay.to + 1].city || d.city })}
+                        className="px-1.5 text-xs font-medium text-brand-700 hover:underline">{t('stayOneMoreNight')}</button>
+                    )}
                   </td>
                 )}
-                <td className="px-2 py-2">{meal(i, 'lunch')}</td>
-                <td className="px-2 py-2">{meal(i, 'dinner')}</td>
-                <td className="px-2 py-2">
-                  <button type="button" onClick={() => onOpen(i)} className="max-w-56 text-left text-xs text-slate-600 hover:text-brand-700">
-                    {extrasOf(d) || <span className="text-slate-400">+ {t('placeAdd')}</span>}
+                <td className="px-1.5 py-1.5">{meal(i, 'lunch')}</td>
+                <td className="px-1.5 py-1.5">{meal(i, 'dinner')}</td>
+                <td className="px-1.5 py-1.5">
+                  <button type="button" onClick={() => onOpen(i)} title={extrasOf(d) || undefined}
+                    className="flex h-8 w-full items-center truncate rounded-md px-1.5 text-left text-xs text-slate-600 hover:bg-white hover:text-brand-700">
+                    <span className="truncate">{extrasOf(d) || <span className="text-slate-400">+ {t('placeAdd')}</span>}</span>
                   </button>
                 </td>
-                <td className="px-3 py-2 text-right tabular-nums text-slate-600">{i > 0 ? d.km ?? '—' : ''}</td>
+                <td className="px-3 py-1.5 text-right"><span className="flex h-8 items-center justify-end tabular-nums text-slate-600">{i > 0 ? d.km ?? '—' : ''}</span></td>
               </tr>
             )
           })}

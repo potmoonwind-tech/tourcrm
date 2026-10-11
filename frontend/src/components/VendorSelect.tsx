@@ -10,7 +10,7 @@ import { cn, townKey } from '../lib/utils'
  * apart by their icon; full names (never cut off in the list). A combobox for keyboards and screen
  * readers: ↑ ↓ move, Enter picks, Esc closes.
  */
-export function VendorSelect({ vendors, types, value, onChange, className, disabled, onAddNew, note, cities, only, placeholder }: {
+export function VendorSelect({ vendors, types, value, onChange, className, disabled, onAddNew, note, cities, only, placeholder, quiet, todo }: {
   vendors: Vendor[]; types: VendorType[]; value: string | null; onChange: (id: string | null) => void
   className?: string; disabled?: boolean
   onAddNew?: () => void   // "+ Add new…" (a quick-create dialog)
@@ -18,6 +18,8 @@ export function VendorSelect({ vendors, types, value, onChange, className, disab
   cities?: string[]       // the day's places: their suppliers are listed first
   only?: (v: Vendor) => boolean   // within the types, which ones fit (hotels that serve meals)
   placeholder?: string    // what to do while empty ("Choose a hotel…"), else "—"
+  quiet?: boolean         // in a table: reads as text, its frame only on hover / focus
+  todo?: boolean          // still to choose: the empty text in amber
 }) {
   const { t } = useI18n()
   const [open, setOpen] = useState(false)
@@ -96,14 +98,15 @@ export function VendorSelect({ vendors, types, value, onChange, className, disab
         onKeyDown={(e) => { if (e.key === 'ArrowDown' || e.key === 'ArrowUp') { e.preventDefault(); openList() } }}
         aria-haspopup="listbox" aria-expanded={open} aria-controls={open ? `${id}-list` : undefined}
         title={current ? [current.name, current.city].filter(Boolean).join(' · ') : undefined}
-        className={cn('flex h-10 w-full min-w-0 items-center gap-2 rounded-md border border-slate-300 bg-white px-3 text-left text-sm text-slate-800',
-          'hover:border-slate-800 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50 disabled:text-slate-500 disabled:hover:border-slate-300',
+        className={cn('group/vs flex w-full min-w-0 items-center gap-2 rounded-md border text-left text-sm text-slate-800',
+          quiet ? 'h-8 border-transparent bg-transparent px-1.5 hover:border-slate-300 hover:bg-white' : 'h-10 border-slate-300 bg-white px-3 hover:border-slate-800',
+          'focus:border-brand-600 focus:bg-white focus:outline-none focus:ring-2 focus:ring-brand-100 disabled:bg-slate-50 disabled:text-slate-500 disabled:hover:border-slate-300',
           className)}>
         {current ? <>
           <span className="shrink-0 text-slate-500">{icon(current)}</span>
           <span className="min-w-0 flex-1 truncate">{current.name}{note?.(current) ?? ''}</span>
-        </> : <span className="min-w-0 flex-1 truncate text-slate-500">{placeholder ?? '—'}</span>}
-        <ChevronDown size={16} className="shrink-0 text-slate-500" aria-hidden />
+        </> : <span className={cn('min-w-0 flex-1 truncate', todo ? 'font-medium text-amber-700' : 'text-slate-400')}>{placeholder ?? '—'}</span>}
+        <ChevronDown size={16} className={cn('shrink-0 text-slate-500', quiet && 'opacity-0 group-hover/vs:opacity-100 group-focus/vs:opacity-100')} aria-hidden />
       </button>
       {open && rect && createPortal(
         <div ref={list} className="fixed z-[70] flex flex-col overflow-hidden rounded-lg border border-slate-200 bg-white shadow-xl"
