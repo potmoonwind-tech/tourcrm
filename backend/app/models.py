@@ -82,6 +82,9 @@ class Workspace(Base):
     # The language the map's place names come in (one for everyone, so lists don't mix English, Georgian,
     # Armenian...): "en", "ka", "ru", "hy"; empty = the agency's language.
     place_lang: Mapped[str] = mapped_column(String(5), default="", server_default="")
+    # The time zone the tours run in ("Asia/Tbilisi"), for "now" on the Today board whatever the computer's
+    # clock says; empty = from the countries (GE → Tbilisi), else the computer's.
+    timezone: Mapped[str] = mapped_column(String(40), default="", server_default="")
     # A coach is slower than the map's car times (mountain roads, stops): times are shown × this.
     drive_factor: Mapped[Decimal] = mapped_column(Numeric(4, 2), default=Decimal("1.25"), server_default="1.25")
     # Family-style meals: how many people share one plate of a set menu's dish (1 = everyone their own).

@@ -3141,6 +3141,10 @@ const en = {
   onRoadN: "{n} groups on the road today",
   onRoadLastDay: "Last day · going home",
   onRoadOpenBoard: "Open the Today board",
+  timezoneLabel: "Time zone of the tours",
+  timezoneHelp: "\"Now\" on the Today board and \"today\" everywhere follow this clock, whatever the computer's clock is set to.",
+  timezoneAuto: "Automatic: {zone}",
+  timezoneComputer: "this computer's clock",
 }
 
 type Dict = typeof en
@@ -6278,6 +6282,10 @@ const ka: Dict = {
   onRoadN: "დღეს გზაშია {n} ჯგუფი",
   onRoadLastDay: "ბოლო დღე · ბრუნდებიან",
   onRoadOpenBoard: "დღის დაფის გახსნა",
+  timezoneLabel: "ტურების დროის სარტყელი",
+  timezoneHelp: "დღის დაფაზე „ახლა“ და ყველგან „დღეს“ ამ საათით ითვლება, კომპიუტერის საათის მიუხედავად.",
+  timezoneAuto: "ავტომატურად: {zone}",
+  timezoneComputer: "კომპიუტერის საათი",
 }
 
 export type Lang = 'en' | 'ka'

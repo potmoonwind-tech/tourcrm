@@ -14,7 +14,7 @@ import { CodeChip, EmptyState } from '../components/tour'
 import { Button, Input } from '../components/ui'
 import { api, type DayViewRow, type Incident } from '../lib/api'
 import { useServiceList, wsPath } from '../lib/data'
-import { addDays, diffDays, fmtLong, today } from '../lib/dates'
+import { addDays, diffDays, fmtLong, today, nowMinutes } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
 import { useWorkspace } from '../lib/session'
 import { cn, paxText } from '../lib/utils'
@@ -151,7 +151,7 @@ function Group({ row: r, flags, isToday }: { row: Row; flags: Flag[]; isToday: b
   const p = r.programme
   const steps = (p?.steps ?? []).filter((s) => s.text || s.drive)
   // Now and next (today only): the last step that has started, and the one after it.
-  const nowMin = new Date().getHours() * 60 + new Date().getMinutes()
+  const nowMin = nowMinutes()
   const started = isToday ? steps.reduce((k, s, i) => (s.time && toMin(s.time) <= nowMin ? i : k), -1) : -1
   const route = p?.route?.length ? p.route : [r.day.city]
   return (
@@ -234,9 +234,8 @@ const LEN: Record<string, number> = { breakfast: 30, meal: 60, checkin: 30, visi
 
 /** Minutes since midnight now, kept fresh each minute (the board's "now" line moves). */
 function useNow() {
-  const at = () => new Date().getHours() * 60 + new Date().getMinutes()
-  const [now, setNow] = useState(at)
-  useEffect(() => { const id = setInterval(() => setNow(at()), 60_000); return () => clearInterval(id) }, [])
+  const [now, setNow] = useState(nowMinutes)       // in the agency's time zone (lib/dates)
+  useEffect(() => { const id = setInterval(() => setNow(nowMinutes()), 30_000); return () => clearInterval(id) }, [])
   return now
 }
 

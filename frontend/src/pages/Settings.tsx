@@ -10,12 +10,16 @@ import { Button, Card, ErrorText, Field, Input, RoleBadge, Select } from '../com
 import { api, atLeast, ROLES, WORK_KINDS, type ExchangeRate, type Invite, type Member, type Role, type Workspace, can, JOBS, type Job } from '../lib/api'
 import { useI18n, type Lang, type TKey } from '../lib/i18n'
 import { useMe, useRefreshMe, useWorkspace } from '../lib/session'
-import { fmt as fmtDate } from '../lib/dates'
+import { fmt as fmtDate, clockIn, zoneOf } from '../lib/dates'
 import { PageHeader } from './Dashboard'
 import { useMembers, wsPath } from '../lib/data'
 import { CURRENCIES } from './Onboarding'
 import { cn } from '../lib/utils'
 import { AppearanceCard } from '../components/ThemePicker'
+
+const ZONES = ['Asia/Tbilisi', 'Asia/Yerevan', 'Asia/Baku', 'Europe/Istanbul', 'Europe/Moscow', 'Asia/Tashkent', 'Asia/Almaty',
+  'Asia/Dubai', 'Europe/Berlin', 'Europe/London', 'Asia/Shanghai', 'Asia/Seoul', 'UTC']
+const hmOf = (m: number) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`
 
 export function TeamPage() {
   const ws = useWorkspace()!
@@ -254,6 +258,7 @@ export function GeneralSettingsPage() {
   const [fuel, setFuel] = useState(String(ws.fuel_l_per_100km ?? 30))
   const [countries, setCountries] = useState((ws.countries ?? []).map((c) => c.toUpperCase()).join(', '))
   const [placeLang, setPlaceLang] = useState(ws.place_lang ?? '')
+  const [zoneSet, setZoneSet] = useState(ws.timezone ?? '')
   const [factorPct, setFactorPct] = useState(String(Math.round((ws.drive_factor ?? 1.25) * 100)))
   const [vat, setVat] = useState(ws.vat_rate != null ? String(ws.vat_rate) : '')
   const [plateShare, setPlateShare] = useState(String(ws.plate_share ?? 1))
@@ -263,7 +268,7 @@ export function GeneralSettingsPage() {
   const save = useMutation({
     mutationFn: () => api<Workspace>(`/workspaces/${ws.id}`, {
       method: 'PATCH', body: { ...form, incident_approval_limit: limit === '' ? null : limit, cancellation_scale: scale, payment_terms: terms, bill_tolerance_pct: tolerance || '0', fuel_l_per_100km: fuel || '30',
-        countries: countries.split(/[\s,;]+/).filter(Boolean), place_lang: placeLang, drive_factor: ((Number(factorPct) || 125) / 100).toFixed(2),
+        countries: countries.split(/[\s,;]+/).filter(Boolean), place_lang: placeLang, timezone: zoneSet, drive_factor: ((Number(factorPct) || 125) / 100).toFixed(2),
         vat_rate: vat.trim() === '' ? null : vat, plate_share: Number(plateShare) || 1 },
     }),
     onSuccess: () => refreshMe(),
@@ -325,6 +330,13 @@ export function GeneralSettingsPage() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <Field label={t('countriesLabel')} hint={t('countriesHelp')}>
                   <Input value={countries} onChange={(e) => setCountries(e.target.value)} placeholder="GE, AM, AZ" maxLength={80} />
+                </Field>
+                <Field label={t('timezoneLabel')} hint={t('timezoneHelp')}>
+                  {/* Each zone with its time now, so the right one is easy to recognise. */}
+                  <Select value={zoneSet} onChange={(e) => setZoneSet(e.target.value)}>
+                    <option value="">{t('timezoneAuto', { zone: zoneOf({ countries: countries.split(/[\s,;]+/).filter(Boolean), language: ws.language }) || t('timezoneComputer') })}</option>
+                    {ZONES.map((z) => <option key={z} value={z}>{z.replace('_', ' ')} · {hmOf(clockIn(z).minutes)}</option>)}
+                  </Select>
                 </Field>
                 <Field label={t('placeLangLabel')} hint={t('placeLangHelp')}>
                   <Select value={placeLang} onChange={(e) => setPlaceLang(e.target.value)}>

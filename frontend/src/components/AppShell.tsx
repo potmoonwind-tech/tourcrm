@@ -9,6 +9,7 @@ import { api, atLeast, can, type Job } from '../lib/api'
 import { useI18n, type TKey } from '../lib/i18n'
 import { setViewAs, useMe, useViewAs, useWorkspace } from '../lib/session'
 import { cn } from '../lib/utils'
+import { setAgencyZone, zoneOf } from '../lib/dates'
 import { LangToggle } from './ui'
 import { Activity } from './Alerts'
 import { OnRoad } from './OnRoad'
@@ -38,6 +39,7 @@ function useNavCounts(office: boolean, manager: boolean) {
 export function AppShell() {
   const { t } = useI18n()
   const ws = useWorkspace()!
+  setAgencyZone(zoneOf(ws))      // "today" and "now" where the tours run, whatever this computer's clock says
   const base = `/w/${ws.id}`
   const [menuOpen, setMenuOpen] = useState(false)
   const { pathname } = useLocation()

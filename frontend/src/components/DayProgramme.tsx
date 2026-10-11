@@ -124,7 +124,10 @@ export function suggest(day: DayFields, index: number, last: boolean, services: 
   const checkin = timed ? Math.max(14 * 60, Math.ceil(at / 15) * 15) : Math.max(18 * 60, at)
   if (day.hotel_id && !last) add({ kind: 'checkin', time: hm(checkin), end: '', title: '', ref: 'hotel', place: '', notes: '' })
   const dinner = hm(Math.max(19 * 60 + 30, checkin + 90))
-  if (day.dinner_mode === 'own') add({ kind: 'free', time: dinner, end: '', title: '', ref: 'dinner', place: '', notes: '' })
+  // Flying home: no dinner after they must leave for the airport (2½ h before the flight).
+  const leaves = Math.min(...flights.filter((f) => f.direction === 'departure' && f.time).map((f) => toMin(f.time) - 150))
+  if (toMin(dinner) > leaves) { /* no dinner: at the airport by then */ }
+  else if (day.dinner_mode === 'own') add({ kind: 'free', time: dinner, end: '', title: '', ref: 'dinner', place: '', notes: '' })
   else if (day.dinner_id || day.meal_tbd?.dinner) add({ kind: 'meal', time: dinner, end: '', title: '', ref: 'dinner', place: '', notes: '' })
   flights.forEach((f, i) => f.direction === 'departure' && add({ kind: 'flight', time: f.time, end: '', title: '', ref: `flight:${i}`, place: f.airport, notes: '' }))
   return out
@@ -285,7 +288,8 @@ export function DayProgramme({ day, index, last, byId, services, disabled, from,
   // the map — the times re-chain now and refine when it answers.
   const fresh = !!road.data && road.data.legs.length === path.length && !road.isFetching
   const { legs, complete } = legsFor(path, fresh ? road.data!.legs : undefined, road.isFetching)
-  const { before, after } = drivesFrom(path, legs, factor)
+  const { before: rawBefore, after } = drivesFrom(path, legs, factor)
+  const before = mealsTakeTheRoad(raw, rawBefore, day, byId)
   // The times keep themselves right: each step starts when the one before ends, plus the drive. Times
   // typed by hand (pinned) and flights stay; lunch and dinner wait for their usual time.
   const usual = (x: ScheduleItem) => stepUsual(x, day, byId, services)
@@ -801,7 +805,7 @@ export async function relayDay(wsId: string, day: DayFields, index: number, last
     } catch { /* the map can't answer: drives already known are used */ }
   }
   const { legs } = legsFor(path, answer, false)
-  const { before } = drivesFrom(path, legs, factor)
+  const before = mealsTakeTheRoad(items, drivesFrom(path, legs, factor).before, day, byId)
   const out = flow(items, 0, before, 'full', items.find((x) => x.time)?.time, (x) => stepUsual(x, day, byId, services))
   const sig = (xs: ScheduleItem[]) => xs.map((x) => `${x.time}-${x.end}-${x.fixed ? 1 : 0}`).join(',')
   return sig(out) === sig(saved) ? null : out
@@ -922,6 +926,23 @@ export function legsFor(path: PathPoint[], answer: MapLeg[] | undefined, asking:
     return { from_city: path[i - 1].place, to_city: pt.place, km: null, minutes: null, skipped: asking ? 'asking' : null }
   })
   return { legs, complete }
+}
+
+/** A meal with no place of its own (lunch on their own) between two places, reached by the drive's end: the
+ * group eats where it arrives, so the drive leads to the meal, not to the place after it. A meal before a long
+ * drive keeps the road after it (the same rule as the server's programme). */
+export function mealsTakeTheRoad(items: ScheduleItem[], before: Map<string, DriveLeg>, day: DayFields, byId?: Map<string, Vendor>) {
+  for (let i = 1; i < items.length - 1; i++) {
+    const q = items[i - 1], p = items[i], s = items[i + 1]
+    const leg = before.get(s.id)
+    const left = q.end || q.time
+    if (leg && !before.has(p.id) && (p.ref === 'lunch' || p.ref === 'dinner') && !placeOf(p, day, byId).trim()
+      && p.time && left && toMin(left) < toMin(p.time) && toMin(left) + (leg.minutes ?? 0) <= toMin(p.time) + 30) {
+      before.set(p.id, leg)
+      before.delete(s.id)
+    }
+  }
+  return before
 }
 
 export function drivesFrom(path: PathPoint[], legs: MapLeg[], factor: number) {

@@ -476,3 +476,33 @@ def test_a_meal_on_their_own_can_say_where(make_client):
     days = [{"city": "Tbilisi"}, {"city": "Tbilisi", "dinner_mode": "own", "meal_tbd": {"dinner": "Old Tbilisi"}}]
     p = c.post(f"{base}/programme", json={"days": days, "lang": "en", "translate": False}).json()
     assert ["Dinner", "own arrangements · Old Tbilisi"] in p["days"][1]["meals"]
+
+
+def test_a_free_lunch_on_arrival_takes_the_road_before_it():
+    # Mtskheta until 10:30, then 2½ h to Borjomi, lunch there at 13:00: the road is 10:30 → 13:00, before lunch.
+    leg = programme.PLeg(start="Mtskheta", end="Borjomi", minutes=155)
+    steps = [programme.PStep(time="09:30", end="10:30", text="Mtskheta", kind="visit"),
+             programme.PStep(time="13:00", end="14:00", text="Lunch", kind="free"),
+             programme.PStep(time="14:30", end="15:30", text="Borjomi park", kind="visit", drive=leg)]
+    programme._time_the_drives(steps)
+    assert steps[1].drive is leg and steps[2].drive is None
+    assert (leg.depart, leg.arrive) == ("10:30", "13:00")
+    # Lunch first, then a long road (4 h): the road stays after lunch.
+    long = programme.PLeg(start="Haghpat", end="Yerevan", minutes=240)
+    steps = [programme.PStep(time="11:30", end="12:30", text="Haghpat", kind="visit"),
+             programme.PStep(time="13:00", end="14:00", text="Lunch", kind="free"),
+             programme.PStep(time="18:15", text="Check-in", kind="checkin", drive=long)]
+    programme._time_the_drives(steps)
+    assert steps[2].drive is long and (long.depart, long.arrive) == ("14:00", "18:15")
+
+
+def test_flying_home_no_dinner_and_at_the_airport_2_hours_before():
+    from app.schemas import DayFields
+    d = DayFields(city="Batumi", dinner_mode="own", flights=[{"direction": "departure", "number": "CA125", "time": "19:05", "airport": "BUS"}])
+    kinds = [x.ref or x.kind for x in programme.suggest(d, 9, True, {})]
+    assert "dinner" not in kinds and kinds[-1].startswith("flight")
+    leg = programme.PLeg(start="Batumi", end="Airport", minutes=15)
+    steps = [programme.PStep(time="13:00", end="13:45", text="Lunch", kind="meal"),
+             programme.PStep(time="19:05", text="Departure", kind="flight", drive=leg)]
+    programme._time_the_drives(steps)
+    assert (leg.depart, leg.arrive) == ("16:50", "17:05")

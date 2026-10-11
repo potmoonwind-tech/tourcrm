@@ -7,10 +7,28 @@ export const iso = (ms: number) => new Date(ms).toISOString().slice(0, 10)
 export const addDays = (s: string, n: number) => iso(parse(s) + n * DAY)
 export const diffDays = (a: string, b: string) => Math.round((parse(b) - parse(a)) / DAY)
 
-export function today() {
-  const d = new Date()
-  return iso(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()))
+// "Today" and "now" are where the tours run (the agency's time zone), not wherever this computer's clock is set.
+let zone: string | undefined
+const COUNTRY_ZONE: Record<string, string> = {
+  ge: 'Asia/Tbilisi', am: 'Asia/Yerevan', az: 'Asia/Baku', tr: 'Europe/Istanbul', uz: 'Asia/Tashkent', kz: 'Asia/Almaty',
 }
+const LANG_ZONE: Record<string, string> = { ka: 'Asia/Tbilisi', hy: 'Asia/Yerevan', az: 'Asia/Baku', tr: 'Europe/Istanbul' }
+/** The agency's time zone: its own setting, else from where it works (GE → Tbilisi) or its language, else '' (this computer's). */
+export const zoneOf = (ws: { timezone?: string; countries?: string[]; language?: string }) =>
+  ws.timezone || COUNTRY_ZONE[(ws.countries?.[0] ?? '').toLowerCase()] || LANG_ZONE[ws.language ?? ''] || ''
+export function setAgencyZone(z: string) {
+  try { zone = z ? new Intl.DateTimeFormat('en', { timeZone: z }).resolvedOptions().timeZone : undefined } catch { zone = undefined }
+}
+/** The clock in a time zone (default: the agency's): its date and minutes since midnight. */
+export function clockIn(z = zone, at = new Date()) {
+  const p: Record<string, string> = {}
+  try {
+    for (const x of new Intl.DateTimeFormat('en-CA', { timeZone: z, year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).formatToParts(at)) p[x.type] = x.value
+  } catch { return clockIn(undefined, at) }
+  return { date: `${p.year}-${p.month}-${p.day}`, minutes: Number(p.hour) * 60 + Number(p.minute) }
+}
+export const today = () => clockIn().date
+export const nowMinutes = () => clockIn().minutes
 
 // Georgian names built in: many browsers ship without Georgian locale data and
 // silently fall back to English.

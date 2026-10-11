@@ -18,7 +18,9 @@ def make_engine(url: str, enforce_fk: bool = True, **kwargs):
     DROP cascades into every child table and silently deletes their rows."""
     url = normalize_url(url)
     if url.startswith("sqlite"):
-        kwargs.setdefault("connect_args", {"check_same_thread": False})
+        # timeout: wait for another request's write (e.g. caching a place found on the map) instead of
+        # failing with "database is locked" after SQLite's default 5 s.
+        kwargs.setdefault("connect_args", {"check_same_thread": False, "timeout": 30})
     engine = create_engine(url, pool_pre_ping=True, **kwargs)
     if url.startswith("sqlite") and enforce_fk:
         @event.listens_for(engine, "connect")

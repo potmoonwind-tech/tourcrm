@@ -275,12 +275,25 @@ def _time_the_drives(steps: list[PStep]) -> None:
     """Each drive's own time window: from when the stop before it ends to when the next one starts
     ("13:45–18:00 ↓ 218 km · 7 h"). Without one of the two ends, the coach time fills it in; the drive
     to the day's town at the end gives that arrival its time."""
+    # A meal with no place of its own (lunch on their own) between two places, reached by the drive's end:
+    # the group eats where it arrives, so the drive leads to the meal - not to the place after it (no idle
+    # morning, no squeezed road). A meal before a long drive (lunch, then the road on) keeps the road after it.
+    for k in range(2, len(steps)):
+        q, p, s = steps[k - 2], steps[k - 1], steps[k]
+        left = q.end or q.time
+        if (s.drive and not p.drive and not p.place and p.kind in ("meal", "free") and p.time and left
+                and _hm(left) < _hm(p.time) and _hm(left) + s.drive.minutes <= _hm(p.time) + 30):
+            p.drive, s.drive = s.drive, None
     prev_end = ""
     for s in steps:
         g = s.drive
         if g:
             depart = prev_end or (_clock(_hm(s.time) - g.minutes) if s.time and g.minutes else "")
             arrive = s.time or (_clock(_hm(prev_end) + g.minutes) if prev_end and g.minutes else "")
+            if s.kind == "flight" and s.time:
+                # To a flight home: at the airport 2 hours before it, leaving just in time for that.
+                arrive = _clock(_hm(s.time) - 120)
+                depart = _clock(max(_hm(arrive) - max(g.minutes, 15), _hm(prev_end) if prev_end else 0))
             if depart and arrive and _hm(arrive) >= _hm(depart):
                 g.depart, g.arrive = depart, arrive
             if s.kind == "arrive" and g.arrive:
@@ -511,10 +524,13 @@ def suggest(d: DayFields, index: int, last: bool, services: dict[str, Service], 
     if d.hotel_id and not last:
         out.append(_item(kind="checkin", time=hm(checkin), ref="hotel"))
     dinner = hm(max(19 * 60 + 30, checkin + 90))
-    if d.dinner_mode == "own":
-        out.append(_item(kind="free", time=dinner, ref="dinner"))
-    elif d.dinner_id or tbd_town(d, "dinner"):
-        out.append(_item(kind="meal", time=dinner, ref="dinner"))
+    # Flying home: no dinner after they must leave for the airport (2½ h before the flight).
+    leaves = min((_hm(f.time) - 150 for f in d.flights if f.direction == "departure" and f.time), default=None)
+    if leaves is None or _hm(dinner) <= leaves:
+        if d.dinner_mode == "own":
+            out.append(_item(kind="free", time=dinner, ref="dinner"))
+        elif d.dinner_id or tbd_town(d, "dinner"):
+            out.append(_item(kind="meal", time=dinner, ref="dinner"))
     for k, f in enumerate(d.flights):
         if f.direction == "departure":
             out.append(_item(kind="flight", time=f.time, ref=f"flight:{k}", place=f.airport))
@@ -626,6 +642,8 @@ def build(db: Session, ws: Workspace, body: ProgrammeIn, *, fill: bool = False) 
     days: list[PDay] = []
     total = 0
     for i, d in enumerate(body.days):
+        if body.only_days and i + 1 not in body.only_days:
+            continue                     # not asked for: no roads to work out (the day before is read from `body`)
         prev = body.days[i - 1] if i else None
         route = [T(x) for x in ([prev.city] if prev and prev.city and prev.city != d.city else []) + list(d.stops) + [d.city] if x]
         factor = ws.drive_factor or Decimal("1.25")

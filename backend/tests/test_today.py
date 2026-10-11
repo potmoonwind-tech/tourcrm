@@ -34,3 +34,11 @@ def test_timeline_has_the_staff_by_dates(make_client):
     rows = c.get(f"{base}/timeline", params={"date_from": "2026-11-01", "date_to": "2026-11-30"}).json()
     assert [(s["name"], s["role"], s["start"], s["end"]) for s in rows[0]["staff"]] == [("Nino", "guide", "2026-11-04", "2026-11-06")]
     assert rows[0]["days"][0]["hotel"] == ""
+
+
+def test_the_agency_time_zone_is_kept(make_client):
+    c, base, _ = agency(make_client)
+    ws = base.rsplit("/", 1)[-1]
+    r = c.patch(f"/api/workspaces/{ws}", json={"timezone": "Asia/Tbilisi"})
+    assert r.status_code == 200 and r.json()["timezone"] == "Asia/Tbilisi"
+    assert c.patch(f"/api/workspaces/{ws}", json={"timezone": "not a zone"}).status_code == 422
