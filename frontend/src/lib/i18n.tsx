@@ -3026,6 +3026,12 @@ const en = {
   dragOntoDay: "Drag onto a day",
   useOnDay: "Use on day {n}",
   savedDayAppliedTo: "The saved day filled the day",
+  gridCount_hotel: "{n} hotel(s)",
+  gridCount_meal: "{n} meal(s) to place",
+  gridCount_menu: "{n} menu(s) to choose",
+  gridCount_team: "{n} day(s) without a team",
+  gridCount_alerts: "{n} alert(s)",
+  gridOnlyMissing: "Only days with something missing",
 }
 
 type Dict = typeof en
@@ -6048,6 +6054,12 @@ const ka: Dict = {
   dragOntoDay: "გადაიტანეთ დღეზე",
   useOnDay: "გამოყენება დღე {n}-ზე",
   savedDayAppliedTo: "შენახულმა დღემ შეავსო დღე",
+  gridCount_hotel: "{n} სასტუმრო",
+  gridCount_meal: "{n} კვება დასანიშნი",
+  gridCount_menu: "{n} მენიუ ასარჩევი",
+  gridCount_team: "{n} დღე გუნდის გარეშე",
+  gridCount_alerts: "{n} გაფრთხილება",
+  gridOnlyMissing: "მხოლოდ დღეები, სადაც რამე აკლია",
 }
 
 export type Lang = 'en' | 'ka'
