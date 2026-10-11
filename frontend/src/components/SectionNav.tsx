@@ -23,6 +23,7 @@ export const SECTIONS: Record<Section, View[]> = {
     { path: 'routes', label: 'routes' },
     { path: 'vendors', label: 'vendors' },
     { path: 'prices', label: 'priceCatalog', jobs: ['operations', 'finance', 'sales'] },
+    { path: 'place-names', label: 'placeNames' },
   ],
   finance: [
     { path: 'finance', tab: 'profit', label: 'profit', jobs: ['finance'] },
@@ -33,7 +34,6 @@ export const SECTIONS: Record<Section, View[]> = {
   settings: [
     { path: 'settings/general', label: 'general' },
     { path: 'settings/email', label: 'emailSettings', min: 'staff' },
-    { path: 'settings/places', label: 'placeNames', min: 'staff' },
     { path: 'settings/team', label: 'team', min: 'staff' },
     { path: 'settings/import', label: 'import', min: 'staff' },
   ],

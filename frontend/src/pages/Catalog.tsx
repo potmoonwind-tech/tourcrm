@@ -14,6 +14,7 @@ import { Button, ButtonLink, ErrorText, Field, field, Input, Select } from '../c
 import { addressOf, PlaceInput, pinPlace, type PlaceSuggestion } from '../components/PlaceInput'
 import { QuickVendorDialog } from '../components/QuickAdd'
 import { OpeningHoursBox } from '../components/OpeningHours'
+import { ClientNamesBox, MapNameButton } from '../components/ClientNames'
 import {
   api, VENDOR_TYPES,
   type Client, type Vendor, type VendorType, can } from '../lib/api'
@@ -264,7 +265,10 @@ function VendorModal({ vendor, defaultType, canEdit, onClose: close, onCreated, 
               <PlaceInput required autoFocus value={f.name} maxLength={200} onChange={(name) => setF({ ...f, name })}
                 onPicked={placePicked(true)} className={cn(field, 'w-full')} aria-label={t('name')} />
             ) : <Input required autoFocus value={f.name} onChange={set('name')} />}
+            {PLACE_TYPES.includes(f.type) && canEdit && <MapNameButton name={f.name} city={f.city} onUse={(name) => setF((cur) => ({ ...cur, name }))} />}
           </Field>
+          {/* What clients read for it in programme files (saved under its saved name). */}
+          {vendor && PLACE_TYPES.includes(f.type) && <ClientNamesBox name={vendor.name} />}
           <div className="grid grid-cols-2 gap-3">
             <Field label={t('type')}>
               <Select value={f.type} onChange={set('type')}>

@@ -159,6 +159,22 @@ def map_name(body: NameIn, ctx: WorkspaceCtx = Depends(office), db: Session = De
     return {"name": hits[0]["name"]}
 
 
+class Info(BaseModel):
+    map: str = ""                      # the map's own name for it ("Jvari Monastery, Mtskheta"), when picked
+    client: dict[str, str] = {}        # its names for clients
+
+
+@router.get("/info", response_model=Info)
+def info(name: str, ctx: WorkspaceCtx = Depends(office), db: Session = Depends(get_db)) -> Info:
+    """One name at a glance (a place's tooltip, a supplier's form): the map's name and the names for clients."""
+    n = name.strip()
+    pin = db.get(GeoPlace, geo.pin_key(ctx.workspace.id, n[:100])) if n else None
+    rows = db.scalars(select(TextTranslation).where(TextTranslation.workspace_id == ctx.workspace.id,
+                                                    TextTranslation.source_hash == _hash(n))).all() if n else []
+    got = {r.lang: r.result for r in rows}
+    return Info(map=pin.name if pin is not None else "", client={lang: got.get(lang, "") for lang in CLIENT_LANGS})
+
+
 class ClientNameIn(BaseModel):
     name: str = Field(min_length=1, max_length=200)
     lang: str = Field(pattern=r"^(en|ka|zh)$")

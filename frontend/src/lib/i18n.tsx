@@ -3068,6 +3068,11 @@ const en = {
   placeKind_activity: "Sights and activities",
   placeRenamedSupplier: "Renamed in the catalogue",
   placeRenameSupplier: "“{old}” becomes “{new}” in the catalogue - every tour shows the new name.",
+  placeNamesSub: "One name for each place - and the names clients read",
+  placeNamesForClients: "Name for clients",
+  placeNamesForClientsHelp: "What programme files print in each language. Empty = translated automatically.",
+  placeSameAsMap: "Same as on the map",
+  placeForClientsLine: "For clients - {names}",
 }
 
 type Dict = typeof en
@@ -6132,6 +6137,11 @@ const ka: Dict = {
   placeKind_activity: "ღირსშესანიშნაობები",
   placeRenamedSupplier: "გადაერქვა კატალოგში",
   placeRenameSupplier: "„{old}“ კატალოგში გახდება „{new}“ - ყველა ტური ახალ სახელს აჩვენებს.",
+  placeNamesSub: "თითო ადგილს ერთი სახელი - და სახელები კლიენტებისთვის",
+  placeNamesForClients: "სახელი კლიენტებისთვის",
+  placeNamesForClientsHelp: "რას ბეჭდავს პროგრამის ფაილი თითოეულ ენაზე. ცარიელი = ავტომატური თარგმანი.",
+  placeSameAsMap: "იგივეა, რაც რუკაზე",
+  placeForClientsLine: "კლიენტებისთვის - {names}",
 }
 
 export type Lang = 'en' | 'ka'

@@ -8,6 +8,7 @@ import { Landmark, MapPin } from 'lucide-react'
 import { Fragment, useId, useState, type InputHTMLAttributes } from 'react'
 import { api } from '../lib/api'
 import { wsPath } from '../lib/data'
+import { useNameInfo } from './ClientNames'
 import { useDebounced } from '../lib/hooks'
 import { useI18n } from '../lib/i18n'
 import { useMapConfig } from '../lib/maps'
@@ -92,6 +93,12 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
     setLast({ name: now, p: was.p })
   }
   const mapName = last && last.p.name !== value.trim() ? last.p.name : ''
+  // On hover: what the map calls it and what clients read (asked once per name).
+  const [hovered, setHovered] = useState(false)
+  const info = useNameInfo(value, hovered && !open)
+  const clientLine = info.data ? (['en', 'ka', 'zh'] as const).filter((l) => info.data!.client[l]).map((l) => `${l === 'zh' ? '中文' : l.toUpperCase()}: ${info.data!.client[l]}`).join(' · ') : ''
+  const onMap = mapName || (info.data?.map && info.data.map.split(',')[0].trim() !== value.trim() ? info.data.map : '')
+  const hint = [onMap && t('placeOnMap', { name: onMap }), clientLine && t('placeForClientsLine', { names: clientLine })].filter(Boolean)
   const choose = async (picked: PlaceSuggestion) => {
     onChange(picked.name)
     setOpen(false)
@@ -123,7 +130,8 @@ export function PlaceInput({ value, onChange, onPicked, own, className, onKeyDow
         // A rename counts right after picking (still in the box); once it's left, typing starts afresh -
         // a different town typed later never takes the old one's spot.
         onBlur={(e) => { setOpen(false); keepSpot(); setLast(null); onBlur?.(e) }}
-        title={mapName ? t('placeOnMap', { name: mapName }) : rest.title}
+        onMouseEnter={() => setHovered(true)}
+        title={hint.length ? [...new Set(hint)].join('\n') : rest.title}
         onKeyDown={(e) => {
           if (items.length && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
             e.preventDefault()

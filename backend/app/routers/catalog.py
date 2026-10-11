@@ -115,9 +115,13 @@ def update_vendor(vendor_id: str, body: VendorUpdate, ctx: WorkspaceCtx = Depend
     v = get_owned(db, ctx, Vendor, vendor_id)
     if "company_id" in body.model_fields_set:
         _check_company(db, ctx, body.company_id, v.id)
+    old_name = v.name
     for k, val in body.model_dump(mode="json", exclude_unset=True).items():
         if val is not None or k in ("visit_minutes", "company_id"):     # these can be cleared
             setattr(v, k, val)
+    if v.name.strip() != old_name.strip():
+        from .place_names import _follow      # its spot on the map and its names for clients go with it
+        _follow(db, ctx.workspace.id, old_name.strip(), v.name.strip())
     db.commit()
     return v
 

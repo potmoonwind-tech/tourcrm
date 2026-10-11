@@ -55,3 +55,14 @@ def test_suppliers_are_listed_and_renamed_in_the_catalogue(make_client):
     assert c.get(f"{base}/vendors/{v['id']}").json()["name"] == "City Hotel Tbilisi"
     row = next(r for r in c.get(f"{base}/place-names").json() if r.get("vendor_id") == v["id"])
     assert row["client"]["en"] == "City Hotel"
+
+
+def test_info_and_renaming_in_the_supplier_form(make_client):
+    c, base, _ = agency(make_client)
+    v = c.post(f"{base}/vendors", json={"name": "Old Cellar", "type": "restaurant", "city": "Tbilisi"}).json()
+    c.post(f"{base}/places/pin", json={"name": "Old Cellar", "lat": 41.7, "lon": 44.8, "label": "Old Cellar, Tbilisi"})
+    c.put(f"{base}/place-names/client-name", json={"name": "Old Cellar", "lang": "zh", "text": "老酒窖"})
+    assert c.get(f"{base}/place-names/info", params={"name": "Old Cellar"}).json() == {"map": "Old Cellar, Tbilisi", "client": {"en": "", "ka": "", "zh": "老酒窖"}}
+    c.patch(f"{base}/vendors/{v['id']}", json={"name": "Old Tbilisi Cellar"})
+    got = c.get(f"{base}/place-names/info", params={"name": "Old Tbilisi Cellar"}).json()
+    assert got["map"] == "Old Cellar, Tbilisi" and got["client"]["zh"] == "老酒窖"

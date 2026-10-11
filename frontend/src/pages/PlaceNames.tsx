@@ -1,5 +1,5 @@
 /**
- * Settings → Place names: every town, stop and visit the agency's tours and routes use, in one list. Mixed
+ * Catalog → Place names: every town, stop and visit the agency's tours and routes use, in one list. Mixed
  * spellings ("Tbilisi", "თბილისი") are made one by renaming - everywhere at once - or by taking the map's name
  * (in the agency's place language). Each name also has the name clients see in programme files (English,
  * Georgian, Chinese): filled by the AI's translations when a file is made, and editable here.
@@ -34,7 +34,7 @@ export function PlaceNamesPage() {
     && (!q.trim() || `${r.name} ${r.city}`.toLowerCase().includes(q.trim().toLowerCase())))
   return (
     <>
-      <PageHeader section="settings" title={t('settings')} subtitle={ws.name} />
+      <PageHeader section="catalog" title={t('catalog')} subtitle={t('placeNamesSub')} />
       <div className="max-w-5xl space-y-4 p-4 md:p-8">
         <div>
           <h2 className="text-base font-semibold text-slate-800">{t('placeNames')}</h2>

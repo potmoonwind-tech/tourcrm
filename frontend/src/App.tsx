@@ -135,7 +135,8 @@ export default function App() {
           <Route path="settings/import" element={<ImportPage />} />
           <Route path="settings/general" element={<GeneralSettingsPage />} />
           <Route path="settings/email" element={<EmailSettingsPage />} />
-          <Route path="settings/places" element={<PlaceNamesPage />} />
+          <Route path="place-names" element={<PlaceNamesPage />} />
+          <Route path="settings/places" element={<Navigate to="../place-names" replace />} />
           <Route path="settings" element={<Navigate to="general" replace />} />
           <Route path="*" element={<ToAgencyHome />} />
         </Route>
