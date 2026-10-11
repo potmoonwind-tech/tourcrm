@@ -149,10 +149,18 @@ function Group({ row: r, flags, isToday }: { row: Row; flags: Flag[]; isToday: b
   const { t } = useI18n()
   const total = diffDays(r.tour.start_date, r.tour.end_date) + 1
   const p = r.programme
-  const steps = (p?.steps ?? []).filter((s) => s.text || s.drive)
-  // Now and next (today only): the last step that has started, and the one after it.
+  // The day in time order, as the builder shows it: each drive its own line (leaving at…) just before the
+  // place it leads to, then the place itself.
+  const lines: Line[] = (p?.steps ?? []).flatMap((s): Line[] => [
+    ...(s.drive ? [{ time: s.drive.depart ?? '', road: s.drive, step: s }] : []),
+    ...(s.text ? [{ time: s.time, step: s }] : []),
+  ])
+  // Now and next (today only): the last line that has started (a drive while on the road), and the one after it.
   const nowMin = nowMinutes()
-  const started = isToday ? steps.reduce((k, s, i) => (s.time && toMin(s.time) <= nowMin ? i : k), -1) : -1
+  const started = isToday ? lines.reduce((k, x, i) => (x.time && toMin(x.time) <= nowMin ? i : k), -1) : -1
+  // Over already (lunch ended at 13:45, it's 16:20): nothing is "now" - only what's next.
+  const endOf = (x: Line) => (x.road ? x.road.arrive : x.step.end) || ''
+  const over = started >= 0 && !!endOf(lines[started]) && toMin(endOf(lines[started])) <= nowMin
   const route = p?.route?.length ? p.route : [r.day.city]
   return (
     <section className={cn('rounded-xl border bg-white', flags.length ? 'border-amber-300' : 'border-slate-200')}>
@@ -181,9 +189,10 @@ function Group({ row: r, flags, isToday }: { row: Row; flags: Flag[]; isToday: b
         </div>
       )}
       {/* The day hour by hour: done steps quiet, the current one marked, the rest as planned. */}
-      {steps.length > 0 && (
-        <ol className="grid gap-x-6 px-4 py-2 text-sm sm:grid-cols-2 xl:grid-cols-3">
-          {steps.map((s, i) => <StepLine key={i} s={s} state={started < 0 ? 'plan' : i < started ? 'done' : i === started ? 'now' : i === started + 1 ? 'next' : 'plan'} />)}
+      {/* Columns fill top to bottom (not across), so the times always read downwards. */}
+      {lines.length > 0 && (
+        <ol className="gap-x-6 px-4 py-2 text-sm sm:columns-2 xl:columns-3">
+          {lines.map((x, i) => <StepLine key={i} x={x} state={started < 0 ? 'plan' : i < started ? 'done' : i === started ? (over ? 'done' : 'now') : i === started + 1 ? 'next' : 'plan'} />)}
         </ol>
       )}
       {/* The team: one tap to call. */}
@@ -203,27 +212,34 @@ function Group({ row: r, flags, isToday }: { row: Row; flags: Flag[]; isToday: b
   )
 }
 
-function StepLine({ s, state }: { s: PStep; state: 'done' | 'now' | 'next' | 'plan' }) {
+/** One line of the day: a place (time, what, phone) or a drive to the next place (grey: leaves, km, arrives). */
+interface Line { time: string; step: PStep; road?: PStep['drive'] }
+
+function StepLine({ x, state }: { x: Line; state: 'done' | 'now' | 'next' | 'plan' }) {
   const { t } = useI18n()
+  const s = x.step, g = x.road
+  const tag = state === 'now' ? <span className="ml-1.5 rounded-full bg-brand-50 px-1.5 text-[10px] font-semibold uppercase text-brand-700">{t('todayNow')}</span>
+    : state === 'next' ? <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 text-[10px] font-semibold uppercase text-slate-600">{t('todayNext')}</span> : null
   return (
-    <li className={cn('flex items-start gap-2 border-b border-slate-50 py-1', state === 'done' && 'opacity-50')}>
-      <span className={cn('w-11 shrink-0 pt-px text-right font-medium tabular-nums', state === 'now' ? 'text-brand-700' : 'text-slate-700')}>{s.time || ''}</span>
+    <li className={cn('flex break-inside-avoid items-start gap-2 border-b border-slate-50 py-1', state === 'done' && 'opacity-50')}>
+      <span className={cn('w-11 shrink-0 pt-px text-right tabular-nums', g ? 'text-slate-400' : 'font-medium', !g && (state === 'now' ? 'text-brand-700' : 'text-slate-700'))}>{x.time || ''}</span>
       <span className={cn('mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full', state === 'now' ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-500')} aria-hidden>
-        {s.drive && !s.text ? <Car size={13} /> : STEP_ICON[s.kind ?? ''] ?? <MapPin size={13} />}
+        {g ? <Car size={13} /> : STEP_ICON[s.kind ?? ''] ?? <MapPin size={13} />}
       </span>
-      <span className="min-w-0 flex-1">
-        <span className={cn('block', state === 'now' ? 'font-semibold text-slate-900' : 'text-slate-800')}>
-          {s.text || (s.drive ? `${s.drive.start} → ${s.drive.end}` : '')}
-          {state === 'now' && <span className="ml-1.5 rounded-full bg-brand-50 px-1.5 text-[10px] font-semibold uppercase text-brand-700">{t('todayNow')}</span>}
-          {state === 'next' && <span className="ml-1.5 rounded-full bg-slate-100 px-1.5 text-[10px] font-semibold uppercase text-slate-600">{t('todayNext')}</span>}
+      {g ? (
+        // The drive: grey like the builder's - where to, how far and long, when they arrive.
+        <span className={cn('min-w-0 flex-1 text-xs leading-5', state === 'now' ? 'font-semibold text-slate-800' : 'text-slate-500')}>
+          {[g.km ? `${g.km} km` : '', `→ ${g.end}`].filter(Boolean).join(' ')}
+          {g.drive && <span> · {g.drive}</span>}
+          {g.arrive && <span className="text-slate-400"> · {t('progArrives', { time: g.arrive })}</span>}
+          {tag}
         </span>
-        {(s.drive || s.phone) && (
-          <span className="block text-xs text-slate-500">
-            {s.drive && s.text && <span>{[s.drive.km ? `${s.drive.km} km` : '', s.drive.drive].filter(Boolean).join(' · ')}{s.phone ? ' · ' : ''}</span>}
-            {s.phone && <a href={`tel:${s.phone.replace(/\s/g, '')}`} className="text-brand-700 hover:underline">{s.phone}</a>}
-          </span>
-        )}
-      </span>
+      ) : (
+        <span className="min-w-0 flex-1">
+          <span className={cn('block', state === 'now' ? 'font-semibold text-slate-900' : 'text-slate-800')}>{s.text}{tag}</span>
+          {s.phone && <a href={`tel:${s.phone.replace(/\s/g, '')}`} className="block text-xs text-brand-700 hover:underline">{s.phone}</a>}
+        </span>
+      )}
     </li>
   )
 }
