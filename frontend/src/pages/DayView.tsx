@@ -314,10 +314,14 @@ function Board({ rows, flagsOf, now, onOpen }: { rows: Row[]; flagsOf: (r: Row) 
                 {blocksOf(r).map((b, i) => (
                   <button key={i} type="button" onClick={() => onOpen(r.tour.id)} title={`${hm(b.from)}–${hm(b.to)} · ${b.road ? b.label : b.step.text || b.label}`}
                     style={{ left: pct(b.from), width: `calc(${pct(b.to)} - ${pct(b.from)} - 2px)` }}
-                    className={cn('absolute top-3.5 flex h-7 items-center overflow-hidden rounded-md px-1.5 text-[11px] font-medium',
+                    className={cn('@container absolute top-3.5 flex h-7 items-center overflow-hidden rounded-md text-[11px] font-medium',
                       b.missing ? 'border-[1.5px] border-dashed border-amber-500 bg-amber-50 text-amber-800' : BLOCK_TONE[b.road ? 'road' : b.kind] ?? 'bg-slate-100 text-slate-700',
                       now != null && b.to <= now && 'opacity-50')}>
-                    <span className="truncate">{b.missing ? `${t(b.step.meal as TKey)} ?` : b.road ? b.label : b.label}</span>
+                    {/* Always the icon (a short breakfast is a clear cup, not "B…"); the words only where they fit. */}
+                    <span className="flex w-full min-w-0 items-center justify-center gap-1 px-1 @[56px]:justify-start @[56px]:px-1.5">
+                      <span className="shrink-0 opacity-80">{b.road ? <Bus size={13} /> : STEP_ICON[b.kind] ?? <MapPin size={13} />}</span>
+                      <span className="hidden truncate @[56px]:inline">{b.missing ? `${t(b.step.meal as TKey)} ?` : b.road ? b.label.replace(/^→\s*/, '') : b.label}</span>
+                    </span>
                   </button>
                 ))}
                 {now != null && now >= start && now <= end && <span className="pointer-events-none absolute inset-y-0 w-0.5 bg-red-500" style={{ left: pct(now) }} />}
