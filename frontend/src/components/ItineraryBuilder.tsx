@@ -95,9 +95,8 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
     try { const v = localStorage.getItem('itineraryView'); return v === 'days' || v === 'check' ? v : 'overview' } catch { return 'overview' }
   })
   const setView = (v: 'overview' | 'days' | 'check') => { setViewState(v); try { localStorage.setItem('itineraryView', v) } catch { /* private window */ } }
-  // The drag-and-drop list on the left: open, or a slim rail of icons (remembered on this computer).
-  const [listOpen, setListOpenRaw] = useState(() => { try { return localStorage.getItem('builder.list') !== '0' } catch { return true } })
-  const setListOpen = (v: boolean) => { setListOpenRaw(v); try { localStorage.setItem('builder.list', v ? '1' : '0') } catch { /* private window */ } }
+  // The list on the left (the days, saved days): always open when a tour opens; folding it lasts for this visit.
+  const [listOpen, setListOpen] = useState(true)
   const [listTab, setListTab] = useState<Tab>('days')
   const toolbar = useStickyHeight('--bar-h')
   // Simple day cards (the four questions; the rest under "More for this day") unless "Show everything" is on.
