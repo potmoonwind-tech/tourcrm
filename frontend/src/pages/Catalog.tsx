@@ -15,6 +15,7 @@ import { addressOf, PlaceInput, pinPlace, type PlaceSuggestion } from '../compon
 import { QuickVendorDialog } from '../components/QuickAdd'
 import { OpeningHoursBox } from '../components/OpeningHours'
 import { ClientNamesBox, MapNameButton } from '../components/ClientNames'
+import { PlacePhotos } from '../components/Photos'
 import {
   api, VENDOR_TYPES,
   type Client, type Vendor, type VendorType, can } from '../lib/api'
@@ -269,6 +270,10 @@ function VendorModal({ vendor, defaultType, canEdit, onClose: close, onCreated, 
           </Field>
           {/* What clients read for it in programme files (saved under its saved name). */}
           {vendor && PLACE_TYPES.includes(f.type) && <ClientNamesBox name={vendor.name} />}
+          {/* Its photos: the tour presentation shows the first one. */}
+          {vendor && PLACE_TYPES.includes(f.type) && canEdit && (
+            <Field label={t('photos')} hint={t('photosHint')}><PlacePhotos vendorId={vendor.id} name={vendor.name} /></Field>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label={t('type')}>
               <Select value={f.type} onChange={set('type')}>

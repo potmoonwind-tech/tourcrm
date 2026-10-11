@@ -242,3 +242,16 @@ body {
   background: #fff; box-shadow: var(--shadow-md); font-size: 11px; white-space: nowrap; color: var(--color-slate-800); }
 .tm-groups b { font-weight: 600; }
 .tm-groups span { cursor: pointer; padding: 1px 4px; border-radius: 4px; background: var(--color-brand-50); color: var(--color-brand-800); font-family: ui-monospace, monospace; }
+
+/* The tour presentation (/present/<token>): the day numbers on its map, and printing to PDF a page per section. */
+.pres-pin { position: absolute; left: 0; top: 0; display: flex; min-width: 26px; height: 26px; padding: 0 8px; white-space: nowrap;
+  align-items: center; justify-content: center; border-radius: 9999px;
+  background: var(--color-brand-600); color: #fff; font: 600 12px/1 system-ui, sans-serif; box-shadow: 0 0 0 3px #fff, 0 2px 6px rgb(0 0 0 / .3); }
+@media print {
+  @page { size: A4; margin: 12mm; }
+  .pres { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  .pres-noprint { display: none !important; }
+  .pres-page { break-before: page; }
+  .pres-cover { min-height: 250mm; }
+  .pres article, .pres figure { break-inside: avoid; }
+}

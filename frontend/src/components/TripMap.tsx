@@ -32,7 +32,7 @@ const TILES = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'
 const ATTRIBUTION = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
 
 /** Google's encoded polyline (precision 5) → [lat, lon] points. */
-function decode(s: string): [number, number][] {
+export function decode(s: string): [number, number][] {
   const out: [number, number][] = []
   let i = 0, lat = 0, lon = 0
   while (i < s.length) {

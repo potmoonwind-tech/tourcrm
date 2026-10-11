@@ -1218,3 +1218,27 @@ class MailLog(Base):
     body: Mapped[str] = mapped_column(Text)
     error: Mapped[str] = mapped_column(String(500), default="")       # "" = sent
     sent_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
+# --- photos: of the catalogue's places and the route's towns and sights (the tour presentation) ------------
+
+class Photo(Base):
+    """A photo of a hotel, restaurant or sight of the catalogue (vendor_id), or of a town or sight on the way
+    known only by its name (place: geo.key of it). Uploaded by the agency (storage_key), or a free photo from
+    Wikimedia Commons (url, with its author and licence in `credit`). The first one (position) is the main one.
+    A Wikimedia row with no url records that the automatic search found nothing (not searched again)."""
+    __tablename__ = "photos"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id", ondelete="CASCADE"), index=True)
+    vendor_id: Mapped[str | None] = mapped_column(ForeignKey("vendors.id", ondelete="CASCADE"), nullable=True, index=True)
+    place: Mapped[str] = mapped_column(String(200), default="", index=True)
+    source: Mapped[str] = mapped_column(String(12), default="upload")        # upload | wikimedia
+    storage_key: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    url: Mapped[str] = mapped_column(String(1000), default="")
+    thumb: Mapped[str] = mapped_column(String(1000), default="")
+    credit: Mapped[str] = mapped_column(String(300), default="")             # "Photo: Jane Doe · CC BY-SA 4.0"
+    link: Mapped[str] = mapped_column(String(1000), default="")              # the photo's page (licence)
+    auto: Mapped[bool] = mapped_column(default=False, server_default="0")    # picked by the app, not by a person
+    position: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

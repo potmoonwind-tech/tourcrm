@@ -1,7 +1,7 @@
 import { toFields } from '../components/DayProgramme'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ask, Drawer, Menu, useGuardedClose } from '../components/overlay'
-import { Ban, Calculator, Check, Copy, History, Minus, Pencil, Plus, Redo2, Send, Trash2, Undo2 } from 'lucide-react'
+import { Ban, Calculator, Check, Copy, History, Images, Minus, Pencil, Plus, Redo2, Send, Trash2, Undo2 } from 'lucide-react'
 import { useEffect, useState, type FormEvent, type ReactNode } from 'react'
 import { useStickyHeight } from '../lib/sticky'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
@@ -28,6 +28,7 @@ import { CURRENCIES } from './Onboarding'
 import { MealsTab } from './TourMeals'
 import { BookingsTab } from './TourBookings'
 import { DuplicateTour, TourHistory } from '../components/TourCopy'
+import { PresentationDrawer } from '../components/PresentationDrawer'
 
 export function TourDetailPage() {
   const ws = useWorkspace()!
@@ -47,6 +48,7 @@ export function TourDetailPage() {
   const [editing, setEditing] = useState<{ focus: DetailField } | null>(null)   // the details drawer, at a field
   const [copying, setCopying] = useState(false)      // "Duplicate"
   const [history, setHistory] = useState(false)      // the change history, with "Return"
+  const [presenting, setPresenting] = useState(false)   // the presentation for the client
   type Tab = typeof tab
   const setTab = (id: string) => setParams(id === 'itinerary' ? {} : { tab: id }, { replace: true })
 
@@ -77,6 +79,7 @@ export function TourDetailPage() {
         </span>}
         action={atLeast(ws.role, 'staff') && (
           <Menu items={[
+            { label: t('presTitle'), icon: <Images size={16} />, onClick: () => setPresenting(true) },
             { label: t('dupMenu'), icon: <Copy size={16} />, onClick: () => setCopying(true) },
             { label: t('historyTitle'), icon: <History size={16} />, onClick: () => setHistory(true) },
             { label: t('cancelTour'), icon: <Ban size={16} />, onClick: () => setCancelling(true),
@@ -92,6 +95,7 @@ export function TourDetailPage() {
         <AlertBars tourId={tr.id} onTab={setTab} />
         <TourSummary tour={tr} canEdit={canEdit} onEdit={(f) => setEditing({ focus: f })} />
         {copying && <DuplicateTour tour={tr} onClose={() => setCopying(false)} />}
+        {presenting && <PresentationDrawer tour={tr} onClose={() => setPresenting(false)} />}
         {history && <TourHistory tour={tr} onClose={() => setHistory(false)} onChanged={(t2) => qc.setQueryData(key, t2)} />}
         {editing && <TourDetailsDrawer tour={tr} focus={editing.focus} onClose={() => setEditing(null)} onSaved={(t2) => qc.setQueryData(key, t2)} />}
         <div role="tablist" aria-label={t('tourSections')} ref={tabsBar}

@@ -8,6 +8,7 @@ import { LoginPage, SignupPage } from './pages/Auth'
 import { ClientsPage, VendorsPage } from './pages/Catalog'
 import { FieldPage } from './pages/Field'
 import { ProgrammePreviewPage, ProgrammeSharedPage } from './pages/ProgrammeShared'
+import { PresentationPage } from './pages/Presentation'
 import { SeriesPage } from './pages/SeriesPage'
 import { DashboardPage } from './pages/Home'
 import { DayViewPage } from './pages/DayView'
@@ -105,6 +106,7 @@ export default function App() {
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/f/:token" element={<FieldPage />} />
       <Route path="/p/:token" element={<ProgrammeSharedPage />} />
+      <Route path="/present/:token" element={<PresentationPage />} />
       <Route element={<RequireAuth />}>
         <Route path="/" element={<Home />} />
         <Route path="/new-workspace" element={<NewWorkspacePage />} />
