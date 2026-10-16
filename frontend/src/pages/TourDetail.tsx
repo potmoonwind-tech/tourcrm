@@ -9,7 +9,7 @@ import { CodeChip } from '../components/tour'
 import { Button, Card, ErrorText, Field, FullPageSpinner, Input, Select, Textarea } from '../components/ui'
 import { QuickClientDialog } from '../components/QuickAdd'
 import { parseRooms, RoomsPicker, roomsText } from '../components/RoomsPicker'
-import { api, atLeast, TOUR_STATUSES, type BusReturn, type DayFields, type QuoteOut, type Tour, type TourStatus, can } from '../lib/api'
+import { api, atLeast, TOUR_STATUSES, type BusReturn, type BusStart, type DayFields, type QuoteOut, type Tour, type TourStatus, can } from '../lib/api'
 import { useClients, wsPath } from '../lib/data'
 import { addDays, diffDays, fmt, today } from '../lib/dates'
 import { useI18n } from '../lib/i18n'
@@ -374,16 +374,19 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
   const alerts = useAlerts(tour.id)
   const days = draft ?? saved
   const busReturn = back === undefined ? tour.bus_return ?? null : back
+  const [come, setCome] = useState<BusStart | null | undefined>(undefined)   // undefined: as saved
+  const busStart = come === undefined ? tour.bus_start ?? null : come
   const dirty = (!!draft && JSON.stringify(draft) !== JSON.stringify(saved))
     || (back !== undefined && JSON.stringify(back) !== JSON.stringify(tour.bus_return ?? null))
+    || (come !== undefined && JSON.stringify(come) !== JSON.stringify(tour.bus_start ?? null))
   // Longer or shorter: the end date moves; new days come empty, the last day goes with its content.
   const resize = useMutation({
     mutationFn: (end_date: string) => api<Tour>(wsPath(ws.id, `/tours/${tour.id}`), { method: 'PATCH', body: { end_date } }),
     onSuccess: (t2) => { onSaved(t2); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
   })
   const save = useMutation({
-    mutationFn: () => api<Tour>(wsPath(ws.id, `/tours/${tour.id}/itinerary`), { method: 'PUT', body: { days, bus_return: busReturn } }),
-    onSuccess: (t2) => { onSaved(t2); setDraft(null); setBack(undefined); setUndo({ past: [], future: [] }); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
+    mutationFn: () => api<Tour>(wsPath(ws.id, `/tours/${tour.id}/itinerary`), { method: 'PUT', body: { days, bus_return: busReturn, bus_start: busStart } }),
+    onSuccess: (t2) => { onSaved(t2); setDraft(null); setBack(undefined); setCome(undefined); setUndo({ past: [], future: [] }); qc.invalidateQueries({ queryKey: ['alerts', ws.id] }) },
   })
   return (
     <div className="space-y-3 pb-16">
@@ -398,7 +401,7 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
       <ItineraryBuilder flush={!tour.route_changed} onDownload={() => setExporting(true)} days={days} dates={tour.days.map((d) => d.date)} fixedLength disabled={!canEdit}
         crew={{ pax: tour.pax, leaders: tour.leaders ?? 0, leaderSeat: tour.leader_seat, staff: tour.staff, share: tour.plate_share || ws.plate_share || 1 }}
         alerts={dirty ? [] : alerts.data ?? []} onChange={change}
-        busReturn={busReturn} onBusReturn={(b) => setBack(b)}
+        busReturn={busReturn} onBusReturn={(b) => setBack(b)} busStart={busStart} onBusStart={(b) => setCome(b)}
         pending={dirty ? (
           // Unsaved changes: in the builder's bottom bar, in place of its tools.
           <span role="status" className="flex shrink-0 items-center gap-2">
@@ -407,7 +410,7 @@ function ItineraryTab({ tour, canEdit, onSaved }: { tour: Tour; canEdit: boolean
               aria-label={t('undoStep')} title={`${t('undoStep')} (Ctrl+Z)`}><Undo2 size={16} /></Button>
             <Button size="sm" variant="ghost" className="rounded-full px-2" disabled={!undo.future.length} onClick={stepForward}
               aria-label={t('redoStep')} title={`${t('redoStep')} (Ctrl+Shift+Z)`}><Redo2 size={16} /></Button>
-            <Button size="sm" variant="secondary" className="rounded-full" onClick={() => { setDraft(null); setBack(undefined); setUndo({ past: [], future: [] }) }}>{t('discard')}</Button>
+            <Button size="sm" variant="secondary" className="rounded-full" onClick={() => { setDraft(null); setBack(undefined); setCome(undefined); setUndo({ past: [], future: [] }) }}>{t('discard')}</Button>
             <Button size="sm" className="rounded-full" disabled={save.isPending} onClick={() => save.mutate()}>{t('saveChanges')}</Button>
           </span>
         ) : undefined} />

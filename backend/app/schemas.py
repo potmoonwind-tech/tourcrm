@@ -511,6 +511,14 @@ class BusReturn(BaseModel):
     km: int | None = Field(default=None, ge=0, le=5000)
 
 
+class BusStart(BaseModel):
+    """The bus coming from its garage to where the tour starts (the group crosses the border from
+    Azerbaijan): on the first day, or the day before (one more bus day to pay). Its km count with the trip's."""
+    on: Literal["first", "before"] = "first"
+    town: str = Field(default="", max_length=100)     # where the bus comes from (its garage)
+    km: int | None = Field(default=None, ge=0, le=5000)
+
+
 class SeriesIn(BaseModel):
     code: str = Field(min_length=1, max_length=20)
     name: str = Field(default="", max_length=200)
@@ -519,6 +527,7 @@ class SeriesIn(BaseModel):
     days: list[DayFields] = Field(default_factory=list, max_length=60)
     staff_plan: list[StaffPlanItem] | None = Field(default=None, max_length=20)   # None: leave as it is
     bus_return: BusReturn | None = None
+    bus_start: BusStart | None = None
 
     @field_validator("code")
     @classmethod
@@ -535,6 +544,7 @@ class SeriesOut(_Out):
     days: list[SeriesDayOut]
     staff_plan: list[StaffPlanItem] = []
     bus_return: BusReturn | None = None
+    bus_start: BusStart | None = None
 
 
 class TourUpdate(BaseModel):
@@ -660,6 +670,7 @@ class TourSummary(BaseModel):
 class TourOut(TourSummary):
     plate_share: int | None = None       # this group's people per plate (None = the agency's)
     bus_return: BusReturn | None = None
+    bus_start: BusStart | None = None
     leaders: int = 0
     staff_table: bool = False
     leader_seat: str | None = None

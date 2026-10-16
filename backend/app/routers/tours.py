@@ -13,7 +13,7 @@ from ..deps import WorkspaceCtx, require_role
 from .. import programme as programme_mod
 from ..models import LIVE_STATUSES, Client, Participant, Series, SeriesDay, StaffAssignment, Tour, TourBooking, TourChange, TourDay, Vendor
 from ..schemas import (
-    BusReturn, DayFields, DayViewRow, StaffOut, TourCreate, TourDayOut, TourDayUpdate, TourOut, TourStatus, TourSummary, TourUpdate, VendorRef,
+    BusReturn, BusStart, DayFields, DayViewRow, StaffOut, TourCreate, TourDayOut, TourDayUpdate, TourOut, TourStatus, TourSummary, TourUpdate, VendorRef,
 )
 from ..scoping import check_day_refs, check_refs, get_owned
 from .lifecycle import phase
@@ -56,7 +56,7 @@ def participant_counts(db: Session, tour_ids: list[str]) -> dict[str, int]:
 
 def full(t: Tour, money: bool = False) -> TourOut:
     return TourOut(**summary(t).model_dump(), notes=t.notes, plate_share=t.plate_share, leaders=t.leaders or 0,
-                   staff_table=bool(t.staff_table), leader_seat=t.leader_seat, bus_return=t.bus_return,
+                   staff_table=bool(t.staff_table), leader_seat=t.leader_seat, bus_return=t.bus_return, bus_start=t.bus_start,
                    days=[TourDayOut.model_validate(d) for d in t.days],
                    price_pp=t.price_pp if money else None, price_currency=t.price_currency if money else None,
                    route_changed=_route_changed(t))
@@ -341,6 +341,7 @@ def create_tour(body: TourCreate, ctx: WorkspaceCtx = Depends(write), db: Sessio
     sync_days(t, series.days if series else None)
     if series:
         t.bus_return = dict(series.bus_return) if series.bus_return else None
+        t.bus_start = dict(series.bus_start) if series.bus_start else None
     if series:
         db.flush()
         staff_from_plan(db, t, series)
@@ -412,7 +413,7 @@ class DuplicateIn(BaseModel):
 
 
 # What a copy takes from the tour: the plan, not what happened to it (bookings, money, history, links).
-_COPY_TOUR = ("name", "series_id", "client_id", "pax", "pax_estimated", "rooms", "bus_return", "plate_share", "leaders",
+_COPY_TOUR = ("name", "series_id", "client_id", "pax", "pax_estimated", "rooms", "bus_return", "bus_start", "plate_share", "leaders",
               "staff_table", "leader_seat", "notes", "price_pp", "price_currency")
 _NOT_COPIED = {"id", "tour_id", "created_at"}
 
@@ -475,6 +476,7 @@ class ItineraryIn(BaseModel):
     days were dragged into a new order). Dates stay; content moves between them."""
     days: list[DayFields] = Field(max_length=60)
     bus_return: BusReturn | None = None
+    bus_start: BusStart | None = None
 
 
 @router.put("/tours/{tour_id}/itinerary", response_model=TourOut)
@@ -490,6 +492,7 @@ def save_itinerary(tour_id: str, body: ItineraryIn, ctx: WorkspaceCtx = Depends(
         for k, v in new.model_dump(mode="json").items():
             setattr(day, k, v)
     t.bus_return = body.bus_return.model_dump() if body.bus_return else None
+    t.bus_start = body.bus_start.model_dump() if body.bus_start else None
     changes.record(db, t, before, ctx.user.id)
     db.commit()
     return full(_load(db, ctx, tour_id), ctx.can("operations", "finance", "sales"))

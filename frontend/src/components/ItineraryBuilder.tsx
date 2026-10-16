@@ -16,7 +16,7 @@ import { AlertTriangle, BedDouble, CalendarDays, ChevronDown, Bookmark, Bus, Car
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { useStickyHeight } from '../lib/sticky'
-import { api, type BreakfastMode, type DayExtra, type DayTemplate, type ScheduleItem, type StaffAssignment, type BusReturn, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
+import { api, type BreakfastMode, type DayExtra, type DayTemplate, type ScheduleItem, type StaffAssignment, type BusReturn, type BusStart, type DayFields, type Flight, type MealMode, type Service, type ServiceBrief, type DayStaffStay, type TourAlert, type Vendor, type VendorType, can } from '../lib/api'
 import { useServiceList, useVendors, wsPath } from '../lib/data'
 import { fmt, weekday, dayDate } from '../lib/dates'
 import { useI18n, type TKey } from '../lib/i18n'
@@ -64,7 +64,7 @@ export const blankDay = (city = ''): DayFields =>
   ({ city, hotel_id: null, lunch_id: null, dinner_id: null, border_crossing: '', notes: '', extras: [], km: null, stops: [],
      lunch_mode: 'included', dinner_mode: 'included', flights: [], schedule: [] })
 
-export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, crew, onDownload, pending, flush, top }: {
+export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled, alerts = [], busReturn, onBusReturn, busStart, onBusStart, crew, onDownload, pending, flush, top }: {
   days: DayFields[]; onChange: (days: DayFields[]) => void
   flush?: boolean             // right under the page's tabs: the toolbar joins them (no gap)
   top?: string                // where its sticky bars start when not under a page's tab bar (a drawer: '0px')
@@ -72,6 +72,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
   onDownload?: () => void     // "Download programme", in the builder's "⋯"
   crew?: Crew                 // a tour's group and staff: each meal's tables and plates
   busReturn?: BusReturn | null; onBusReturn?: (b: BusReturn | null) => void   // the bus back to its garage
+  busStart?: BusStart | null; onBusStart?: (b: BusStart | null) => void       // the bus from its garage to the start
   dates?: string[]            // a tour's dates; a route has none
   fixedLength?: boolean       // a tour: days come from its dates (reorder only)
   disabled?: boolean
@@ -337,7 +338,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
               { label: `${t('viewCheck')}${view === 'check' ? ' ✓' : ''}`, icon: <LayoutGrid size={16} />, onClick: () => setView('check') },
             ]} />
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
-            <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} tools={tools} />
+            <DistanceBar days={days} disabled={disabled} onChange={onChange} byId={byId} back={busReturn?.km ?? 0} start={busStart?.km ?? 0} tools={tools} />
             <span className="max-md:hidden"><BuildSteps days={days} restaurants={restaurants} onGo={openDay} /></span>
             <span className="h-5 w-px shrink-0 bg-slate-200" aria-hidden />
             {pending ?? <span className="flex shrink-0 items-center gap-0.5">
@@ -359,6 +360,7 @@ export function ItineraryBuilder({ days, onChange, dates, fixedLength, disabled,
             <DayGrid days={days} dates={dates} byId={byId} menus={services.data ?? []} alerts={alerts} crew={crew} onOpen={openDay}
               vendors={vs} disabled={disabled} onSet={set} onFill={fillGaps} />
           )}
+          {onBusStart && days.length > 0 && <BusCome days={days} value={busStart ?? null} onChange={onBusStart} disabled={disabled} />}
           {view === 'days' && <SortableContext items={keys.current} strategy={verticalListSortingStrategy}>
             {days.map((d, i) => (
               <DayCard key={keys.current[i]} id={keys.current[i]} index={i} day={d} date={dates?.[i]} last={i === days.length - 1}
@@ -1203,6 +1205,78 @@ function RecalcTimes({ days, byId, onChange, tools }: { days: DayFields[]; byId:
 }
 
 /**
+ * The bus from its garage to where the tour starts (the group crosses the border from Azerbaijan, the
+ * bus is from Tbilisi): the same day, or the day before — one more bus day to pay. Its km count with the
+ * trip's; tour costs and calculations take the extra day and the km.
+ */
+function BusCome({ days, value, onChange, disabled }: {
+  days: DayFields[]; value: BusStart | null; onChange: (b: BusStart | null) => void; disabled?: boolean
+}) {
+  const ws = useWorkspace()!
+  const { t } = useI18n()
+  // Where the group starts: the first stop of day 1 (the border), else where it sleeps.
+  const first = [...(days[0]?.stops ?? []), days[0]?.city ?? ''].map((p) => p.trim()).find(Boolean) ?? ''
+  const ask = useMutation({
+    mutationFn: (from: string) => api<{ legs: Leg[] }>(wsPath(ws.id, '/distances'), { method: 'POST', body: { cities: [from, first] } }),
+    onSuccess: (r, town) => { const km = r.legs[1]?.km; if (km != null) onChange({ ...(value ?? { on: 'first', town }), town, km }) },
+    meta: { silent: true },
+  })
+  const start = () => onChange({ on: 'first', town: '', km: null })
+  return (
+    <section aria-labelledby="bus-start" className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <Bus size={18} className="shrink-0 text-slate-500" aria-hidden />
+        <h3 id="bus-start" className="text-sm font-semibold text-slate-800">{t('busStart')}</h3>
+        <InfoTip label={t('busStartTip')} />
+        {!value ? (
+          <>
+            <span className="text-sm text-slate-500">{first ? t('busStartBeginsIn', { city: first }) : t('busBackNone')}</span>
+            {!disabled && <Button type="button" size="sm" variant="tertiary" className="ml-auto" onClick={start}><Plus size={14} aria-hidden />{t('busStartAdd')}</Button>}
+          </>
+        ) : (
+          <>
+            <span className="text-sm text-slate-500">{t('busStartTo', { city: first || '—' })}</span>
+            {!disabled && (
+              <Tooltip label={t('busStartRemove')}>
+                <button type="button" onClick={() => onChange(null)} aria-label={t('busStartRemove')}
+                  className="ml-auto rounded-md p-1 text-slate-400 hover:bg-slate-100 hover:text-red-600"><X size={16} /></button>
+              </Tooltip>
+            )}
+          </>
+        )}
+      </div>
+      {value && (
+        <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-3">
+          <MiniLabel label={t('busStartFrom')}>
+            <PlaceInput disabled={disabled} value={value.town} onChange={(town) => onChange({ ...value, town })}
+              onPicked={(p) => { onChange({ ...value, town: p.name, km: null }); if (first) ask.mutate(p.name) }}
+              className={cn(field, 'h-9 w-48')} aria-label={t('busStartFrom')} />
+          </MiniLabel>
+          <MiniLabel label={t('busBackWhen')}>
+            <SegmentedControl size="sm" label={t('busBackWhen')} value={value.on} onChange={(on) => !disabled && onChange({ ...value, on })}
+              options={[['first', t('busStartSameDay')], ['before', t('busStartDayBefore')]]} />
+          </MiniLabel>
+          <MiniLabel label={t('busBackKm')}>
+            <span className="flex items-center gap-2">
+              <input type="number" min={0} max={5000} disabled={disabled} value={value.km ?? ''} placeholder="—" aria-label={t('busBackKm')}
+                onChange={(e) => onChange({ ...value, km: e.target.value === '' ? null : Math.max(0, Math.round(Number(e.target.value))) })}
+                className={cn(field, 'h-9 w-24 text-right tabular-nums')} />
+              {!disabled && first && value.town && (
+                <Button type="button" size="sm" variant="secondary" disabled={ask.isPending} onClick={() => ask.mutate(value.town)}>
+                  <MapPinned size={14} aria-hidden />{ask.isPending ? t('askingMap') : t('busBackFromMap')}
+                </Button>
+              )}
+            </span>
+          </MiniLabel>
+          {value.on === 'before' && <p className="basis-full text-xs text-amber-800">{t('busStartBeforeHelp')}</p>}
+          {ask.isError && <p className="basis-full text-xs text-red-700">{t('mapUnavailable')}</p>}
+        </div>
+      )}
+    </section>
+  )
+}
+
+/**
  * The bus back to its garage when the tour ends elsewhere (the group flies home from Batumi, the bus is
  * from Tbilisi): the same day, or the next — one more bus day to pay. Its km count with the trip's;
  * tour costs and calculations take the extra day and the km.
@@ -1284,9 +1358,10 @@ function MiniLabel({ label, children }: { label: string; children: ReactNode }) 
 
 interface Tools { openMap?: () => void; suggestKm?: () => void; recalc?: () => void }
 
-function DistanceBar({ days, disabled, onChange, byId, back = 0, tools }: {
+function DistanceBar({ days, disabled, onChange, byId, back = 0, start = 0, tools }: {
   days: DayFields[]; disabled?: boolean; onChange: (d: DayFields[]) => void; byId: Map<string, Vendor>
   back?: number   // km of the bus's drive back to its garage
+  start?: number  // km of the bus's drive from its garage to the start
   tools: { current: Tools }
 }) {
   const ws = useWorkspace()!
@@ -1332,9 +1407,9 @@ function DistanceBar({ days, disabled, onChange, byId, back = 0, tools }: {
   return (
     <div className="relative flex shrink-0 items-center gap-2 text-sm">
       <span className="flex items-center gap-1.5 whitespace-nowrap font-medium"
-        title={[t('totalKm', { km: (total + back).toLocaleString('en-US') }), back > 0 && t('kmWithBack', { km: back.toLocaleString('en-US') }), total > 0 && t('fuelEstimate', { l: fuel.toLocaleString('en-US'), per: ws.fuel_l_per_100km ?? 30 }),
+        title={[t('totalKm', { km: (total + back + start).toLocaleString('en-US') }), start > 0 && t('kmWithStart', { km: start.toLocaleString('en-US') }), back > 0 && t('kmWithBack', { km: back.toLocaleString('en-US') }), total > 0 && t('fuelEstimate', { l: fuel.toLocaleString('en-US'), per: ws.fuel_l_per_100km ?? 30 }),
           driving > 0 && t('drivingTotal', { h: hours(driving), pct: Math.round((factor - 1) * 100) })].filter(Boolean).join('\n') || undefined}>
-        <Car size={16} className="text-slate-500" />{(total + back).toLocaleString('en-US')} km
+        <Car size={16} className="text-slate-500" />{(total + back + start).toLocaleString('en-US')} km
       </span>
       {suggest.isPending && <span className="whitespace-nowrap text-xs text-slate-500">{t('askingMap')}</span>}
       {problems > 0 && (
