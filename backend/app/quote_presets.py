@@ -108,6 +108,73 @@ def hm_preset() -> QuoteIn:
     )
 
 
+def zk_preset() -> QuoteIn:
+    """ZK-1025 Georgia–Armenia, variant A (mountain road open), 8 nights: the agency's "260829 Finale"
+    sheet (ZK-1025_8Nights_CALC.xlsx, SETUP + the 8+1 … 25+1 tabs). Its pins are in tests/test_quote_zk.py."""
+    hotels = [("Tbilisi", "Hualing 5*", 75, 75), ("Gudauri", "Marco Polo 5*", 70, 65), ("Kutaisi", "Kutaisi Inn 5*", 85, 85),
+              ("Batumi", "GreenWood 5*", 85, 75), ("Borjomi", "Borjomi Likani 5*", 97, 97),
+              ("Yerevan", "Radisson Blu Yerevan 5*", 135, 120), ("Yerevan", "Radisson Blu Yerevan 5*", 135, 120),
+              ("Tbilisi", "Hualing 5*", 75, 75)]
+    tickets = [(5, "Gori Stalin Museum"), (7, "Borjomi mineral water park"), (8, "Vardzia"), (9, "Zvartnots"),
+               (9, "Etchmiadzin Museum (our gift)"), (10, "Garni Temple"), (11, "Chronicle of Georgia"),
+               (11, "Tbilisi cable car")]
+    items = [
+        _i("Guide", "guide", "USD", 170, "days"),
+        _i("Bus", "transport", "GEL", 550, "days", tiers=BUS_TIERS, vehicle=True),
+        _i("Fuel", "transport", "GEL", 5,
+           tiers=[{"max_pax": 12, "quantity": f"{KM} * 17"}, {"max_pax": 25, "quantity": f"{KM} * 40"}],
+           notes="Litres = km / 100 × consumption (17 L minibus, 40 L bus) at the diesel price"),
+        _i("Meals in Georgia", "meal", "USD", "12.5", "days * 2 - armenia_meals - minus_meals", "per_person", "everyone",
+           notes="Lunch and dinner, everyone incl. tour leader, driver and guide"),
+        _i("Meals in Armenia", "meal", "USD", 15, "armenia_meals", "per_person", "everyone"),
+        _i("Armenian border (2 crossings)", "border", "USD", 650, "1"),
+        _i("Armenian border (1 crossing, flying out of Yerevan)", "border", "USD", 370, "1", included=False),
+        _i("Driver & guide overnights outside Tbilisi", "guide", "USD", 80, "staff_nights_outside_tbilisi"),
+        _i("Driver & guide meals on free-meal days", "meal", "USD", 20, "free_meals", "per_person", "staff"),
+        _i("Guide half day off", "guide", "USD", 170, "-0.5 * guide_half_days_off"),
+        _i("Bus half day off", "transport", "GEL", 550, "-0.5 * bus_half_days_off", tiers=BUS_TIERS),
+        _i("Bus extra day (empty return)", "transport", "GEL", 550, "bus_extra_days", tiers=BUS_TIERS),
+        _i("Wi-Fi", "other", "GEL", 32),
+        _i("Water", "other", "GEL", 1, "days", "per_person", "everyone"),
+        _i("Delica Kazbegi", "transport", "USD", 25, "1", "per_vehicle", "persons", capacity=7, extra=1),
+        _i("Delica Svaneti", "transport", "GEL", 250, "1", "per_vehicle", "persons", capacity=7, extra=1, included=False),
+        *[_i(name, "ticket", "USD", 6, "1", "per_person", "persons", day=day) for day, name in tickets],
+        _i("Wine / chacha tasting", "activity", "USD", 12, "1", "per_person", "persons", included=False),
+        _i("Dance show (always with a KTW visit)", "activity", "USD", 10, "1", "per_person", "persons"),
+        _i("Tips: driver", "tips", "USD", 2, "days", "per_person", "tourists"),
+        _i("Tips: guide", "tips", "USD", 2, "days", "per_person", "tourists"),
+        _i("Azerbaijan part", "other", "USD", 354, "azerbaijan_days", "per_person", "tourists", included=False),
+    ]
+    return QuoteIn(
+        name="ZK-1025 Georgia–Armenia, 8 nights (A)", currency="USD", days=9, pax_min=8, pax_max=25,
+        leaders=1, leader_single=True, staff=2,
+        profit_group=D(950), profit_min_pp=D(50), margin_floor_pct=D(7), single_profit=False,
+        rounding_mode="floor", rounding_step=D(1), fx={"GEL": D("2.55")},
+        variables={"km_route": D(2493), "km_reserve": D(200), "armenia_meals": D(4), "minus_meals": D(3),
+                   "staff_nights_outside_tbilisi": D(6), "free_meals": D(3), "guide_half_days_off": D(0),
+                   "bus_half_days_off": D(0), "bus_extra_days": D(0), "azerbaijan_days": D(0)},
+        variable_notes={
+            "km_route": "km driven on the route", "km_reserve": "spare km for detours",
+            "armenia_meals": "meals eaten in Armenia", "minus_meals": "meals the client pays for himself",
+            "staff_nights_outside_tbilisi": "driver and guide nights outside Tbilisi",
+            "free_meals": "meals the client pays for himself (driver and guide still eat)",
+            "guide_half_days_off": "half days without the guide", "bus_half_days_off": "half days without the bus",
+            "bus_extra_days": "empty bus days (return trips)", "azerbaijan_days": "days in Azerbaijan",
+        },
+        languages=["en", "zh", "ka"],
+        texts={
+            "en": {"title": "ZK TOURS Georgia–Armenia 8 Nights", "meals": "Lunch & dinner included · breakfast always included",
+                   "included": "Hotels, all meals as listed, bus, guide, entrance tickets, tips", "not_included": "Flights, visas, personal expenses"},
+            "zh": {"title": "格鲁吉亚—亚美尼亚 8晚 ZK 行程", "meals": "含午餐和晚餐 · 均含早餐",
+                   "included": "酒店、所列餐食、旅游巴士、导游、景点门票、小费", "not_included": "机票、签证、个人消费"},
+            "ka": {"title": "ZK ტური საქართველო–სომხეთი 8 ღამე", "meals": "სადილი და ვახშამი შედის · საუზმე ყოველთვის შედის",
+                   "included": "სასტუმროები, კვება, ავტობუსი, გიდი, ბილეთები, ჩაი", "not_included": "ავიაბილეთები, ვიზა, პირადი ხარჯები"},
+        },
+        nights=[{"city": c, "hotel_name": h, "currency": "USD", "price_dbl": D(dbl), "price_sgl": D(sgl)} for c, h, dbl, sgl in hotels],
+        items=items,
+    )
+
+
 def blank_preset() -> QuoteIn:
     return QuoteIn(name="New calculation", currency="USD", days=8, pax_min=10, pax_max=25, leaders=1, staff=2,
                    profit_min_pp=D(30), languages=["en"], texts={"en": {"title": ""}},
@@ -115,4 +182,4 @@ def blank_preset() -> QuoteIn:
                           _i("Meals", "meal", "USD", 0, "days * 2", "per_person", "everyone")])
 
 
-PRESETS = {"hm": hm_preset, "blank": blank_preset}
+PRESETS = {"hm": hm_preset, "zk": zk_preset, "blank": blank_preset}
