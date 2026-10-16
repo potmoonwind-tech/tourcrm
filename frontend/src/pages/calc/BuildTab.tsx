@@ -17,6 +17,7 @@ import { Badge, Button, Card, Chip, ChoiceCard, Field, IconButton, Input, ListRo
 import { InfoTip } from '../../components/Tooltip'
 import { useRemove, type EditFn } from './undo'
 import { MealsLine } from './MealPlan'
+import { removeDay } from './days'
 import { lineMissing, missingPrices } from './missing'
 import { CAT_COLOR, daysToTicket, journey, kindLine, KindsDialog, useKinds } from './kinds'
 import type {
@@ -381,6 +382,9 @@ function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, valu
     edit((d) => { d.days += 1 }, true)
     setTimeout(() => board.current?.scrollTo({ left: board.current.scrollWidth, behavior: 'smooth' }), 50)
   }
+  // Its lines and its night go, the days after it move up; "Undo" in the toast brings it all back.
+  const remove = useRemove(edit)
+  const dropDay = (day: number) => remove((d) => removeDay(d, day), 'dayRemovedToast')
   // Lines left on days after the trip's end (days were lowered) are still priced: show them, marked.
   const beyond = [...new Set(doc.items.map((i) => i.day).filter((d): d is number => !!d && d > doc.days))].sort((a, b) => a - b)
   const cols: (number | null)[] = [...Array.from({ length: doc.days }, (_, k) => k + 1), ...beyond, null]
@@ -440,7 +444,12 @@ function TripBoard({ doc, n, amounts, beds, edit, onItem, onNight, vehicle, valu
                 <span className={cn('text-sm font-semibold', day !== null && day > doc.days && 'text-amber-700')}>
                   {day === null ? t('wholeTrip') : day > doc.days ? `${t('dayN', { n: day })} · ${t('outsideTrip')}` : t('dayN', { n: day })}
                 </span>
-                {dayTotal > 0 && <span className="text-sm tabular-nums text-slate-600">{money(dayTotal)}</span>}
+                <span className="flex items-center gap-1">
+                  {dayTotal > 0 && <span className="text-sm tabular-nums text-slate-600">{money(dayTotal)}</span>}
+                  {day !== null && day <= doc.days && doc.days > 1 && (
+                    <IconButton label={t('removeDay', { n: day })} size="sm" tone="danger" className="-my-1.5" onClick={() => dropDay(day)}><Trash2 size={14} /></IconButton>
+                  )}
+                </span>
               </div>
               {nightIdx !== null && (nt ? (
                 <TripChip color={CAT_COLOR.hotel} label={nt.hotel_name || nt.city || t('hotel')} missing={nt.price_dbl === null || nt.price_dbl === ''}
