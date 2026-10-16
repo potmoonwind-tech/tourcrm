@@ -7,6 +7,7 @@ workspace before saving, like any other link in the app.
 import io
 import uuid
 import re
+from dataclasses import dataclass
 from types import SimpleNamespace
 from datetime import date, timedelta, timezone
 from decimal import Decimal
@@ -215,14 +216,12 @@ def create_quote(body: QuoteCreate, ctx: WorkspaceCtx = Depends(can_ope_sal), db
             built.items = [i for i in built.items if not (i.category == "transport" and i.day is None)]
             if not src.transport.km:
                 src.transport.km = Decimal(sum(d.km or 0 for d in route.days))
-        back = (tour.bus_return if tour is not None else getattr(route, "bus_return", None)) or {}
-        if back:
-            if src.transport is not None:
-                src.transport.km += Decimal(back.get("km") or 0)
-                if back.get("on") == "next":
-                    src.transport.extra_days += 1
-            if "bus_extra_days" in src.variables:   # the agency's own "empty bus days" input
-                src.variables["bus_extra_days"] = Decimal(1 if back.get("on") == "next" else 0)
+        host = tour if tour is not None else route
+        bus = bus_drives(route.days, getattr(host, "bus_start", None), getattr(host, "bus_return", None))
+        if src.transport is not None:
+            src.transport.km += bus.empty_km
+            src.transport.extra_days += bus.extra_days
+        fill_bus_variables(src.variables, bus)
         fx = {**suggested_fx(db, ctx, src.currency, _used_currencies(built.nights, built.items)), **src.fx}
         src = QuoteIn.model_validate({
             **src.model_dump(), "fx": fx, "series_id": route.id, "days": max(1, len(route.days)), "valid_from": on,
@@ -252,6 +251,31 @@ def create_quote(body: QuoteCreate, ctx: WorkspaceCtx = Depends(can_ope_sal), db
     out = _out(q, db)
     out.notices = warnings
     return out
+
+
+@dataclass
+class BusDrives:
+    road_km: Decimal      # the days' own road km
+    empty_km: Decimal     # the bus without the group: from its garage to the start, and back
+    extra_days: int       # bus days without the group: it comes the day before, or goes back the day after
+    planned: bool         # the route says how the bus comes or goes (else the calculation's own inputs stay)
+
+
+def bus_drives(days, start: dict | None, back: dict | None) -> BusDrives:
+    start, back = start or {}, back or {}
+    return BusDrives(road_km=Decimal(sum(d.km or 0 for d in days)),
+                     empty_km=Decimal((start.get("km") or 0) + (back.get("km") or 0)),
+                     extra_days=int(start.get("on") == "before") + int(back.get("on") == "next"),
+                     planned=bool(start or back))
+
+
+def fill_bus_variables(variables: dict[str, Decimal], bus: BusDrives) -> None:
+    """The agency's own inputs, when its way of pricing has them (the ZK sheet): the km driven and the
+    empty bus days."""
+    if "km_route" in variables and bus.road_km + bus.empty_km:     # a route without km keeps what is typed
+        variables["km_route"] = bus.road_km + bus.empty_km
+    if "bus_extra_days" in variables and bus.planned:
+        variables["bus_extra_days"] = Decimal(bus.extra_days)
 
 
 def style_into(src: QuoteIn, style: dict | None) -> None:
@@ -370,6 +394,9 @@ class RouteFill(BaseModel):
 
 class RouteFillOut(BaseModel):
     days: int
+    km: int = 0                   # the road km of the days plus the bus's drives to the start and back
+    bus_extra_days: int = 0       # bus days without the group: the day before the start, the day after the end
+    bus_planned: bool = False     # the route says how the bus comes or goes
     nights: list[QuoteNightIn]
     items: list[QuoteItemIn]
     fx: dict[str, Decimal]        # rates from Settings for the currencies used (the editor adds missing ones)
@@ -411,7 +438,9 @@ def route_fill(body: RouteFill, ctx: WorkspaceCtx = Depends(can_ope_sal), db: Se
                     pax_min=body.pax_min, pax_max=body.pax_max)
     b = route_build.build(db, s, shell, body.on_date or date.today(), meals=body.meals, extras=body.extras, pax=body.pax)
     fx = suggested_fx(db, ctx, body.currency, _used_currencies(b.nights, b.items))
-    return RouteFillOut(days=len(s.days), nights=b.nights, items=b.items, fx=fx, warnings=b.warnings)
+    bus = bus_drives(s.days, s.bus_start, s.bus_return)
+    return RouteFillOut(days=len(s.days), km=int(bus.road_km + bus.empty_km), bus_extra_days=bus.extra_days, bus_planned=bus.planned,
+                        nights=b.nights, items=b.items, fx=fx, warnings=b.warnings)
 
 
 class RepriceIn(BaseModel):

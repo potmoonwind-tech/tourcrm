@@ -239,6 +239,9 @@ class Series(Base):
     staff_plan: Mapped[list] = mapped_column(JSON, default=list, server_default="[]")
     # The bus back to its garage after the last day ({"on": "last"|"next", "to": town, "km": n}); None: not needed.
     bus_return: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # The bus coming to where the tour starts (a border, an airport) from its garage
+    # ({"on": "first"|"before", "town": garage town, "km": n}); None: it starts where the bus is.
+    bus_start: Mapped[dict | None] = mapped_column(JSON, nullable=True)
 
     days: Mapped[list["SeriesDay"]] = relationship(
         back_populates="series", cascade="all, delete-orphan", order_by="SeriesDay.day_number")
@@ -332,6 +335,7 @@ class Tour(Base):
     route_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     rooms: Mapped[str] = mapped_column(String(200), default="")
     bus_return: Mapped[dict | None] = mapped_column(JSON, nullable=True)   # as the route's (copied from it)
+    bus_start: Mapped[dict | None] = mapped_column(JSON, nullable=True)    # as the route's (copied from it)
     # This group shares plates differently from the agency's usual (None = the agency's).
     plate_share: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # The free tour leaders who travel with the group, on top of `pax` (the guests): 19+1 → pax 19, leaders 1.
