@@ -97,13 +97,14 @@ export function CalculationsPage() {
   )
 }
 
-type StartKind = 'route' | 'tour' | 'copy' | 'blank' | 'sample'
+type StartKind = 'route' | 'tour' | 'copy' | 'blank' | 'sample' | 'zk'
 const STARTS: { kind: StartKind; icon: typeof Plus; title: TKey; hint: TKey }[] = [
   { kind: 'route', icon: Route, title: 'startRoute', hint: 'startRouteHint' },
   { kind: 'tour', icon: CalendarDays, title: 'startTour', hint: 'startTourHint' },
   { kind: 'copy', icon: Copy, title: 'startCopy', hint: 'startCopyHint' },
   { kind: 'blank', icon: FilePlus, title: 'startBlank', hint: 'startBlankHint' },
   { kind: 'sample', icon: Sparkles, title: 'startSample', hint: 'startSampleHint' },
+  { kind: 'zk', icon: Sparkles, title: 'startZk', hint: 'startZkHint' },
 ]
 
 /** How to start a calculation, as choices you can see: from a route (the usual way), from a tour,
@@ -128,7 +129,7 @@ function NewCalculation({ quotes, onClose }: { quotes: QuoteSummary[]; onClose: 
       const body = kind === 'route' ? { preset: 'blank', series_id: routeId, on_date: onDate, name: name || null }
         : kind === 'tour' ? { preset: 'blank', tour_id: tourId, name: name || null }
         : kind === 'copy' ? { copy_of: copyId, name: name || null }
-        : { preset: kind === 'sample' ? 'hm' : 'blank', name: name || null }
+        : { preset: kind === 'sample' ? 'hm' : kind === 'zk' ? 'zk' : 'blank', name: name || null }
       return api<QuoteOut>(wsPath(ws.id, '/quotes'), { method: 'POST', body })
     },
     // Missing prices etc. found while building are shown once in the editor; from a tour, the price goes back to it.
