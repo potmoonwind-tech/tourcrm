@@ -161,6 +161,16 @@ supplier invoice issues, calculations awaiting an answer. API: `app/routers/dash
 
 ## Run locally
 
+First time only (Python 3.13 and Node 24):
+
+```bash
+cd backend
+python -m venv .venv
+.venv/Scripts/python -m pip install -r requirements.txt     # macOS / Linux: .venv/bin/python
+cd ../frontend
+npm install
+```
+
 Backend (FastAPI, http://localhost:8000):
 
 ```bash
