@@ -112,6 +112,7 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
     code: series?.code ?? '', name: series?.name ?? '', color: series?.color ?? 'indigo', notes: series?.notes ?? '',
     days: series?.days.map(({ day_number: _, ...d }) => d) ?? [blankDay()],
     bus_return: series?.bus_return ?? null,
+    bus_start: series?.bus_start ?? null,
   })
   const [f, setF] = useState(initial)
   const [exporting, setExporting] = useState(false)
@@ -182,7 +183,7 @@ function RouteEditor({ series, canEdit, onClose }: { series: Series | null; canE
           </div>
           {exporting && <ProgrammeDialog title={f.name || f.code} days={f.days} onClose={() => setExporting(false)} />}
           <ItineraryBuilder top="0px" onDownload={() => setExporting(true)} days={f.days} disabled={!canEdit} onChange={(days) => setF({ ...f, days })}
-            busReturn={f.bus_return} onBusReturn={(bus_return) => setF({ ...f, bus_return })} />
+            busReturn={f.bus_return} onBusReturn={(bus_return) => setF({ ...f, bus_return })} busStart={f.bus_start} onBusStart={(bus_start) => setF({ ...f, bus_start })} />
         </fieldset>
         {!canEdit && <ErrorText error={save.error || remove.error} />}
       </form>

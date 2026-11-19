@@ -160,7 +160,7 @@ def _route_change(db, ctx, d, resolve):
         out += after.get(i, [])
     body = SeriesIn(code=s.code, name=d["name"] if d.get("name") is not None else s.name, color=s.color,
                     notes=d["notes"] if d.get("notes") is not None else s.notes, days=out, staff_plan=None,
-                    bus_return=s.bus_return)
+                    bus_return=s.bus_return, bus_start=s.bus_start)
     series.replace_series(s.id, body, ctx=ctx, db=db)
     return s.id
 

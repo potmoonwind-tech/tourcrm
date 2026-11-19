@@ -171,3 +171,47 @@ def test_the_bus_drives_back_to_its_garage(make_client):
     # A calculation from the route: the agency's "empty bus days" input is the return day.
     q = c.post(f"{base}/quotes", json={"preset": "hm", "series_id": route["id"]}).json()
     assert float(q["variables"]["bus_extra_days"]) == 1
+
+
+def test_the_bus_comes_to_the_border_where_the_tour_starts(make_client):
+    """The group crosses from Azerbaijan at Lagodekhi; the bus comes from Tbilisi the day before:
+    one more bus day, and its km on the first day and in the calculation."""
+    c, base, _ = agency(make_client)
+    _, svc = setup(c, base)
+    bus = mk(c, f"{base}/vendors", {"name": "Caucasus Coaches", "type": "transport"})
+    route = mk(c, f"{base}/series", {"code": "AZ", "days": [
+        {"city": "Tbilisi", "stops": ["Lagodekhi", "Sighnaghi"], "km": 250, "extras": [{"service_id": svc["Fuel"]}]},
+        {"city": "Kutaisi", "km": 230}],
+        "bus_start": {"on": "before", "town": "Tbilisi", "km": 160},
+        "bus_return": {"on": "last", "to": "Tbilisi", "km": 230}})
+    assert route["bus_start"] == {"on": "before", "town": "Tbilisi", "km": 160}
+
+    t = mk(c, f"{base}/tours", {"series_id": route["id"], "start_date": "2026-05-01", "pax": 20})
+    tour = c.get(f"{base}/tours/{t['id']}").json()
+    assert tour["bus_start"]["town"] == "Tbilisi"
+    mk(c, f"{base}/tours/{t['id']}/staff", {"vendor_id": bus["id"], "role": "transport"})
+    c.post(f"{base}/tours/{t['id']}/costs/generate")
+    lines = c.get(f"{base}/tours/{t['id']}/costs").json()["lines"]
+    line = next(x for x in lines if x["vendor"]["id"] == bus["id"])
+    assert line["quantity"] == 3 and "drive to the start from Tbilisi" in line["description"]
+    fuel = next(x for x in lines if "Fuel" in x["description"])
+    assert float(fuel["quantity"]) == (250 + 160) * 30 / 100      # day 1: the road and the drive to the border
+
+    # The ZK sheet's own inputs: km = the days' road + to the border + back; one empty bus day.
+    q = c.post(f"{base}/quotes", json={"preset": "zk", "series_id": route["id"]}).json()
+    assert float(q["variables"]["km_route"]) == 250 + 230 + 160 + 230
+    assert float(q["variables"]["bus_extra_days"]) == 1
+
+    # "Fill from route" in an open calculation says the same.
+    r = c.post(f"{base}/quotes/route-fill", json={"series_id": route["id"]}).json()
+    assert (r["km"], r["bus_extra_days"]) == (870, 1)
+
+    # Saving the tour's itinerary without it: the bus starts where the group does.
+    days = [{k: v for k, v in d.items() if k not in ("id", "day_number", "date", "hotel", "lunch", "dinner", "breakfast", "staff_hotel")}
+            for d in tour["days"]]
+    r = c.put(f"{base}/tours/{t['id']}/itinerary", json={"days": days, "bus_return": tour["bus_return"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["bus_start"] is None
+    c.post(f"{base}/tours/{t['id']}/costs/generate")
+    line = next(x for x in c.get(f"{base}/tours/{t['id']}/costs").json()["lines"] if x["vendor"]["id"] == bus["id"])
+    assert line["quantity"] == 2

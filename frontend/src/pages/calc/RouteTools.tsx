@@ -11,7 +11,7 @@ import { useWorkspace } from '../../lib/session'
 import { money } from '../../lib/utils'
 
 type Edit = (fn: (d: QuoteDoc) => void) => void
-interface Filled { days: number; nights: QuoteNight[]; items: QuoteItem[]; fx: QuoteDoc['fx']; warnings: string[] }
+interface Filled { days: number; km: number; bus_extra_days: number; bus_planned: boolean; nights: QuoteNight[]; items: QuoteItem[]; fx: QuoteDoc['fx']; warnings: string[] }
 interface Repriced {
   doc: QuoteDoc; warnings: string[]; unlinked: number
   changes: { kind: 'night' | 'item'; id: string; name: string; currency: string; before: number | null; after: number | null }[]
@@ -52,6 +52,10 @@ export function FillFromRoute({ doc, edit, onClose }: { doc: QuoteDoc; edit: Edi
         d.items = [...r.items, ...d.items.filter((i) => !replaced(i))]
         for (const [cur, rate] of Object.entries(r.fx)) if (!(cur in d.fx)) d.fx[cur] = rate
         if (!d.valid_from) d.valid_from = onDate
+        // The agency's own inputs (the ZK sheet): km driven, with the bus's drives to the start and back,
+        // and the bus days without the group. A route without km keeps what is typed.
+        if ('km_route' in d.variables && r.km) d.variables.km_route = String(r.km)
+        if ('bus_extra_days' in d.variables && r.bus_planned) d.variables.bus_extra_days = String(r.bus_extra_days)
       })
       if (r.warnings.length) setWarnings(r.warnings)
       else onClose()

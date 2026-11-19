@@ -139,9 +139,12 @@ export interface Series {
   id: string; code: string; name: string; color: SeriesColor; notes: string; days: (DayFields & { day_number: number })[]
   staff_plan?: StaffPlanItem[]
   bus_return?: BusReturn | null
+  bus_start?: BusStart | null
 }
 /** The bus back to its garage after the last day: that day, or the next (one more bus day). */
 export interface BusReturn { on: 'last' | 'next'; to: string; km: number | null }
+/** The bus from its garage to where the tour starts (a border): on day 1, or the day before (one more bus day). */
+export interface BusStart { on: 'first' | 'before'; town: string; km: number | null }
 /** Who works which days of a route (vendor_id null: still to choose — priced as "Guide · days 6–7"). */
 export interface StaffPlanItem { role: StaffRole; from_day: number; to_day: number | null; vendor_id: string | null; label: string }
 export interface TourSummary {
@@ -170,6 +173,7 @@ export interface TourDay {
 export interface Tour extends TourSummary {
   notes: string; days: TourDay[]
   bus_return?: BusReturn | null
+  bus_start?: BusStart | null
   price_pp: number | null; price_currency: string | null   // managers only
   leaders?: number; staff_table?: boolean   // of pax, free tour leaders · leader + driver + guide eat at their own table
   leader_seat?: MealSeat | null             // where the tour leaders eat (null: the staff table)
