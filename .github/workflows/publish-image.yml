@@ -1,0 +1,49 @@
+# After the tests pass on main: build the app's container and publish it to GitHub's registry
+# (ghcr.io/potmoonwind-tech/tourcrm: one tag per commit, and "latest"). No AWS access here: the
+# Lightsail service takes the image by its address - deploy/lightsail.sh deploy <tag>.
+name: Publish image
+
+on:
+  workflow_run:
+    workflows: [Tests]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: publish-image
+  cancel-in-progress: true
+
+jobs:
+  publish:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Image name and tag
+        id: tag
+        run: |
+          echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse --short=12 HEAD)" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: |
+            ${{ steps.tag.outputs.image }}:${{ steps.tag.outputs.sha }}
+            ${{ steps.tag.outputs.image }}:latest
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ steps.tag.outputs.sha }}
+      - run: echo "Published ${{ steps.tag.outputs.image }}:${{ steps.tag.outputs.sha }} - deploy it with deploy/lightsail.sh deploy ${{ steps.tag.outputs.sha }}"
