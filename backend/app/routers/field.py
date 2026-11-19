@@ -13,8 +13,7 @@ import secrets
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -408,12 +407,12 @@ def field_unreport(token: str, entry_id: str, request: Request, db: Session = De
     return _money_view(db, s, s.tour)
 
 
-def _receipt(e: FieldExpense) -> FileResponse:
-    found = storage.open_image(e.receipt_key or "")
+def _receipt(e: FieldExpense) -> Response:
+    found = storage.read_image(e.receipt_key or "")
     if not found:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "No photo")
-    path, media = found
-    return FileResponse(path, media_type=media, headers={"Cache-Control": "private, max-age=3600"})
+    data, media = found
+    return Response(data, media_type=media, headers={"Cache-Control": "private, max-age=3600"})
 
 
 @router.get("/api/field/{token}/expenses/{entry_id}/receipt")

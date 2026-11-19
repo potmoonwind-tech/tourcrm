@@ -3,8 +3,7 @@ made from the tour as it is now, shown by link (/present/<token>) and printed to
 import secrets
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, Request, Response, UploadFile, status
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
@@ -145,12 +144,12 @@ def delete_photo(photo_id: str, ctx: WorkspaceCtx = Depends(office), db: Session
     db.commit()
 
 
-def _file(p: Photo) -> FileResponse:
-    found = storage.open_image(p.storage_key or "")
+def _file(p: Photo) -> Response:
+    found = storage.read_image(p.storage_key or "")
     if not found:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Photo not found")
-    path, media = found
-    return FileResponse(path, media_type=media, headers={"Cache-Control": "private, max-age=86400"})
+    data, media = found
+    return Response(data, media_type=media, headers={"Cache-Control": "private, max-age=86400"})
 
 
 @router.get("/photos/{photo_id}/file")

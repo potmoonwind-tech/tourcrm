@@ -1,0 +1,95 @@
+# After the tests pass on main: build the app's container and put it live on AWS Lightsail
+# (container service "tourcrm", Frankfurt). Needs the repository secrets below; without
+# LIGHTSAIL_ACCESS_KEY_ID it does nothing (so it can sit here before AWS is set up).
+#
+# Secrets (GitHub > Settings > Secrets and variables > Actions):
+#   LIGHTSAIL_ACCESS_KEY_ID / LIGHTSAIL_SECRET_ACCESS_KEY  an IAM user allowed to deploy to Lightsail
+#   DATABASE_URL       the Lightsail database (postgresql://user:password@host:5432/tourcrm)
+#   SECRET_KEY         a long random string (signs the logins)
+#   APP_URL            the site's address (https://tourcrm.xxxx.eu-central-1.cs.amazonlightsail.com)
+#   S3_BUCKET          the Lightsail bucket for uploaded photos
+#   BUCKET_ACCESS_KEY_ID / BUCKET_SECRET_ACCESS_KEY  the bucket's own access key
+#   optional: ANTHROPIC_API_KEY, GOOGLE_MAPS_KEY, GOOGLE_MAPS_BROWSER_KEY
+name: Deploy to Lightsail
+
+on:
+  workflow_run:
+    workflows: [Tests]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-lightsail
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-central-1
+  SERVICE: tourcrm
+
+jobs:
+  deploy:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Is AWS set up?
+        id: ready
+        env:
+          KEY: ${{ secrets.LIGHTSAIL_ACCESS_KEY_ID }}
+        run: |
+          if [ -z "$KEY" ]; then echo "No AWS keys yet: nothing deployed."; echo "go=false" >> "$GITHUB_OUTPUT"; else echo "go=true" >> "$GITHUB_OUTPUT"; fi
+
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.go == 'true'
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        if: steps.ready.outputs.go == 'true'
+        with:
+          aws-access-key-id: ${{ secrets.LIGHTSAIL_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.LIGHTSAIL_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Build the container
+        if: steps.ready.outputs.go == 'true'
+        run: docker build -t tourcrm:latest .
+
+      - name: Push it to Lightsail
+        if: steps.ready.outputs.go == 'true'
+        id: push
+        run: |
+          sudo curl -sSfL "https://s3.us-west-2.amazonaws.com/lightsailctl/latest/linux-amd64/lightsailctl" -o /usr/local/bin/lightsailctl
+          sudo chmod +x /usr/local/bin/lightsailctl
+          out=$(aws lightsail push-container-image --service-name "$SERVICE" --label app --image tourcrm:latest)
+          echo "$out"
+          image=$(echo "$out" | grep -oE '":'"$SERVICE"'\.app\.[0-9]+"' | tail -1 | tr -d '"')
+          echo "image=$image" >> "$GITHUB_OUTPUT"
+
+      - name: Deploy
+        if: steps.ready.outputs.go == 'true'
+        env:
+          IMAGE: ${{ steps.push.outputs.image }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          SECRET_KEY: ${{ secrets.SECRET_KEY }}
+          APP_URL: ${{ secrets.APP_URL }}
+          S3_BUCKET: ${{ secrets.S3_BUCKET }}
+          BUCKET_KEY: ${{ secrets.BUCKET_ACCESS_KEY_ID }}
+          BUCKET_SECRET: ${{ secrets.BUCKET_SECRET_ACCESS_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GOOGLE_MAPS_KEY: ${{ secrets.GOOGLE_MAPS_KEY }}
+          GOOGLE_MAPS_BROWSER_KEY: ${{ secrets.GOOGLE_MAPS_BROWSER_KEY }}
+        run: |
+          jq -n --arg image "$IMAGE" \
+            --arg db "$DATABASE_URL" --arg secret "$SECRET_KEY" --arg url "$APP_URL" \
+            --arg bucket "$S3_BUCKET" --arg region "$AWS_REGION" --arg bkey "$BUCKET_KEY" --arg bsecret "$BUCKET_SECRET" \
+            --arg ai "$ANTHROPIC_API_KEY" --arg gm "$GOOGLE_MAPS_KEY" --arg gmb "$GOOGLE_MAPS_BROWSER_KEY" \
+            '{app: {image: $image, ports: {"8000": "HTTP"}, environment: ({
+               DATABASE_URL: $db, SECRET_KEY: $secret, APP_URL: $url, PORT: "8000",
+               S3_BUCKET: $bucket, S3_REGION: $region, AWS_ACCESS_KEY_ID: $bkey, AWS_SECRET_ACCESS_KEY: $bsecret,
+               ANTHROPIC_API_KEY: $ai, GOOGLE_MAPS_KEY: $gm, GOOGLE_MAPS_BROWSER_KEY: $gmb
+             } | with_entries(select(.value != "")))}}' > containers.json
+          jq -n '{containerName: "app", containerPort: 8000, healthCheck: {path: "/health", intervalSeconds: 30}}' > endpoint.json
+          aws lightsail create-container-service-deployment --service-name "$SERVICE" \
+            --containers file://containers.json --public-endpoint file://endpoint.json > /dev/null
+          echo "Deploying $IMAGE: Lightsail switches over when the new container answers /health."

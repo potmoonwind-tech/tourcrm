@@ -19,6 +19,11 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
     invite_days: int = 7
     upload_dir: str = "./uploads"       # receipt photos (app/storage.py)
+    # A bucket for uploaded files (a server's own disk is wiped on deploy): Lightsail / S3. Its keys are
+    # the usual AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY environment variables.
+    s3_bucket: str = ""
+    s3_region: str = ""
+    s3_endpoint: str = ""                # only for a non-AWS S3 (empty: AWS's own for the region)
     # Setup assistant (app/ai). The key stays on the server; each agency gets a monthly allowance.
     anthropic_api_key: str = ""
     anthropic_workspace_id: str = ""     # only for a key that isn't scoped to a Console workspace
